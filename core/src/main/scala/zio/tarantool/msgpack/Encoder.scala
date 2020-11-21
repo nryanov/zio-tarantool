@@ -3,7 +3,7 @@ package zio.tarantool.msgpack
 import scodec.{Attempt, Codec, Err}
 import scodec.bits.ByteVector
 
-trait Encoder[A] { self =>
+trait Encoder[A] extends Serializable { self =>
   def encode(v: A): Attempt[MessagePack]
 
   def decode(v: MessagePack): Attempt[A]
@@ -21,6 +21,12 @@ object Encoder {
 
   private def fail(valueType: String, value: MessagePack): Attempt[Nothing] =
     Attempt.failure(Err(s"Error while unpacking $valueType: $value"))
+
+  implicit val messagePackEncoder: Encoder[MessagePack] = new Encoder[MessagePack] {
+    override def encode(v: MessagePack): Attempt[MessagePack] = Attempt.successful(v)
+
+    override def decode(v: MessagePack): Attempt[MessagePack] = Attempt.successful(v)
+  }
 
   implicit val byteEncoder: Encoder[Byte] = new Encoder[Byte] {
     override def encode(v: Byte): Attempt[MessagePack] =
