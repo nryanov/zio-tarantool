@@ -2,23 +2,7 @@ package zio.tarantool.msgpack
 
 import scodec.bits.ByteVector
 
-sealed trait MessagePack { self =>
-
-  /** Used for getting message size */
-  final def toNumber: Long = self match {
-    case MpPositiveFixInt(value) => value
-    case MpUint8(value)          => value
-    case MpUint16(value)         => value
-    case MpUint32(value)         => value
-    case MpUint64(value)         => value
-    case MpInt8(value)           => value
-    case MpInt16(value)          => value
-    case MpInt32(value)          => value
-    case MpInt64(value)          => value
-    case MpNegativeFixInt(value) => value
-    case _                       => throw new RuntimeException("Not a natural number")
-  }
-}
+sealed trait MessagePack
 
 sealed trait MpArray extends MessagePack {
   def value: Vector[MessagePack]

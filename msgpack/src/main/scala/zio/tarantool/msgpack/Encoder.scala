@@ -8,6 +8,10 @@ trait Encoder[A] extends Serializable { self =>
 
   def decode(v: MessagePack): Attempt[A]
 
+  final def encodeUnsafe(v: A): MessagePack = encode(v).require
+
+  final def decodeUnsafe(v: MessagePack): A = decode(v).require
+
   final def xmap[B](f: A => B, g: B => A): Encoder[B] = new Encoder[B] {
     override def encode(v: B): Attempt[MessagePack] = self.encode(g(v))
 
