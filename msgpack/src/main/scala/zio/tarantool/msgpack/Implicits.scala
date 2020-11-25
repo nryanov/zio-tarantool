@@ -2,6 +2,7 @@ package zio.tarantool.msgpack
 
 import scodec.bits.{BitVector, ByteVector}
 import scodec.{Attempt, Codec}
+import zio.tarantool.msgpack.MessagePackException.UnexpectedMessagePackType
 
 object Implicits {
   implicit class RichMessagePack(v: MessagePack) {
@@ -19,12 +20,12 @@ object Implicits {
       case MpInt32(value)          => value
       case MpInt64(value)          => value
       case MpNegativeFixInt(value) => value
-      case _                       => throw new RuntimeException("Not a natural number")
+      case _                       => throw UnexpectedMessagePackType("Not a natural number")
     }
 
     final def toMap: MpMap = v match {
       case v: MpMap => v
-      case _        => throw new RuntimeException("Not a MpMap")
+      case _        => throw UnexpectedMessagePackType("Not a MpMap")
     }
   }
 

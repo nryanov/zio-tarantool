@@ -1,71 +1,61 @@
-package zio.tarantool
+package zio.tarantool.impl
 
 import zio._
-import zio.tarantool.TarantoolClient.TarantoolClientService
-import zio.tarantool.TarantoolClientImpl.EmptyBody
-import zio.tarantool.TarantoolConnection.TarantoolConnectionService
-import zio.tarantool.msgpack._
-import zio.tarantool.msgpack.Implicits.RichMessagePack
+import zio.tarantool.impl.TarantoolClientLive.EmptyBody
 import zio.tarantool.msgpack.Encoder.{longEncoder, mapEncoder, messagePackEncoder, stringEncoder}
-import zio.tarantool.protocol.{IteratorCode, Key, MessagePackPacket, OperationCode}
+import zio.tarantool.msgpack.Implicits.RichMessagePack
+import zio.tarantool.msgpack._
+import zio.tarantool.protocol.{IteratorCode, Key, OperationCode}
+import zio.tarantool.{TarantoolClient, TarantoolConnection}
 
-final class TarantoolClientImpl(tarantoolConnection: TarantoolConnection.Service) extends TarantoolClient.Service {
-  override def ping(): Task[MessagePackPacket] = for {
-    packet <- ZIO.effectTotal(tarantoolConnection.createPacket(OperationCode.Ping, None, EmptyBody))
-    response <- writeAndRead(packet)
+final class TarantoolClientLive(connection: TarantoolConnection.Service) extends TarantoolClient.Service {
+  override def ping(): Task[MessagePack] = for {
+    response <- writeAndRead(OperationCode.Ping, EmptyBody)
   } yield response
 
-  override def select(spaceId: Int, indexId: Int, limit: Int, offset: Int, iterator: IteratorCode, key: MpArray): Task[MessagePackPacket] =
+  override def select(spaceId: Int, indexId: Int, limit: Int, offset: Int, iterator: IteratorCode, key: MpArray): Task[MessagePack] =
     for {
       body <- ZIO.effect(selectBody(spaceId, indexId, limit, offset, iterator, key))
-      packet <- ZIO.effectTotal(tarantoolConnection.createPacket(OperationCode.Select, None, body))
-      response <- writeAndRead(packet)
+      response <- writeAndRead(OperationCode.Select, body)
     } yield response
 
-  override def insert(spaceId: Int, tuple: MpArray): Task[MessagePackPacket] = for {
+  override def insert(spaceId: Int, tuple: MpArray): Task[MessagePack] = for {
     body <- ZIO.effect(insertBody(spaceId, tuple))
-    packet <- ZIO.effectTotal(tarantoolConnection.createPacket(OperationCode.Insert, None, body))
-    response <- writeAndRead(packet)
+    response <- writeAndRead(OperationCode.Insert, body)
   } yield response
 
-  override def update(spaceId: Int, indexId: Int, key: MpArray, tuple: MpArray): Task[MessagePackPacket] = for {
+  override def update(spaceId: Int, indexId: Int, key: MpArray, tuple: MpArray): Task[MessagePack] = for {
     body <- ZIO.effect(updateBody(spaceId, indexId, key, tuple))
-    packet <- ZIO.effectTotal(tarantoolConnection.createPacket(OperationCode.Update, None, body))
-    response <- writeAndRead(packet)
+    response <- writeAndRead(OperationCode.Update, body)
   } yield response
 
-  override def delete(spaceId: Int, indexId: Int, key: MpArray): Task[MessagePackPacket] = for {
+  override def delete(spaceId: Int, indexId: Int, key: MpArray): Task[MessagePack] = for {
     body <- ZIO.effect(deleteBody(spaceId, indexId, key))
-    packet <- ZIO.effectTotal(tarantoolConnection.createPacket(OperationCode.Delete, None, body))
-    response <- writeAndRead(packet)
+    response <- writeAndRead(OperationCode.Delete, body)
   } yield response
 
-  override def upsert(spaceId: Int, indexId: Int, key: MpArray, tuple: MpArray): Task[MessagePackPacket] = for {
+  override def upsert(spaceId: Int, indexId: Int, key: MpArray, tuple: MpArray): Task[MessagePack] = for {
     body <- ZIO.effect(upsertBody(spaceId, indexId, key, tuple))
-    packet <- ZIO.effectTotal(tarantoolConnection.createPacket(OperationCode.Upsert, None, body))
-    response <- writeAndRead(packet)
+    response <- writeAndRead(OperationCode.Upsert, body)
   } yield response
 
-  override def replace(spaceId: Int, tuple: MpArray): Task[MessagePackPacket] = for {
+  override def replace(spaceId: Int, tuple: MpArray): Task[MessagePack] = for {
     body <- ZIO.effect(replaceBody(spaceId, tuple))
-    packet <- ZIO.effectTotal(tarantoolConnection.createPacket(OperationCode.Replace, None, body))
-    response <- writeAndRead(packet)
+    response <- writeAndRead(OperationCode.Replace, body)
   } yield response
 
-  override def call(functionName: String, tuple: MpArray): Task[MessagePackPacket] = for {
+  override def call(functionName: String, tuple: MpArray): Task[MessagePack] = for {
     body <- ZIO.effect(callBody(functionName, tuple))
-    packet <- ZIO.effectTotal(tarantoolConnection.createPacket(OperationCode.Call, None, body))
-    response <- writeAndRead(packet)
+    response <- writeAndRead(OperationCode.Call, body)
   } yield response
 
-  override def eval(expression: String, tuple: MpArray): Task[MessagePackPacket] = for {
+  override def eval(expression: String, tuple: MpArray): Task[MessagePack] = for {
     body <- ZIO.effect(evalBody(expression, tuple))
-    packet <- ZIO.effectTotal(tarantoolConnection.createPacket(OperationCode.Eval, None, body))
-    response <- writeAndRead(packet)
+    response <- writeAndRead(OperationCode.Eval, body)
   } yield response
 
-  private def writeAndRead(packet: MessagePackPacket): Task[MessagePackPacket] =
-    tarantoolConnection.writePacket(packet) *> tarantoolConnection.readPacket()
+  private def writeAndRead(op: OperationCode, body: MpMap): Task[MessagePack] =
+    connection.write(op, body) *> connection.read()
 
   private def selectBody(spaceId: Int, indexId: Int, limit: Int, offset: Int, iterator: IteratorCode, key: MpArray)(
     implicit mapEncoder: Encoder[Map[MessagePack, MessagePack]],
@@ -173,9 +163,6 @@ final class TarantoolClientImpl(tarantoolConnection: TarantoolConnection.Service
     .toMap
 }
 
-object TarantoolClientImpl {
+object TarantoolClientLive {
   private val EmptyBody: MpMap = MpFixMap(Map.empty)
-
-  def live: ZLayer[TarantoolConnectionService, Nothing, TarantoolClientService] =
-    ZLayer.fromService(new TarantoolClientImpl(_))
 }
