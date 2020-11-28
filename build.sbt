@@ -4,10 +4,13 @@ val scodecVersion = "1.11.7"
 val scodecBitsVersion = "1.1.17"
 val shapelessVersion = "2.3.3"
 val enumeratumVersion = "1.6.1"
+val slf4jVersion = "1.7.30"
 val scalatestVersion = "3.2.0"
 val scalacheckPlusVersion = "3.2.0.0"
 val scalamockVersion = "5.0.0"
 val scalacheckVersion = "1.14.3"
+val testContainersVersion = "0.38.7"
+val logbackVersion = "1.2.3"
 
 val compilerOptions = Seq(
   "-deprecation",
@@ -32,7 +35,8 @@ lazy val commonSettings = Seq(
     "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     "org.scalatestplus" %% "scalacheck-1-14" % scalacheckPlusVersion % Test,
     "org.scalamock" %% "scalamock" % scalamockVersion % Test,
-    "org.scalacheck" %% "scalacheck" % scalacheckVersion % Test
+    "org.scalacheck" %% "scalacheck" % scalacheckVersion % Test,
+    "ch.qos.logback" % "logback-classic" % logbackVersion % Test
   ),
   scalacOptions ++= compilerOptions,
   Test / parallelExecution := false
@@ -69,9 +73,10 @@ lazy val core = project
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio" % zioVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
-      "dev.zio" %% "zio-macros" % zioVersion,
       "dev.zio" %% "zio-logging" % zioLoggingVersion,
-      "dev.zio" %% "zio-test" % zioVersion % Test
+      "org.slf4j" % "slf4j-api" % slf4jVersion,
+      "dev.zio" %% "zio-test" % zioVersion % Test,
+      "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test
     ),
     scalacOptions ++= compilerOptions
   )

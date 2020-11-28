@@ -3,19 +3,19 @@ package zio.tarantool
 import java.nio.ByteBuffer
 
 import zio.tarantool.impl.PacketManagerLive
-import zio.{Has, RIO, Task, ULayer, ZIO, ZLayer}
-import zio.tarantool.msgpack.{Encoder, MessagePack, MpMap}
+import zio.{Has, RIO, ULayer, ZIO, ZLayer}
+import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.{MessagePackPacket, OperationCode}
 
 object PacketManager {
   type PacketManager = Has[Service]
 
-  trait Service {
+  trait Service extends Serializable {
     def createPacket(
       op: OperationCode,
       syncId: Long,
       schemaId: Option[Long],
-      body: MpMap
+      body: Map[Long, MessagePack]
     ): ZIO[Any, Throwable, MessagePackPacket]
 
     def toBuffer(packet: MessagePackPacket): ZIO[Any, Throwable, ByteBuffer]
@@ -26,11 +26,18 @@ object PacketManager {
 
     def extractData(packet: MessagePackPacket): ZIO[Any, Throwable, MessagePack]
 
+    def extractSyncId(packet: MessagePackPacket): ZIO[Any, Throwable, Long]
+
   }
 
   val live: ULayer[PacketManager] = ZLayer.succeed(new PacketManagerLive)
 
-  def createPacket(op: OperationCode, syncId: Long, schemaId: Option[Long], body: MpMap): RIO[PacketManager, MessagePackPacket] =
+  def createPacket(
+    op: OperationCode,
+    syncId: Long,
+    schemaId: Option[Long],
+    body: Map[Long, MessagePack]
+  ): RIO[PacketManager, MessagePackPacket] =
     ZIO.accessM(_.get.createPacket(op, syncId, schemaId, body))
 
   def toBuffer(packet: MessagePackPacket): RIO[PacketManager, ByteBuffer] =
@@ -44,5 +51,8 @@ object PacketManager {
 
   def extractData(packet: MessagePackPacket): RIO[PacketManager, MessagePack] =
     ZIO.accessM(_.get.extractData(packet))
+
+  def extractSyncId(packet: MessagePackPacket): RIO[PacketManager, Long] =
+    ZIO.accessM(_.get.extractSyncId(packet))
 
 }

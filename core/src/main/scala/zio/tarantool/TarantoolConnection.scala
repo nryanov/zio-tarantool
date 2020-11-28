@@ -1,55 +1,46 @@
 package zio.tarantool
 
-import java.io.IOException
-import java.net.InetSocketAddress
-import java.nio.channels.AsynchronousSocketChannel
-import java.time.Duration
-
 import zio.tarantool.protocol.{AuthInfo, OperationCode}
 import zio.tarantool.msgpack._
 import zio._
-import zio.blocking.Blocking
-import zio.clock.Clock
-import zio.interop.javaz.fromFutureJava
+import zio.tarantool.BackgroundReader.BackgroundReader
 import zio.tarantool.PacketManager.PacketManager
+import zio.tarantool.SocketChannelProvider.SocketChannelProvider
 import zio.tarantool.impl.TarantoolConnectionLive
 
 object TarantoolConnection {
 
   type TarantoolConnection = Has[Service]
 
-  trait Service {
-    def connect(): ZIO[Any, IOException, Unit]
+  trait Service extends Serializable {
+    def connect(): ZIO[Any, Throwable, Unit]
 
-    def connect(authInfo: AuthInfo): ZIO[Any, IOException, Unit]
+    def connect(authInfo: AuthInfo): ZIO[Any, Throwable, Unit]
 
-    def read(): ZIO[Any, Throwable, MessagePack]
+    def send(op: OperationCode, body: Map[Long, MessagePack]): ZIO[Any, Throwable, TarantoolOperation]
 
-    def write(op: OperationCode, body: MpMap): ZIO[Any, Throwable, Int]
+    def close(): ZIO[Any, Throwable, Unit]
   }
 
-  def live: ZLayer[Blocking with Clock with Has[ClientConfig] with PacketManager, Throwable, TarantoolConnection] =
-    ZLayer.fromEffect {
-      for {
-        config <- ZIO.service[ClientConfig]
-        manager <- ZIO.service[PacketManager.Service]
-        connection <- ZIO
-          .effect(AsynchronousSocketChannel.open())
-          .tap { channel =>
-            ZIO
-              .effect(new InetSocketAddress(config.host, config.port))
-              .flatMap(address => fromFutureJava(channel.connect(address)).timeout(Duration.ofSeconds(5))) // todo: move to config
-          }
-          .map(channel => new TarantoolConnectionLive(channel, manager))
-          .tap(connection => connection.connect())
-      } yield connection
-    }
+  def live: ZLayer[SocketChannelProvider with PacketManager with BackgroundReader, Throwable, TarantoolConnection] =
+    ZManaged
+      .make(
+        for {
+          backgroundReader <- ZIO.service[BackgroundReader.Service]
+          channelProvider <- ZIO.service[SocketChannelProvider.Service]
+          manager <- ZIO.service[PacketManager.Service]
+          connection = new TarantoolConnectionLive(channelProvider, manager, backgroundReader)
+          _ <- connection.connect()
+        } yield connection
+      )(connection => connection.close().orDie)
+      .toLayer
 
-  def connect(): ZIO[TarantoolConnection, IOException, Unit] = ZIO.accessM(_.get.connect())
+  def connect(): ZIO[TarantoolConnection, Throwable, Unit] = ZIO.accessM(_.get.connect())
 
-  def connect(authInfo: AuthInfo): ZIO[TarantoolConnection, IOException, Unit] = ZIO.accessM(_.get.connect(authInfo))
+  def connect(authInfo: AuthInfo): ZIO[TarantoolConnection, Throwable, Unit] = ZIO.accessM(_.get.connect(authInfo))
 
-  def read(): ZIO[TarantoolConnection, Throwable, MessagePack] = ZIO.accessM(_.get.read())
+  def send(op: OperationCode, body: Map[Long, MessagePack]): ZIO[TarantoolConnection, Throwable, TarantoolOperation] =
+    ZIO.accessM(_.get.send(op, body))
 
-  def write(op: OperationCode, body: MpMap): ZIO[TarantoolConnection, Throwable, Int] = ZIO.accessM(_.get.write(op, body))
+  def close(): ZIO[TarantoolConnection, Throwable, Unit] = ZIO.accessM(_.get.close())
 }

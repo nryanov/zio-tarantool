@@ -1,7 +1,7 @@
 package zio.tarantool.msgpack
 
 import scodec.bits.{BitVector, ByteVector}
-import scodec.{Attempt, Codec}
+import scodec.Attempt
 import zio.tarantool.msgpack.MessagePackException.UnexpectedMessagePackType
 
 object Implicits {

@@ -1,66 +1,72 @@
 package zio.tarantool.impl
 
 import java.io.IOException
-import java.lang.{Integer => JInteger}
 import java.nio.ByteBuffer
-import java.nio.channels.AsynchronousSocketChannel
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
-import scodec.bits.ByteVector
 import zio.{ZIO, _}
-import zio.interop.javaz._
 import zio.tarantool.impl.TarantoolConnectionLive.TarantoolOperationException
-import zio.tarantool.{PacketManager, TarantoolConnection}
-import zio.tarantool.msgpack.Implicits._
-import zio.tarantool.msgpack.{MessagePack, MpMap}
+import zio.tarantool.internal.Logging
+import zio.tarantool.{BackgroundReader, PacketManager, SocketChannelProvider, TarantoolConnection, TarantoolOperation}
+import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.Constants._
 import zio.tarantool.protocol.{AuthInfo, Code, MessagePackPacket, OperationCode}
 
 import scala.util.control.NoStackTrace
 
-// todo: probably, we should use SocketChannel with Selector
-final class TarantoolConnectionLive(channel: AsynchronousSocketChannel, packetManager: PacketManager.Service)
-    extends TarantoolConnection.Service {
-  private val syncId = new AtomicLong(0)
+final class TarantoolConnectionLive(
+  channel: SocketChannelProvider.Service,
+  packetManager: PacketManager.Service,
+  backgroundReader: BackgroundReader.Service
+) extends TarantoolConnection.Service
+    with Logging {
 
-  def connect(): ZIO[Any, IOException, Unit] =
-    greeting().refineToOrDie[IOException].unit
+  private val syncId: AtomicLong = new AtomicLong(0)
+  private val operationResultMap: ConcurrentHashMap[Long, TarantoolOperation] = new ConcurrentHashMap[Long, TarantoolOperation]()
 
-  def connect(authInfo: AuthInfo): IO[IOException, Unit] = ???
+  def connect(): ZIO[Any, Throwable, Unit] =
+    greeting().flatMap(_ => channel.blockingMode(false)).flatMap(_ => backgroundReader.start(complete)).orDie.unit
 
-  override def read(): ZIO[Any, Throwable, MessagePack] = for {
-    buffer <- ZIO.effectTotal(ByteBuffer.allocate(MessageSizeLength))
-    bytes <- effectAsyncWithCompletionHandler[JInteger](handler => channel.read(buffer, (), handler))
-    vector = ByteVector(buffer.flip())
-    size <- ZIO.effect(vector.decode().require.toNumber.toInt)
-    messageBuffer <- ZIO.effectTotal(ByteBuffer.allocate(size))
-    _ <- effectAsyncWithCompletionHandler[JInteger](handler => channel.read(messageBuffer, (), handler))
-    packet <- ZIO.effect(MessagePackPacket.messagePackPacketCodec.decodeValue(ByteVector(messageBuffer.flip()).toBitVector).require)
-    data <- getDataOrFail(packet)
-  } yield data
+  def connect(authInfo: AuthInfo): IO[Throwable, Unit] = ???
 
-  override def write(op: OperationCode, body: MpMap): ZIO[Any, Throwable, Int] = for {
-    packet <- packetManager.createPacket(op, syncId.incrementAndGet(), None, body)
-    buffer <- packetManager.toBuffer(packet)
-    dataSent <- effectAsyncWithCompletionHandler[JInteger](handler => channel.write(buffer, (), handler))
-  } yield dataSent
+  override def send(op: OperationCode, body: Map[Long, MessagePack]): ZIO[Any, Throwable, TarantoolOperation] = {
+    val id = syncId.incrementAndGet()
+    for {
+      packet <- packetManager.createPacket(op, id, None, body)
+      buffer <- packetManager.toBuffer(packet)
+      promise <- Promise.make[Throwable, MessagePack]
+      operation = TarantoolOperation(id, promise)
+      _ <- ZIO.effectTotal(operationResultMap.put(id, operation))
+      dataSent <- channel.write(buffer)
+      _ <- debug(s"Bytes sent: $dataSent")
+    } yield operation
+  }
 
-  private def getDataOrFail(packet: MessagePackPacket): ZIO[Any, Throwable, MessagePack] =
-    ZIO.ifM(packetManager.extractCode(packet).map(_ == Code.Success.value))(
-      packetManager.extractData(packet),
-      packetManager.extractError(packet).flatMap(error => ZIO.fail(TarantoolOperationException(error)))
-    )
+  override def close(): ZIO[Any, Throwable, Unit] = ZIO.effect(channel.close())
 
   private def greeting(): ZIO[Any, Throwable, String] = for {
     buffer <- ZIO(ByteBuffer.allocate(GreetingLength))
-    _ <- effectAsyncWithCompletionHandler[JInteger](handler => channel.read(buffer, (), handler))
+    bytes <- channel.read(buffer)
     firstLine <- ZIO(new String(buffer.array()))
+    _ <- info(firstLine)
     _ <- ZIO.effectTotal(buffer.clear())
-    _ <- effectAsyncWithCompletionHandler[JInteger](handler => channel.read(buffer, (), handler))
+    bytes <- channel.read(buffer)
     salt <- ZIO(new String(buffer.array()))
   } yield salt
 
   private def auth(): IO[IOException, Unit] = ???
+
+  private def complete(packet: MessagePackPacket): ZIO[Any, Throwable, Unit] =
+    for {
+      syncId <- packetManager.extractSyncId(packet)
+      _ <- debug(s"Complete operation with id: $syncId")
+      operation <- ZIO.fromOption(Option(operationResultMap.get(syncId))).mapError(_ => new RuntimeException("Operation does not exist"))
+      _ <- ZIO.ifM(packetManager.extractCode(packet).map(_ == Code.Success.value))(
+        packetManager.extractData(packet).flatMap(data => operation.promise.succeed(data)),
+        packetManager.extractError(packet).flatMap(error => operation.promise.fail(TarantoolOperationException(error)))
+      )
+    } yield ()
 }
 
 object TarantoolConnectionLive {
