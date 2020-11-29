@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicLong
 import zio.{ZIO, _}
 import zio.tarantool.impl.TarantoolConnectionLive.TarantoolOperationException
 import zio.tarantool.internal.Logging
-import zio.tarantool.{BackgroundReader, PacketManager, SocketChannelProvider, TarantoolConnection, TarantoolOperation}
+import zio.tarantool.{BackgroundReader, BackgroundWriter, PacketManager, SocketChannelProvider, TarantoolConnection, TarantoolOperation}
 import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.Constants._
 import zio.tarantool.protocol.{AuthInfo, Code, MessagePackPacket, OperationCode}
@@ -18,7 +18,8 @@ import scala.util.control.NoStackTrace
 final class TarantoolConnectionLive(
   channel: SocketChannelProvider.Service,
   packetManager: PacketManager.Service,
-  backgroundReader: BackgroundReader.Service
+  backgroundReader: BackgroundReader.Service,
+  backgroundWriter: BackgroundWriter.Service
 ) extends TarantoolConnection.Service
     with Logging {
 
@@ -38,8 +39,8 @@ final class TarantoolConnectionLive(
       promise <- Promise.make[Throwable, MessagePack]
       operation = TarantoolOperation(id, promise)
       _ <- ZIO.effectTotal(operationResultMap.put(id, operation))
-      dataSent <- channel.write(buffer)
-      _ <- debug(s"Bytes sent: $dataSent")
+      dataSent <- backgroundWriter.write(buffer)
+      _ <- debug(s"Operation with id: $id was sent")
     } yield operation
   }
 
@@ -66,6 +67,8 @@ final class TarantoolConnectionLive(
         packetManager.extractData(packet).flatMap(data => operation.promise.succeed(data)),
         packetManager.extractError(packet).flatMap(error => operation.promise.fail(TarantoolOperationException(error)))
       )
+      _ <- ZIO.effect(operationResultMap.remove(syncId))
+      _ <- debug(operationResultMap.toString)
     } yield ()
 }
 

@@ -1,6 +1,6 @@
 package zio.tarantool
 
-import java.util.concurrent.{Executors, TimeUnit}
+import java.util.concurrent.{Executors, ThreadFactory, TimeUnit}
 
 import zio.test.assert
 import zio.test.Assertion._
@@ -8,6 +8,7 @@ import zio.{Has, ZIO, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.tarantool.BackgroundReader.BackgroundReader
+import zio.tarantool.BackgroundWriter.BackgroundWriter
 import zio.tarantool.SocketChannelProvider.SocketChannelProvider
 import zio.tarantool.TarantoolClient.TarantoolClient
 import zio.tarantool.TarantoolContainer.Tarantool
@@ -27,9 +28,11 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
   )
   val socketChannelProviderLayer
     : ZLayer[Tarantool, Throwable, Has[ClientConfig] with SocketChannelProvider] = configLayer >+> SocketChannelProvider.live
+  val backgroundWriterLayer: ZLayer[Tarantool, Throwable, BackgroundWriter] =
+    socketChannelProviderLayer >>> BackgroundWriter.live(ExecutionContext.fromExecutorService(Executors.newSingleThreadScheduledExecutor()))
   val backgroundReaderLayer: ZLayer[Tarantool, Throwable, BackgroundReader] =
-    socketChannelProviderLayer >>> BackgroundReader.live(ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor()))
-  val tarantoolConnectionLayer = (testEnvironment ++ socketChannelProviderLayer ++ PacketManager.live ++ backgroundReaderLayer) >>> TarantoolConnection.live
+    socketChannelProviderLayer >>> BackgroundReader.live(ExecutionContext.fromExecutorService(Executors.newSingleThreadScheduledExecutor()))
+  val tarantoolConnectionLayer = (testEnvironment ++ socketChannelProviderLayer ++ PacketManager.live ++ backgroundReaderLayer ++ backgroundWriterLayer) >>> TarantoolConnection.live
   val tarantoolClientLayer: ZLayer[Any with Tarantool, Throwable, TarantoolClient] = tarantoolConnectionLayer >>> TarantoolClient.live
   val testEnv: ZLayer[Any, Throwable, Clock with TarantoolClient] = Clock.live ++ (tarantoolLayer >>> tarantoolClientLayer)
 
@@ -39,7 +42,8 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
         for {
           _ <- TarantoolClient.eval("box.schema.create_space('test', {if_not_exists = true})", MpFixArray(Vector.empty))
           response <- TarantoolClient.eval("return box.space.test.id", MpFixArray(Vector.empty))
-          result <- response.promise.await.timeout(zio.duration.Duration(10, TimeUnit.SECONDS))
+          _ <- TarantoolClient.eval("return box.space.test.id", MpFixArray(Vector.empty))
+          result <- response.promise.await.timeout(zio.duration.Duration(5, TimeUnit.SECONDS))
         } yield {
           println(response)
           println(result)

@@ -16,7 +16,7 @@ import zio.tarantool.msgpack.MessagePackException.MessagePackEncodingException
 
 import scala.util.control.NoStackTrace
 
-class PacketManagerLive extends PacketManager.Service {
+final class PacketManagerLive extends PacketManager.Service {
   override def createPacket(
     op: OperationCode,
     syncId: Long,
