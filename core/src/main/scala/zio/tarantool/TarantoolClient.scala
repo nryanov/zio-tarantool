@@ -29,8 +29,11 @@ object TarantoolClient {
     def eval(expression: String, args: MpArray): Task[TarantoolOperation]
   }
 
-  val live: ZLayer[TarantoolConnection, Nothing, TarantoolClient] =
-    ZLayer.fromService(new TarantoolClientLive(_))
+  def live(): ZLayer[TarantoolConnection, Nothing, TarantoolClient] =
+    ZLayer.fromServiceManaged[TarantoolConnection.Service, Any, Nothing, Service](make)
+
+  def make(connection: TarantoolConnection.Service): ZManaged[Any, Nothing, Service] =
+    ZManaged.succeed(connection).map(new TarantoolClientLive(_))
 
   def ping(): RIO[TarantoolClient, TarantoolOperation] = ZIO.accessM(_.get.ping())
 

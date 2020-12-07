@@ -1,4 +1,4 @@
-package zio.tarantool.internal
+package zio.tarantool
 
 import org.slf4j.{Logger, LoggerFactory}
 import zio.{Task, ZIO}

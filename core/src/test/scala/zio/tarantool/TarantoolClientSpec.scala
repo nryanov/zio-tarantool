@@ -1,22 +1,17 @@
 package zio.tarantool
 
-import java.util.concurrent.{Executors, ThreadFactory, TimeUnit}
+import java.util.concurrent.TimeUnit
 
 import zio.test.assert
 import zio.test.Assertion._
-import zio.{Has, ZIO, ZLayer}
+import zio.{Has, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
-import zio.tarantool.BackgroundReader.BackgroundReader
-import zio.tarantool.BackgroundWriter.BackgroundWriter
-import zio.tarantool.SocketChannelProvider.SocketChannelProvider
 import zio.tarantool.TarantoolClient.TarantoolClient
+import zio.tarantool.TarantoolConnection.TarantoolConnection
 import zio.tarantool.TarantoolContainer.Tarantool
 import zio.tarantool.msgpack.MpFixArray
 import zio.test.{DefaultRunnableSpec, ZSpec, suite, testM}
-import zio.test.environment.testEnvironment
-
-import scala.concurrent.ExecutionContext
 
 object TarantoolClientSpec extends DefaultRunnableSpec {
   val tarantoolLayer: ZLayer[Any, Nothing, Tarantool] = Blocking.live >>> TarantoolContainer.tarantool()
@@ -26,13 +21,7 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
       port = container.container.getMappedPort(3301)
     )
   )
-  val socketChannelProviderLayer
-    : ZLayer[Tarantool, Throwable, Has[ClientConfig] with SocketChannelProvider] = configLayer >+> SocketChannelProvider.live
-  val backgroundWriterLayer: ZLayer[Tarantool, Throwable, BackgroundWriter] =
-    socketChannelProviderLayer >>> BackgroundWriter.live(ExecutionContext.fromExecutorService(Executors.newSingleThreadScheduledExecutor()))
-  val backgroundReaderLayer: ZLayer[Tarantool, Throwable, BackgroundReader] =
-    socketChannelProviderLayer >>> BackgroundReader.live(ExecutionContext.fromExecutorService(Executors.newSingleThreadScheduledExecutor()))
-  val tarantoolConnectionLayer = (testEnvironment ++ socketChannelProviderLayer ++ PacketManager.live ++ backgroundReaderLayer ++ backgroundWriterLayer) >>> TarantoolConnection.live
+  val tarantoolConnectionLayer: ZLayer[Tarantool, Throwable, TarantoolConnection] = configLayer >>> TarantoolConnection.live
   val tarantoolClientLayer: ZLayer[Any with Tarantool, Throwable, TarantoolClient] = tarantoolConnectionLayer >>> TarantoolClient.live
   val testEnv: ZLayer[Any, Throwable, Clock with TarantoolClient] = Clock.live ++ (tarantoolLayer >>> tarantoolClientLayer)
 

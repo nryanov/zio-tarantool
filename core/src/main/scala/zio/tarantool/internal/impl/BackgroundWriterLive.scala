@@ -1,19 +1,24 @@
-package zio.tarantool.impl
+package zio.tarantool.internal.impl
 
 import java.nio.ByteBuffer
 
+import zio.tarantool.Logging
+import zio.tarantool.internal.impl.BackgroundWriterLive._
+import zio.tarantool.internal.{BackgroundWriter, ExecutionContextManager, SocketChannelProvider}
 import zio.{Semaphore, ZIO}
-import zio.tarantool.{BackgroundWriter, SocketChannelProvider}
-import zio.tarantool.internal.Logging
 
 import scala.concurrent.ExecutionContext
 import scala.util.control.NoStackTrace
-import BackgroundWriterLive._
 
-final class BackgroundWriterLive(channelProvider: SocketChannelProvider.Service, ec: ExecutionContext, directWriteSemaphore: Semaphore)
-    extends BackgroundWriter.Service
+private[tarantool] final class BackgroundWriterLive(
+  channelProvider: SocketChannelProvider.Service,
+  ec: ExecutionContextManager,
+  directWriteSemaphore: Semaphore
+) extends BackgroundWriter.Service
     with Logging {
   def write(buffer: ByteBuffer): ZIO[Any, Throwable, Int] = directWrite(buffer)
+
+  override def close(): ZIO[Any, Throwable, Unit] = ec.shutdown()
 
   private def directWrite(buffer: ByteBuffer): ZIO[Any, Throwable, Int] = for {
     dataSent <- directWriteSemaphore.withPermit(writeFully(buffer))

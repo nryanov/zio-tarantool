@@ -1,13 +1,10 @@
 package zio.tarantool
 
-import zio.tarantool.protocol.{AuthInfo, OperationCode}
-import zio.tarantool.msgpack._
 import zio._
-import zio.tarantool.BackgroundReader.BackgroundReader
-import zio.tarantool.BackgroundWriter.BackgroundWriter
-import zio.tarantool.PacketManager.PacketManager
-import zio.tarantool.SocketChannelProvider.SocketChannelProvider
+import zio.tarantool.msgpack._
+import zio.tarantool.protocol.{AuthInfo, OperationCode}
 import zio.tarantool.impl.TarantoolConnectionLive
+import zio.tarantool.internal.{BackgroundReader, BackgroundWriter, PacketManager, SocketChannelProvider}
 
 object TarantoolConnection {
 
@@ -19,23 +16,20 @@ object TarantoolConnection {
     def connect(authInfo: AuthInfo): ZIO[Any, Throwable, Unit]
 
     def send(op: OperationCode, body: Map[Long, MessagePack]): ZIO[Any, Throwable, TarantoolOperation]
-
-    def close(): ZIO[Any, Throwable, Unit]
   }
 
-  def live: ZLayer[SocketChannelProvider with PacketManager with BackgroundReader with BackgroundWriter, Throwable, TarantoolConnection] =
-    ZManaged
-      .make(
-        for {
-          backgroundReader <- ZIO.service[BackgroundReader.Service]
-          backgroundWriter <- ZIO.service[BackgroundWriter.Service]
-          channelProvider <- ZIO.service[SocketChannelProvider.Service]
-          manager <- ZIO.service[PacketManager.Service]
-          connection = new TarantoolConnectionLive(channelProvider, manager, backgroundReader, backgroundWriter)
-          _ <- connection.connect()
-        } yield connection
-      )(connection => connection.close().orDie)
-      .toLayer
+  def live(): ZLayer[Has[ClientConfig], Throwable, TarantoolConnection] =
+    ZLayer.fromServiceManaged[ClientConfig, Any, Throwable, Service](cfg => make(cfg))
+
+  def make(config: ClientConfig): ZManaged[Any, Throwable, Service] =
+    make0(config).tapM(_.connect())
+
+  private def make0(config: ClientConfig): ZManaged[Any, Throwable, Service] = for {
+    channelProvider <- SocketChannelProvider.make(config)
+    reader <- BackgroundReader.make(channelProvider)
+    writer <- BackgroundWriter.make(channelProvider)
+    packetManager <- PacketManager.make()
+  } yield new TarantoolConnectionLive(channelProvider, packetManager, reader, writer)
 
   def connect(): ZIO[TarantoolConnection, Throwable, Unit] = ZIO.accessM(_.get.connect())
 
@@ -43,6 +37,4 @@ object TarantoolConnection {
 
   def send(op: OperationCode, body: Map[Long, MessagePack]): ZIO[TarantoolConnection, Throwable, TarantoolOperation] =
     ZIO.accessM(_.get.send(op, body))
-
-  def close(): ZIO[TarantoolConnection, Throwable, Unit] = ZIO.accessM(_.get.close())
 }

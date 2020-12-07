@@ -1,13 +1,13 @@
-package zio.tarantool
+package zio.tarantool.internal
 
 import java.nio.ByteBuffer
 
-import zio.tarantool.impl.PacketManagerLive
-import zio.{Has, RIO, ULayer, ZIO, ZLayer}
+import zio.tarantool.internal.impl.PacketManagerLive
 import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.{MessagePackPacket, OperationCode}
+import zio.{Has, RIO, ULayer, ZIO, ZManaged}
 
-object PacketManager {
+private[tarantool] object PacketManager {
   type PacketManager = Has[Service]
 
   trait Service extends Serializable {
@@ -30,7 +30,9 @@ object PacketManager {
 
   }
 
-  val live: ULayer[PacketManager] = ZLayer.succeed(new PacketManagerLive)
+  def live(): ULayer[PacketManager] = make().toLayer
+
+  def make(): ZManaged[Any, Nothing, Service] = ZManaged.succeed(new PacketManagerLive)
 
   def createPacket(
     op: OperationCode,

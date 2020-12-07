@@ -1,12 +1,13 @@
-package zio.tarantool
+package zio.tarantool.internal
 
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 
+import zio.tarantool.ClientConfig
 import zio.{Has, RIO, ZIO, ZLayer, ZManaged}
 
-object SocketChannelProvider {
+private[tarantool] object SocketChannelProvider {
   type SocketChannelProvider = Has[Service]
 
   trait Service extends Serializable {
@@ -32,15 +33,15 @@ object SocketChannelProvider {
     override def blockingMode(flag: Boolean): ZIO[Any, Throwable, Unit] = ZIO.effect(channel.configureBlocking(flag))
   }
 
-  def live: ZLayer[Has[ClientConfig], Throwable, SocketChannelProvider] =
-    ZManaged
-      .make[Has[ClientConfig], Has[ClientConfig], Throwable, SocketChannelProvider.Service](for {
-        config <- ZIO.service[ClientConfig]
-        channel <- ZIO.effect(SocketChannel.open()).tap { channel =>
-          ZIO.effect(new InetSocketAddress(config.host, config.port)).flatMap(address => ZIO.effect(channel.connect(address)))
-        }
-      } yield Live(channel))(channel => channel.close().orDie)
-      .toLayer
+  def live(): ZLayer[Has[ClientConfig], Throwable, SocketChannelProvider] =
+    ZLayer.fromServiceManaged[ClientConfig, Any, Throwable, Service](cfg => make(cfg))
+
+  def make(config: ClientConfig): ZManaged[Any, Throwable, Service] =
+    ZManaged.make[Any, Any, Throwable, SocketChannelProvider.Service](for {
+      channel <- ZIO.effect(SocketChannel.open()).tap { channel =>
+        ZIO.effect(new InetSocketAddress(config.host, config.port)).flatMap(address => ZIO.effect(channel.connect(address)))
+      }
+    } yield Live(channel))(channel => channel.close().orDie)
 
   def channel(): RIO[SocketChannelProvider, SocketChannel] =
     ZIO.access(_.get.channel)

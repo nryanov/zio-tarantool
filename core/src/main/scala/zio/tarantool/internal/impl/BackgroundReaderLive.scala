@@ -1,30 +1,32 @@
-package zio.tarantool.impl
+package zio.tarantool.internal.impl
 
 import java.nio.ByteBuffer
-import java.nio.channels.{SelectionKey, Selector}
 import java.nio.channels.spi.SelectorProvider
+import java.nio.channels.{SelectionKey, Selector}
 
 import scodec.bits.ByteVector
 import zio._
-import zio.internal.Executor
-import zio.tarantool.BackgroundReader.Service
-import zio.tarantool.SocketChannelProvider
-import zio.tarantool.impl.BackgroundReaderLive.MessagePackPacketReadError
-import zio.tarantool.internal.Logging
+import zio.tarantool.Logging
+import zio.tarantool.internal.BackgroundReader.Service
+import zio.tarantool.internal.{ExecutionContextManager, SocketChannelProvider}
+import zio.tarantool.internal.impl.BackgroundReaderLive.MessagePackPacketReadError
 import zio.tarantool.msgpack.Implicits._
 import zio.tarantool.protocol.Constants.MessageSizeLength
 import zio.tarantool.protocol.{MessagePackPacket, MessagePackPacketCodec}
 
-import scala.concurrent.ExecutionContext
 import scala.util.control.NoStackTrace
 
-final class BackgroundReaderLive(channelProvider: SocketChannelProvider.Service, ec: ExecutionContext) extends Service with Logging {
+private[tarantool] final class BackgroundReaderLive(channelProvider: SocketChannelProvider.Service, ec: ExecutionContextManager)
+    extends Service
+    with Logging {
 
   override def start(completeHandler: MessagePackPacket => ZIO[Any, Throwable, Unit]): ZIO[Any, Throwable, Unit] =
     ZIO.ifM(ZIO.succeed(channelProvider.channel.isBlocking))(
       ZIO.fail(new IllegalArgumentException("Channel should be in non-blocking mode")),
       start0(completeHandler)
     )
+
+  override def close(): ZIO[Any, Throwable, Unit] = ec.shutdown()
 
   private def start0(completeHandler: MessagePackPacket => ZIO[Any, Throwable, Unit]): ZIO[Any, Throwable, Unit] = {
     val selector: Selector = SelectorProvider.provider.openSelector

@@ -7,8 +7,8 @@ import java.util.concurrent.atomic.AtomicLong
 
 import zio.{ZIO, _}
 import zio.tarantool.impl.TarantoolConnectionLive.TarantoolOperationException
-import zio.tarantool.internal.Logging
-import zio.tarantool.{BackgroundReader, BackgroundWriter, PacketManager, SocketChannelProvider, TarantoolConnection, TarantoolOperation}
+import zio.tarantool.internal.{BackgroundReader, BackgroundWriter, PacketManager, SocketChannelProvider}
+import zio.tarantool.{Logging, TarantoolConnection, TarantoolOperation}
 import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.Constants._
 import zio.tarantool.protocol.{AuthInfo, Code, MessagePackPacket, OperationCode}
@@ -43,8 +43,6 @@ final class TarantoolConnectionLive(
       _ <- debug(s"Operation with id: $id was sent")
     } yield operation
   }
-
-  override def close(): ZIO[Any, Throwable, Unit] = ZIO.effect(channel.close())
 
   private def greeting(): ZIO[Any, Throwable, String] = for {
     buffer <- ZIO(ByteBuffer.allocate(GreetingLength))

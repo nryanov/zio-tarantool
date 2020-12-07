@@ -1,22 +1,21 @@
-package zio.tarantool.impl
+package zio.tarantool.internal.impl
 
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
 import zio.ZIO
-import zio.tarantool.PacketManager
+import zio.tarantool.internal.PacketManager
+import zio.tarantool.internal.impl.PacketManagerLive._
 import zio.tarantool.msgpack.Implicits._
-import zio.tarantool.protocol.Implicits._
+import zio.tarantool.msgpack.MessagePackException.MessagePackEncodingException
 import zio.tarantool.msgpack.{Encoder, MessagePack}
+import zio.tarantool.protocol.Implicits._
 import zio.tarantool.protocol.{Code, Key, MessagePackPacket, OperationCode}
 
 import scala.collection.mutable
-import PacketManagerLive._
-import zio.tarantool.msgpack.MessagePackException.MessagePackEncodingException
-
 import scala.util.control.NoStackTrace
 
-final class PacketManagerLive extends PacketManager.Service {
+private[tarantool] final class PacketManagerLive extends PacketManager.Service {
   override def createPacket(
     op: OperationCode,
     syncId: Long,
