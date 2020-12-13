@@ -92,4 +92,4 @@ lazy val auto = project
     ),
     scalacOptions ++= compilerOptions
   )
-  .dependsOn(msgpack)
+  .dependsOn(core)

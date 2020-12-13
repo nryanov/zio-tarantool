@@ -7,7 +7,12 @@ import java.util.concurrent.atomic.AtomicLong
 
 import zio.{ZIO, _}
 import zio.tarantool.impl.TarantoolConnectionLive.TarantoolOperationException
-import zio.tarantool.internal.{BackgroundReader, BackgroundWriter, PacketManager, SocketChannelProvider}
+import zio.tarantool.internal.{
+  BackgroundReader,
+  BackgroundWriter,
+  PacketManager,
+  SocketChannelProvider
+}
 import zio.tarantool.{Logging, TarantoolConnection, TarantoolOperation}
 import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.Constants._
@@ -23,15 +28,24 @@ final class TarantoolConnectionLive(
 ) extends TarantoolConnection.Service
     with Logging {
 
+  // todo: Ref[Long]
   private val syncId: AtomicLong = new AtomicLong(0)
-  private val operationResultMap: ConcurrentHashMap[Long, TarantoolOperation] = new ConcurrentHashMap[Long, TarantoolOperation]()
+  private val operationResultMap: ConcurrentHashMap[Long, TarantoolOperation] =
+    new ConcurrentHashMap[Long, TarantoolOperation]()
 
   def connect(): ZIO[Any, Throwable, Unit] =
-    greeting().flatMap(_ => channel.blockingMode(false)).flatMap(_ => backgroundReader.start(complete)).orDie.unit
+    greeting()
+      .flatMap(_ => channel.blockingMode(false))
+      .flatMap(_ => backgroundReader.start(complete))
+      .orDie
+      .unit
 
   def connect(authInfo: AuthInfo): IO[Throwable, Unit] = ???
 
-  override def send(op: OperationCode, body: Map[Long, MessagePack]): ZIO[Any, Throwable, TarantoolOperation] = {
+  override def send(
+    op: OperationCode,
+    body: Map[Long, MessagePack]
+  ): ZIO[Any, Throwable, TarantoolOperation] = {
     val id = syncId.incrementAndGet()
     for {
       packet <- packetManager.createPacket(op, id, None, body)
@@ -60,10 +74,14 @@ final class TarantoolConnectionLive(
     for {
       syncId <- packetManager.extractSyncId(packet)
       _ <- debug(s"Complete operation with id: $syncId")
-      operation <- ZIO.fromOption(Option(operationResultMap.get(syncId))).mapError(_ => new RuntimeException("Operation does not exist"))
+      operation <- ZIO
+        .fromOption(Option(operationResultMap.get(syncId)))
+        .mapError(_ => new RuntimeException("Operation does not exist"))
       _ <- ZIO.ifM(packetManager.extractCode(packet).map(_ == Code.Success.value))(
         packetManager.extractData(packet).flatMap(data => operation.promise.succeed(data)),
-        packetManager.extractError(packet).flatMap(error => operation.promise.fail(TarantoolOperationException(error)))
+        packetManager
+          .extractError(packet)
+          .flatMap(error => operation.promise.fail(TarantoolOperationException(error)))
       )
       _ <- ZIO.effect(operationResultMap.remove(syncId))
       _ <- debug(operationResultMap.toString)
@@ -71,5 +89,7 @@ final class TarantoolConnectionLive(
 }
 
 object TarantoolConnectionLive {
-  final case class TarantoolOperationException(reason: String) extends RuntimeException(reason) with NoStackTrace
+  final case class TarantoolOperationException(reason: String)
+      extends RuntimeException(reason)
+      with NoStackTrace
 }

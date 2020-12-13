@@ -3,9 +3,10 @@ package zio.tarantool.protocol.auto
 import org.scalatest.OptionValues
 import zio.tarantool.BaseSpec
 import zio.tarantool.msgpack.{MpFixArray, MpFixString, MpPositiveFixInt, MpTrue}
-import zio.tarantool.protocol.auto.TupleEncoder._
+import zio.tarantool.protocol.TupleEncoder
+import zio.tarantool.protocol.auto.TupleEncoderAuto._
 
-class TupleEncoderSpec extends BaseSpec with OptionValues {
+class TupleEncoderAutoSpec extends BaseSpec with OptionValues {
   final case class A(f1: Int, f2: Long, f3: String)
   final case class B(f1: Int, f2: Long, f3: String, f4: Vector[Int], f5: Option[Boolean])
 
@@ -16,7 +17,9 @@ class TupleEncoderSpec extends BaseSpec with OptionValues {
       val encoded = encoder.encode(value).toOption.value
       val decoded = encoder.decode(encoded, 0).toOption.value
 
-      encoded shouldBe MpFixArray(Vector(MpPositiveFixInt(1), MpPositiveFixInt(2), MpFixString("3")))
+      encoded shouldBe MpFixArray(
+        Vector(MpPositiveFixInt(1), MpPositiveFixInt(2), MpFixString("3"))
+      )
       decoded shouldBe value
     }
 
@@ -27,7 +30,13 @@ class TupleEncoderSpec extends BaseSpec with OptionValues {
       val decoded = encoder.decode(encoded, 0).toOption.value
 
       encoded shouldBe MpFixArray(
-        Vector(MpPositiveFixInt(1), MpPositiveFixInt(2), MpFixString("3"), MpFixArray(Vector(MpPositiveFixInt(4))), MpTrue)
+        Vector(
+          MpPositiveFixInt(1),
+          MpPositiveFixInt(2),
+          MpFixString("3"),
+          MpFixArray(Vector(MpPositiveFixInt(4))),
+          MpTrue
+        )
       )
       decoded shouldBe value
     }
@@ -38,7 +47,9 @@ class TupleEncoderSpec extends BaseSpec with OptionValues {
       val encoded = encoder.encode(value).toOption.value
       val decoded = encoder.decode(encoded, 0).toOption.value
 
-      encoded shouldBe MpFixArray(Vector(MpPositiveFixInt(1), MpPositiveFixInt(2), MpFixString("3")))
+      encoded shouldBe MpFixArray(
+        Vector(MpPositiveFixInt(1), MpPositiveFixInt(2), MpFixString("3"))
+      )
       decoded shouldBe value
     }
 
@@ -49,7 +60,13 @@ class TupleEncoderSpec extends BaseSpec with OptionValues {
       val decoded = encoder.decode(encoded, 0).toOption.value
 
       encoded shouldBe MpFixArray(
-        Vector(MpPositiveFixInt(1), MpPositiveFixInt(2), MpFixString("3"), MpFixArray(Vector(MpPositiveFixInt(4))), MpTrue)
+        Vector(
+          MpPositiveFixInt(1),
+          MpPositiveFixInt(2),
+          MpFixString("3"),
+          MpFixArray(Vector(MpPositiveFixInt(4))),
+          MpTrue
+        )
       )
       decoded shouldBe value
     }

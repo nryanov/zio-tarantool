@@ -27,7 +27,9 @@ private[tarantool] final class PacketManagerLive extends PacketManager.Service {
     for {
       _ <- ZIO.effect(headerMp += Key.Sync.value -> numberEncoder.encodeUnsafe(syncId))
       _ <- ZIO.effect(headerMp += Key.Code.value -> numberEncoder.encodeUnsafe(op.value))
-      _ <- ZIO.effect(schemaId.foreach(id => headerMp += Key.SchemaId.value -> numberEncoder.encodeUnsafe(id)))
+      _ <- ZIO.effect(
+        schemaId.foreach(id => headerMp += Key.SchemaId.value -> numberEncoder.encodeUnsafe(id))
+      )
     } yield MessagePackPacket(headerMp.toMap, body)
   }
 
@@ -40,24 +42,36 @@ private[tarantool] final class PacketManagerLive extends PacketManager.Service {
   } yield ByteBuffer.wrap(os.toByteArray)
 
   override def extractCode(packet: MessagePackPacket): ZIO[Any, Throwable, Long] = for {
-    codeMp <- ZIO.fromOption(packet.header.get(Key.Code.value)).mapError(_ => IncorrectPacket("Packet has no Code in header", packet))
-    codeValue <- ZIO.effect(numberEncoder.decodeUnsafe(codeMp)).mapError(MessagePackEncodingException)
+    codeMp <- ZIO
+      .fromOption(packet.header.get(Key.Code.value))
+      .mapError(_ => IncorrectPacket("Packet has no Code in header", packet))
+    codeValue <- ZIO
+      .effect(numberEncoder.decodeUnsafe(codeMp))
+      .mapError(MessagePackEncodingException)
     code <- if (codeValue == 0) ZIO.succeed(codeValue) else extractErrorCode(codeValue)
   } yield code
 
   override def extractError(packet: MessagePackPacket): ZIO[Any, Throwable, String] =
     extractByKey(packet, Key.Error).map(stringEncoder.decodeUnsafe)
 
-  override def extractData(packet: MessagePackPacket): ZIO[Any, Throwable, MessagePack] = extractByKey(packet, Key.Data)
+  override def extractData(packet: MessagePackPacket): ZIO[Any, Throwable, MessagePack] =
+    extractByKey(packet, Key.Data)
 
   override def extractSyncId(packet: MessagePackPacket): ZIO[Any, Throwable, Long] = for {
-    syncIdMp <- ZIO.fromOption(packet.header.get(Key.Sync.value)).mapError(_ => IncorrectPacket("Packet has no Code in header", packet))
-    syncId <- ZIO.effect(numberEncoder.decodeUnsafe(syncIdMp)).mapError(MessagePackEncodingException)
+    syncIdMp <- ZIO
+      .fromOption(packet.header.get(Key.Sync.value))
+      .mapError(_ => IncorrectPacket("Packet has no Code in header", packet))
+    syncId <- ZIO
+      .effect(numberEncoder.decodeUnsafe(syncIdMp))
+      .mapError(MessagePackEncodingException)
   } yield syncId
 
-  private def extractByKey(packet: MessagePackPacket, key: Key): ZIO[Any, Throwable, MessagePack] = for {
-    value <- ZIO.fromOption(packet.body.get(key.value)).mapError(_ => IncorrectPacket(s"Packet has no $key value in body part", packet))
-  } yield value
+  private def extractByKey(packet: MessagePackPacket, key: Key): ZIO[Any, Throwable, MessagePack] =
+    for {
+      value <- ZIO
+        .fromOption(packet.body.get(key.value))
+        .mapError(_ => IncorrectPacket(s"Packet has no $key value in body part", packet))
+    } yield value
 
   private def extractErrorCode(code: Long): ZIO[Any, IncorrectCodeFormat, Long] =
     if ((code & Code.ErrorTypeMarker.value) == 0) {
@@ -77,5 +91,7 @@ object PacketManagerLive {
       extends RuntimeException(s"Reason: $reason\nPacket: $packet")
       with NoStackTrace
 
-  final case class IncorrectCodeFormat(reason: String) extends RuntimeException(reason) with NoStackTrace
+  final case class IncorrectCodeFormat(reason: String)
+      extends RuntimeException(reason)
+      with NoStackTrace
 }

@@ -13,5 +13,7 @@ final class ExecutionContextManager(es: ExecutorService) {
 }
 
 object ExecutionContextManager {
-  def singleThreaded(): ExecutionContextManager = new ExecutionContextManager(Executors.newSingleThreadExecutor())
+  def singleThreaded(): ExecutionContextManager = new ExecutionContextManager(
+    Executors.newSingleThreadExecutor()
+  )
 }

@@ -25,12 +25,15 @@ private[tarantool] object SocketChannelProvider {
   final case class Live(channel: SocketChannel) extends Service {
     override def close(): ZIO[Any, Throwable, Unit] = ZIO.effect(channel.close())
 
-    override def read(buffer: ByteBuffer): ZIO[Any, Throwable, Int] = ZIO.effect(channel.read(buffer))
+    override def read(buffer: ByteBuffer): ZIO[Any, Throwable, Int] =
+      ZIO.effect(channel.read(buffer))
 
-    override def write(buffer: ByteBuffer): ZIO[Any, Throwable, Int] = ZIO.effect(channel.write(buffer))
+    override def write(buffer: ByteBuffer): ZIO[Any, Throwable, Int] =
+      ZIO.effect(channel.write(buffer))
 
     // intentionally blocking
-    override def blockingMode(flag: Boolean): ZIO[Any, Throwable, Unit] = ZIO.effect(channel.configureBlocking(flag))
+    override def blockingMode(flag: Boolean): ZIO[Any, Throwable, Unit] =
+      ZIO.effect(channel.configureBlocking(flag))
   }
 
   def live(): ZLayer[Has[ClientConfig], Throwable, SocketChannelProvider] =
@@ -39,7 +42,9 @@ private[tarantool] object SocketChannelProvider {
   def make(config: ClientConfig): ZManaged[Any, Throwable, Service] =
     ZManaged.make[Any, Any, Throwable, SocketChannelProvider.Service](for {
       channel <- ZIO.effect(SocketChannel.open()).tap { channel =>
-        ZIO.effect(new InetSocketAddress(config.host, config.port)).flatMap(address => ZIO.effect(channel.connect(address)))
+        ZIO
+          .effect(new InetSocketAddress(config.host, config.port))
+          .flatMap(address => ZIO.effect(channel.connect(address)))
       }
     } yield Live(channel))(channel => channel.close().orDie)
 

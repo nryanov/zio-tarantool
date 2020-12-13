@@ -20,6 +20,6 @@ object IteratorCode extends IntEnum[IteratorCode] {
   case object BitsAllSet extends IteratorCode(0x07)
   case object BitsAnySet extends IteratorCode(0x08)
   case object BitsAllNotSet extends IteratorCode(0x09)
-  case object Overlaps extends IteratorCode(0x0A)
-  case object Neighbor extends IteratorCode(0x0B)
+  case object Overlaps extends IteratorCode(0x0a)
+  case object Neighbor extends IteratorCode(0x0b)
 }

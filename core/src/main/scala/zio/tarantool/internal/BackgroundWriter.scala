@@ -16,11 +16,15 @@ private[tarantool] object BackgroundWriter {
   }
 
   def live(): ZLayer[SocketChannelProvider, Nothing, BackgroundWriter] =
-    ZLayer.fromServiceManaged[SocketChannelProvider.Service, Any, Nothing, Service](scp => make(scp))
+    ZLayer.fromServiceManaged[SocketChannelProvider.Service, Any, Nothing, Service](scp =>
+      make(scp)
+    )
 
   def make(scp: SocketChannelProvider.Service): ZManaged[Any, Nothing, Service] =
     ZManaged.make(
-      Semaphore.make(1).map(new BackgroundWriterLive(scp, ExecutionContextManager.singleThreaded(), _))
+      Semaphore
+        .make(1)
+        .map(new BackgroundWriterLive(scp, ExecutionContextManager.singleThreaded(), _))
     )(_.close().orDie)
 
   def write(buffer: ByteBuffer): RIO[BackgroundWriter, Int] =

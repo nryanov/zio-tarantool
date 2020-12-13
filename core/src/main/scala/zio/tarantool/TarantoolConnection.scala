@@ -4,7 +4,12 @@ import zio._
 import zio.tarantool.msgpack._
 import zio.tarantool.protocol.{AuthInfo, OperationCode}
 import zio.tarantool.impl.TarantoolConnectionLive
-import zio.tarantool.internal.{BackgroundReader, BackgroundWriter, PacketManager, SocketChannelProvider}
+import zio.tarantool.internal.{
+  BackgroundReader,
+  BackgroundWriter,
+  PacketManager,
+  SocketChannelProvider
+}
 
 object TarantoolConnection {
 
@@ -15,7 +20,10 @@ object TarantoolConnection {
 
     def connect(authInfo: AuthInfo): ZIO[Any, Throwable, Unit]
 
-    def send(op: OperationCode, body: Map[Long, MessagePack]): ZIO[Any, Throwable, TarantoolOperation]
+    def send(
+      op: OperationCode,
+      body: Map[Long, MessagePack]
+    ): ZIO[Any, Throwable, TarantoolOperation]
   }
 
   def live(): ZLayer[Has[ClientConfig], Throwable, TarantoolConnection] =
@@ -33,8 +41,12 @@ object TarantoolConnection {
 
   def connect(): ZIO[TarantoolConnection, Throwable, Unit] = ZIO.accessM(_.get.connect())
 
-  def connect(authInfo: AuthInfo): ZIO[TarantoolConnection, Throwable, Unit] = ZIO.accessM(_.get.connect(authInfo))
+  def connect(authInfo: AuthInfo): ZIO[TarantoolConnection, Throwable, Unit] =
+    ZIO.accessM(_.get.connect(authInfo))
 
-  def send(op: OperationCode, body: Map[Long, MessagePack]): ZIO[TarantoolConnection, Throwable, TarantoolOperation] =
+  def send(
+    op: OperationCode,
+    body: Map[Long, MessagePack]
+  ): ZIO[TarantoolConnection, Throwable, TarantoolOperation] =
     ZIO.accessM(_.get.send(op, body))
 }
