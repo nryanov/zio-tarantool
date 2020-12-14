@@ -1,13 +1,8 @@
 package zio.tarantool.protocol
 
-import enumeratum.values.{IntEnum, IntEnumEntry}
+sealed abstract class OperationCode(val value: Int)
 
-import scala.collection.immutable
-
-sealed abstract class OperationCode(val value: Int) extends IntEnumEntry
-
-object OperationCode extends IntEnum[OperationCode] {
-  override def values: immutable.IndexedSeq[OperationCode] = findValues
+object OperationCode {
 
   case object Select extends OperationCode(0x01)
   case object Insert extends OperationCode(0x02)

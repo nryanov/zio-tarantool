@@ -1,15 +1,9 @@
 package zio.tarantool.protocol
 
-import enumeratum.values.{IntEnum, IntEnumEntry}
-
-import scala.collection.immutable
-
 // https://github.com/tarantool/tarantool/blob/444213178c6260d6adfd640f7e4a0c5e6f8f2458/src/box/iterator_type.h
-sealed abstract class IteratorCode(val value: Int) extends IntEnumEntry
+sealed abstract class IteratorCode(val value: Int)
 
-object IteratorCode extends IntEnum[IteratorCode] {
-  override def values: immutable.IndexedSeq[IteratorCode] = findValues
-
+object IteratorCode {
   case object Eq extends IteratorCode(0x00)
   case object Req extends IteratorCode(0x01)
   case object All extends IteratorCode(0x02)

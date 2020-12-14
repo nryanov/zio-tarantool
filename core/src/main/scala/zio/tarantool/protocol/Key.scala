@@ -1,14 +1,8 @@
 package zio.tarantool.protocol
 
-import enumeratum.values.{LongEnum, LongEnumEntry}
+sealed abstract class Key(val value: Long)
 
-import scala.collection.immutable
-
-sealed abstract class Key(val value: Long) extends LongEnumEntry
-
-object Key extends LongEnum[Key] {
-  override def values: immutable.IndexedSeq[Key] = findValues
-
+object Key {
   case object Code extends Key(0x00L)
   case object Sync extends Key(0x01L)
   case object SchemaId extends Key(0x05L)

@@ -1,9 +1,7 @@
 val zioVersion = "1.0.3"
-val zioLoggingVersion = "0.5.3"
 val scodecVersion = "1.11.7"
 val scodecBitsVersion = "1.1.17"
 val shapelessVersion = "2.3.3"
-val enumeratumVersion = "1.6.1"
 val slf4jVersion = "1.7.30"
 val scalatestVersion = "3.2.0"
 val scalacheckPlusVersion = "3.2.0.0"
@@ -58,8 +56,7 @@ lazy val msgpack = project
     name := "zio-tarantool-msgpack",
     libraryDependencies ++= Seq(
       "org.scodec" %% "scodec-core" % scodecVersion,
-      "org.scodec" %% "scodec-bits" % scodecBitsVersion,
-      "com.beachape" %% "enumeratum" % enumeratumVersion
+      "org.scodec" %% "scodec-bits" % scodecBitsVersion
     ),
     scalacOptions ++= compilerOptions
   )
@@ -73,7 +70,6 @@ lazy val core = project
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio" % zioVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
-      "dev.zio" %% "zio-logging" % zioLoggingVersion,
       "org.slf4j" % "slf4j-api" % slf4jVersion,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test
