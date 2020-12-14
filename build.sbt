@@ -10,7 +10,7 @@ val scalacheckVersion = "1.14.3"
 val testContainersVersion = "0.38.7"
 val logbackVersion = "1.2.3"
 
-val compilerOptions = Seq(
+def compilerOptions(scalaVersion: String): Seq[String] = Seq(
   "-deprecation",
   "-encoding",
   "UTF-8",
@@ -21,11 +21,23 @@ val compilerOptions = Seq(
   "-unchecked",
   "-Ywarn-dead-code",
   "-Ywarn-numeric-widen",
-  "-Xlog-implicits",
   "-Xlint",
+  "-language:existentials",
   "-language:postfixOps",
-  //      "-Ymacro-annotations", // for scala 2.13
   "-Xlog-implicits"
+) ++ (CrossVersion.partialVersion(scalaVersion) match {
+  case Some((2, scalaMajor)) if scalaMajor == 12 => scala212CompilerOptions
+  case Some((2, scalaMajor)) if scalaMajor == 13 => scala213CompilerOptions
+})
+
+lazy val scala212CompilerOptions = Seq(
+  "-Yno-adapted-args",
+  "-Ywarn-unused-import",
+  "-Xfuture"
+)
+
+lazy val scala213CompilerOptions = Seq(
+  "-Wunused:imports"
 )
 
 lazy val commonSettings = Seq(
@@ -36,18 +48,15 @@ lazy val commonSettings = Seq(
     "org.scalacheck" %% "scalacheck" % scalacheckVersion % Test,
     "ch.qos.logback" % "logback-classic" % logbackVersion % Test
   ),
-  scalacOptions ++= compilerOptions,
+  scalacOptions ++= compilerOptions(scalaVersion.value),
+  organization := "",
+  scalaVersion := "2.13.3",
+  crossScalaVersions := Seq("2.12.10", "2.13.3"),
   Test / parallelExecution := false
 )
 
 lazy val root =
-  project
-    .in(file("."))
-    .settings(
-      scalaVersion := "2.13.3", // todo: cross-build
-      skip in publish := true
-    )
-    .aggregate(msgpack, core, auto)
+  project.in(file(".")).settings(skip in publish := true).aggregate(msgpack, core, auto)
 
 lazy val msgpack = project
   .in(file("msgpack"))
@@ -57,15 +66,13 @@ lazy val msgpack = project
     libraryDependencies ++= Seq(
       "org.scodec" %% "scodec-core" % scodecVersion,
       "org.scodec" %% "scodec-bits" % scodecBitsVersion
-    ),
-    scalacOptions ++= compilerOptions
+    )
   )
 
 lazy val core = project
   .in(file("core"))
   .settings(commonSettings)
   .settings(
-    addCompilerPlugin(("org.scalamacros" % "paradise" % "2.1.1").cross(CrossVersion.full)),
     name := "zio-tarantool",
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio" % zioVersion,
@@ -73,8 +80,7 @@ lazy val core = project
       "org.slf4j" % "slf4j-api" % slf4jVersion,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test
-    ),
-    scalacOptions ++= compilerOptions
+    )
   )
   .dependsOn(msgpack)
 
@@ -85,7 +91,6 @@ lazy val auto = project
     name := "zio-tarantool-auto",
     libraryDependencies ++= Seq(
       "com.chuusai" %% "shapeless" % shapelessVersion
-    ),
-    scalacOptions ++= compilerOptions
+    )
   )
   .dependsOn(core)
