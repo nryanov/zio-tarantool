@@ -4,12 +4,14 @@ import zio._
 import zio.tarantool.msgpack.Encoder.{longEncoder, stringEncoder}
 import zio.tarantool.msgpack._
 import zio.tarantool.protocol.{IteratorCode, Key, OperationCode, TupleEncoder}
-import zio.tarantool.{TarantoolClient, TarantoolConnection, TarantoolOperation}
+import zio.tarantool.{Logging, TarantoolClient, TarantoolConnection, TarantoolOperation}
 import TarantoolClientLive._
 
 final class TarantoolClientLive(connection: TarantoolConnection.Service)
-    extends TarantoolClient.Service {
+    extends TarantoolClient.Service
+    with Logging {
   override def ping(): Task[TarantoolOperation] = for {
+    _ <- debug("Ping request")
     response <- send(OperationCode.Ping, Map.empty)
   } yield response
 
@@ -22,6 +24,7 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
     key: MpArray
   ): Task[TarantoolOperation] =
     for {
+      _ <- debug(s"Select request: $key")
       body <- ZIO.effect(selectBody(spaceId, indexId, limit, offset, iterator, key))
       response <- send(OperationCode.Select, body)
     } yield response
@@ -39,6 +42,7 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
   } yield response
 
   override def insert(spaceId: Int, tuple: MpArray): Task[TarantoolOperation] = for {
+    _ <- debug(s"Insert request: $tuple")
     body <- ZIO.effect(insertBody(spaceId, tuple))
     response <- send(OperationCode.Insert, body)
   } yield response
@@ -52,9 +56,10 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
     spaceId: Int,
     indexId: Int,
     key: MpArray,
-    tuple: MpArray
+    ops: MpArray
   ): Task[TarantoolOperation] = for {
-    body <- ZIO.effect(updateBody(spaceId, indexId, key, tuple))
+    _ <- debug(s"Update request. Key: $key, operations: $ops")
+    body <- ZIO.effect(updateBody(spaceId, indexId, key, ops))
     response <- send(OperationCode.Update, body)
   } yield response
 
@@ -70,6 +75,7 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
   } yield response
 
   override def delete(spaceId: Int, indexId: Int, key: MpArray): Task[TarantoolOperation] = for {
+    _ <- debug(s"Delete request: $key")
     body <- ZIO.effect(deleteBody(spaceId, indexId, key))
     response <- send(OperationCode.Delete, body)
   } yield response
@@ -89,6 +95,7 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
     ops: MpArray,
     tuple: MpArray
   ): Task[TarantoolOperation] = for {
+    _ <- debug(s"Upsert request. Operations: $ops, tuple: $tuple")
     body <- ZIO.effect(upsertBody(spaceId, indexId, ops, tuple))
     response <- send(OperationCode.Upsert, body)
   } yield response
@@ -105,6 +112,7 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
   } yield response
 
   override def replace(spaceId: Int, tuple: MpArray): Task[TarantoolOperation] = for {
+    _ <- debug(s"Replace request: $tuple")
     body <- ZIO.effect(replaceBody(spaceId, tuple))
     response <- send(OperationCode.Replace, body)
   } yield response
@@ -115,6 +123,7 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
   } yield response
 
   override def call(functionName: String, tuple: MpArray): Task[TarantoolOperation] = for {
+    _ <- debug(s"Call request: $functionName, args: $tuple")
     body <- ZIO.effect(callBody(functionName, tuple))
     response <- send(OperationCode.Call, body)
   } yield response
@@ -129,6 +138,7 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
     } yield response
 
   override def eval(expression: String, tuple: MpArray): Task[TarantoolOperation] = for {
+    _ <- debug(s"Eval request: $expression, args: $tuple")
     body <- ZIO.effect(evalBody(expression, tuple))
     response <- send(OperationCode.Eval, body)
   } yield response

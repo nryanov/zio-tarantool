@@ -1,8 +1,9 @@
 package zio.tarantool.data
 
 import scodec.Attempt
+import zio.tarantool.builder.TupleBuilder
 import zio.tarantool.msgpack.{Encoder, MpArray}
-import zio.tarantool.protocol.{TupleBuilder, TupleEncoder}
+import zio.tarantool.protocol.TupleEncoder
 
 final case class TestTuple(f1: String, f2: Int, f3: Long)
 

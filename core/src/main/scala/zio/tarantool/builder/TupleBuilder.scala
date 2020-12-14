@@ -1,11 +1,11 @@
-package zio.tarantool.protocol
+package zio.tarantool.builder
 
 import scodec.Attempt
-import zio.tarantool.msgpack.{Encoder, MessagePack, MpArray, MpArray16, MpArray32, MpFixArray}
+import zio.tarantool.msgpack._
 
 import scala.collection.mutable
 
-final class TupleBuilder {
+final class TupleBuilder extends Builder[Attempt[MpArray]] {
   private val buffer = mutable.ListBuffer[Attempt[MessagePack]]()
 
   def put[A](value: A)(implicit encoder: Encoder[A]): TupleBuilder = {

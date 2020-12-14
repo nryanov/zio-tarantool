@@ -111,17 +111,17 @@ object TarantoolClient {
     spaceId: Int,
     indexId: Int,
     key: MpArray,
-    tuple: MpArray
+    ops: MpArray
   ): RIO[TarantoolClient, TarantoolOperation] =
-    ZIO.accessM(_.get.update(spaceId, indexId, key, tuple))
+    ZIO.accessM(_.get.update(spaceId, indexId, key, ops))
 
   def update[A: TupleEncoder, B: TupleEncoder](
     spaceId: Int,
     indexId: Int,
     key: A,
-    tuple: B
+    ops: B
   ): RIO[TarantoolClient, TarantoolOperation] =
-    ZIO.accessM(_.get.update(spaceId, indexId, key, tuple))
+    ZIO.accessM(_.get.update(spaceId, indexId, key, ops))
 
   def delete(spaceId: Int, indexId: Int, key: MpArray): RIO[TarantoolClient, TarantoolOperation] =
     ZIO.accessM(_.get.delete(spaceId, indexId, key))
