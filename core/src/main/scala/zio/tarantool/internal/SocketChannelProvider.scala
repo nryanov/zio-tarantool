@@ -4,8 +4,10 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 
-import zio.tarantool.ClientConfig
-import zio.{Has, RIO, ZIO, ZLayer, ZManaged}
+import zio.clock.Clock
+import zio.duration._
+import zio.tarantool.{Logging, TarantoolConfig}
+import zio.{Has, RIO, Schedule, ZIO, ZLayer, ZManaged}
 
 private[tarantool] object SocketChannelProvider {
   type SocketChannelProvider = Has[Service]
@@ -22,8 +24,9 @@ private[tarantool] object SocketChannelProvider {
     def blockingMode(flag: Boolean): ZIO[Any, Throwable, Unit]
   }
 
-  final case class Live(channel: SocketChannel) extends Service {
-    override def close(): ZIO[Any, Throwable, Unit] = ZIO.effect(channel.close())
+  final case class Live(channel: SocketChannel) extends Service with Logging {
+    override def close(): ZIO[Any, Throwable, Unit] =
+      debug("Close socket channel") *> ZIO.effect(channel.close())
 
     override def read(buffer: ByteBuffer): ZIO[Any, Throwable, Int] =
       ZIO.effect(channel.read(buffer))
@@ -36,15 +39,24 @@ private[tarantool] object SocketChannelProvider {
       ZIO.effect(channel.configureBlocking(flag))
   }
 
-  def live(): ZLayer[Has[ClientConfig], Throwable, SocketChannelProvider] =
-    ZLayer.fromServiceManaged[ClientConfig, Any, Throwable, Service](cfg => make(cfg))
+  def live(): ZLayer[Has[TarantoolConfig] with Clock, Throwable, SocketChannelProvider] =
+    ZLayer.fromServiceManaged[TarantoolConfig, Any with Clock, Throwable, Service](cfg => make(cfg))
 
-  def make(config: ClientConfig): ZManaged[Any, Throwable, Service] =
-    ZManaged.make[Any, Any, Throwable, SocketChannelProvider.Service](for {
+  def make(config: TarantoolConfig): ZManaged[Any with Clock, Throwable, Service] =
+    ZManaged.make(for {
       channel <- ZIO.effect(SocketChannel.open()).tap { channel =>
         ZIO
-          .effect(new InetSocketAddress(config.host, config.port))
-          .flatMap(address => ZIO.effect(channel.connect(address)))
+          .effect(new InetSocketAddress(config.connectionConfig.host, config.connectionConfig.port))
+          .flatMap(address =>
+            ZIO
+              .effect(channel.connect(address))
+              .timeout(config.connectionConfig.connectionTimeoutMillis.milliseconds)
+          )
+          .retry(
+            Schedule
+              .recurs(config.connectionConfig.retries)
+              .delayed(_ => config.connectionConfig.retryTimeoutMillis.milliseconds)
+          )
       }
     } yield Live(channel))(channel => channel.close().orDie)
 

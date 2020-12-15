@@ -13,14 +13,15 @@ import zio.tarantool.internal.{
   PacketManager,
   SocketChannelProvider
 }
-import zio.tarantool.{Logging, TarantoolConnection, TarantoolOperation}
+import zio.tarantool.{Logging, TarantoolConfig, TarantoolConnection, TarantoolOperation}
 import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.Constants._
-import zio.tarantool.protocol.{AuthInfo, Code, MessagePackPacket, OperationCode}
+import zio.tarantool.protocol.{Code, MessagePackPacket, OperationCode}
 
 import scala.util.control.NoStackTrace
 
 final class TarantoolConnectionLive(
+  tarantoolConfig: TarantoolConfig,
   channel: SocketChannelProvider.Service,
   packetManager: PacketManager.Service,
   backgroundReader: BackgroundReader.Service,
@@ -40,8 +41,6 @@ final class TarantoolConnectionLive(
       .orDie
       .unit
 
-  def connect(authInfo: AuthInfo): IO[Throwable, Unit] = ???
-
   override def send(
     op: OperationCode,
     body: Map[Long, MessagePack]
@@ -60,11 +59,11 @@ final class TarantoolConnectionLive(
 
   private def greeting(): ZIO[Any, Throwable, String] = for {
     buffer <- ZIO(ByteBuffer.allocate(GreetingLength))
-    bytes <- channel.read(buffer)
+    _ <- channel.read(buffer)
     firstLine <- ZIO(new String(buffer.array()))
     _ <- info(firstLine)
     _ <- ZIO.effectTotal(buffer.clear())
-    bytes <- channel.read(buffer)
+    _ <- channel.read(buffer)
     salt <- ZIO(new String(buffer.array()))
   } yield salt
 
@@ -84,7 +83,6 @@ final class TarantoolConnectionLive(
           .flatMap(error => operation.promise.fail(TarantoolOperationException(error)))
       )
       _ <- ZIO.effect(operationResultMap.remove(syncId))
-      _ <- debug(operationResultMap.toString)
     } yield ()
 }
 

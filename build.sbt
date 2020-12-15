@@ -23,8 +23,8 @@ def compilerOptions(scalaVersion: String): Seq[String] = Seq(
   "-Ywarn-numeric-widen",
   "-Xlint",
   "-language:existentials",
-  "-language:postfixOps",
-  "-Xlog-implicits"
+  "-language:postfixOps"
+//  "-Xlog-implicits"
 ) ++ (CrossVersion.partialVersion(scalaVersion) match {
   case Some((2, scalaMajor)) if scalaMajor == 12 => scala212CompilerOptions
   case Some((2, scalaMajor)) if scalaMajor == 13 => scala213CompilerOptions

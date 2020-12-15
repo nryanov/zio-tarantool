@@ -18,7 +18,8 @@ private[tarantool] final class BackgroundWriterLive(
     with Logging {
   def write(buffer: ByteBuffer): ZIO[Any, Throwable, Int] = directWrite(buffer)
 
-  override def close(): ZIO[Any, Throwable, Unit] = ec.shutdown()
+  override def close(): ZIO[Any, Throwable, Unit] =
+    debug("Close BackgroundWriter") *> ec.shutdown()
 
   private def directWrite(buffer: ByteBuffer): ZIO[Any, Throwable, Int] = for {
     dataSent <- directWriteSemaphore.withPermit(writeFully(buffer))

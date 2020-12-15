@@ -9,7 +9,8 @@ object OperationCode {
   case object Replace extends OperationCode(0x03)
   case object Update extends OperationCode(0x04)
   case object Delete extends OperationCode(0x05)
-  @Deprecated(since = "tarantool 1.6") case object OldCall extends OperationCode(0x06)
+  @Deprecated // Tarantool prior to 1.6
+  case object OldCall extends OperationCode(0x06)
   case object Auth extends OperationCode(0x07)
   case object Eval extends OperationCode(0x08)
   case object Upsert extends OperationCode(0x09)

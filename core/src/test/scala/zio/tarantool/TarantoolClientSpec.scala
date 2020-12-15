@@ -20,14 +20,15 @@ import zio.tarantool.protocol.TupleEncoder._
 object TarantoolClientSpec extends DefaultRunnableSpec {
   val tarantoolLayer: ZLayer[Any, Nothing, Tarantool] =
     Blocking.live >>> TarantoolContainer.tarantool()
-  val configLayer: ZLayer[Tarantool, Nothing, Has[ClientConfig]] = ZLayer.fromService(container =>
-    ClientConfig(
-      host = container.container.getHost,
-      port = container.container.getMappedPort(3301)
+  val configLayer: ZLayer[Tarantool, Nothing, Has[TarantoolConfig]] =
+    ZLayer.fromService(container =>
+      TarantoolConfig(
+        host = container.container.getHost,
+        port = container.container.getMappedPort(3301)
+      )
     )
-  )
   val tarantoolConnectionLayer: ZLayer[Tarantool, Throwable, TarantoolConnection] =
-    configLayer >>> TarantoolConnection.live
+    (Clock.live ++ configLayer) >>> TarantoolConnection.live
   val tarantoolClientLayer: ZLayer[Any with Tarantool, Throwable, TarantoolClient] =
     tarantoolConnectionLayer >>> TarantoolClient.live
   val testEnv: ZLayer[Any, Throwable, Clock with TarantoolClient] =
@@ -45,10 +46,9 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
           result <- response.valueUnsafe[Int]
         } yield assert(result)(not(isZero))
       } @@ afterEach,
-      testM("insert") {
+      testM("should return and decode inserted tuple") {
         for {
-          response <- TarantoolClient.eval("return box.space.test.id")
-          spaceId <- response.valueUnsafe[Int]
+          spaceId <- getSpaceId()
           tuple = TestTuple("key1", 1, 1)
           _ <- TarantoolClient.insert(spaceId, tuple)
           key <- ZIO.effect(TupleBuilder().put("key1").build().require)
@@ -56,10 +56,9 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
           result <- response.dataUnsafe[TestTuple]
         } yield assert(result)(equalTo(Vector(tuple)))
       } @@ afterEach,
-      testM("delete") {
+      testM("should decode deleted tuples as empty vector") {
         for {
-          response <- TarantoolClient.eval("return box.space.test.id")
-          spaceId <- response.valueUnsafe[Int]
+          spaceId <- getSpaceId()
           tuple = TestTuple("key2", 1, 1)
           _ <- TarantoolClient.insert(spaceId, tuple)
           key <- ZIO.effect(TupleBuilder().put("key2").build().require)
@@ -71,10 +70,9 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
         } yield assert(insertedValue)(equalTo(Vector(tuple))) &&
           assert(deletedValue)(equalTo(Vector.empty))
       } @@ afterEach,
-      testM("upsert") {
+      testM("should correctly upsert data") {
         for {
-          response <- TarantoolClient.eval("return box.space.test.id")
-          spaceId <- response.valueUnsafe[Int]
+          spaceId <- getSpaceId()
           tuple = TestTuple("key3", 1, 1)
           updateOps <- ZIO.effect(UpdateOpsBuilder().set(1, 321).add(2, 10).build().require)
           _ <- TarantoolClient.upsert(spaceId, 0, updateOps, tuple)
@@ -87,10 +85,9 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
         } yield assert(initialValue)(equalTo(Vector(tuple))) &&
           assert(updatedValue)(equalTo(Vector(tuple.copy(f2 = 321, f3 = 11))))
       } @@ afterEach,
-      testM("update") {
+      testM("should correctly update update data") {
         for {
-          response <- TarantoolClient.eval("return box.space.test.id")
-          spaceId <- response.valueUnsafe[Int]
+          spaceId <- getSpaceId()
           tuple = TestTuple("key4", 1, 1)
           updateOps <- ZIO.effect(UpdateOpsBuilder().set(1, 123).set(2, 321).build().require)
           _ <- TarantoolClient.insert(spaceId, tuple)
@@ -103,10 +100,9 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
         } yield assert(initialValue)(equalTo(Vector(tuple))) &&
           assert(updatedValue)(equalTo(Vector(tuple.copy(f2 = 123, f3 = 321))))
       } @@ afterEach,
-      testM("replace") {
+      testM("should replace existing tuple") {
         for {
-          response <- TarantoolClient.eval("return box.space.test.id")
-          spaceId <- response.valueUnsafe[Int]
+          spaceId <- getSpaceId()
           tuple = TestTuple("key5", 1, 1)
           _ <- TarantoolClient.insert(spaceId, tuple)
           key <- ZIO.effect(TupleBuilder().put("key5").build().require)
@@ -133,4 +129,7 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
 
   private def truncateSpace(): ZIO[Any with TarantoolClient, Throwable, Unit] =
     TarantoolClient.eval("box.space.test:truncate()").flatMap(_.promise.await.unit)
+
+  private def getSpaceId(): ZIO[Any with Clock with TarantoolClient, Throwable, Int] =
+    TarantoolClient.eval("return box.space.test.id").flatMap(_.valueUnsafe[Int])
 }
