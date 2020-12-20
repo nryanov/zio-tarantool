@@ -7,7 +7,7 @@ import zio.clock.Clock
 import zio.{Promise, UIO, ZIO}
 import zio.tarantool.msgpack.{MessagePack, MpArray}
 import zio.tarantool.protocol.TupleEncoder
-import zio.tarantool.msgpack.Implicits.RichMessagePack
+import zio.tarantool.protocol.Implicits._
 
 final case class TarantoolOperation(syncId: Long, promise: Promise[Throwable, MessagePack]) {
   def isDone: UIO[Boolean] = promise.isDone

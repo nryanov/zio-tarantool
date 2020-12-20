@@ -3,17 +3,16 @@ package zio.tarantool.internal.impl
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
-import zio.ZIO
+import zio.{IO, ZIO}
+import zio.tarantool.TarantoolError
+import zio.tarantool.TarantoolError.toIOError
 import zio.tarantool.internal.PacketManager
 import zio.tarantool.internal.impl.PacketManagerLive._
-import zio.tarantool.msgpack.Implicits._
-import zio.tarantool.msgpack.MessagePackException.MessagePackEncodingException
 import zio.tarantool.msgpack.{Encoder, MessagePack}
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.protocol.{Code, Key, MessagePackPacket, OperationCode}
 
 import scala.collection.mutable
-import scala.util.control.NoStackTrace
 
 private[tarantool] final class PacketManagerLive extends PacketManager.Service {
   override def createPacket(
@@ -21,61 +20,72 @@ private[tarantool] final class PacketManagerLive extends PacketManager.Service {
     syncId: Long,
     schemaId: Option[Long],
     body: Map[Long, MessagePack]
-  ): ZIO[Any, Throwable, MessagePackPacket] = {
+  ): IO[TarantoolError.CodecError, MessagePackPacket] = {
     val headerMp = mutable.Map[Long, MessagePack]()
 
     for {
-      _ <- ZIO.effect(headerMp += Key.Sync.value -> numberEncoder.encodeUnsafe(syncId))
-      _ <- ZIO.effect(headerMp += Key.Code.value -> numberEncoder.encodeUnsafe(op.value))
-      _ <- ZIO.effect(
-        schemaId.foreach(id => headerMp += Key.SchemaId.value -> numberEncoder.encodeUnsafe(id))
-      )
+      _ <- numberEncoder.encodeM(syncId).map(mp => headerMp += Key.Sync.value -> mp)
+      _ <- numberEncoder.encodeM(op.value).map(mp => headerMp += Key.Code.value -> mp)
+      _ <- ZIO
+        .fromOption(schemaId)
+        .tap(id => numberEncoder.encodeM(id).map(mp => headerMp += Key.Code.value -> mp))
+        .orElse(ZIO.unit)
     } yield MessagePackPacket(headerMp.toMap, body)
   }
 
-  override def toBuffer(packet: MessagePackPacket): ZIO[Any, Throwable, ByteBuffer] = for {
+  override def toBuffer(packet: MessagePackPacket): IO[TarantoolError, ByteBuffer] = for {
     os <- ZIO.effectTotal(new ByteArrayOutputStream(InitialRequestSize))
-    encodedPacket <- ZIO.effect(packet.encode().require)
-    size <- ZIO.effect(numberEncoder.encodeUnsafe(encodedPacket.bytes.length))
-    _ <- ZIO.effect(os.writeBytes(size.encode().require.toByteArray))
-    _ <- ZIO.effect(os.writeBytes(encodedPacket.toByteArray))
+    encodedPacket <- packet.encodeM()
+    size <- numberEncoder.encodeM(encodedPacket.bytes.length)
+    sizeMp <- size.encodeM()
+    _ <- ZIO.effect(os.writeBytes(sizeMp.toByteArray)).refineOrDie(toIOError)
+    _ <- ZIO.effect(os.writeBytes(encodedPacket.toByteArray)).refineOrDie(toIOError)
   } yield ByteBuffer.wrap(os.toByteArray)
 
-  override def extractCode(packet: MessagePackPacket): ZIO[Any, Throwable, Long] = for {
+  override def extractCode(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
     codeMp <- ZIO
       .fromOption(packet.header.get(Key.Code.value))
-      .mapError(_ => IncorrectPacket("Packet has no Code in header", packet))
-    codeValue <- ZIO
-      .effect(numberEncoder.decodeUnsafe(codeMp))
-      .mapError(MessagePackEncodingException)
+      .mapError(_ =>
+        TarantoolError.ProtocolError(s"Packet has no Code in header (${packet.header})")
+      )
+    codeValue <- numberEncoder.decodeM(codeMp)
     code <- if (codeValue == 0) ZIO.succeed(codeValue) else extractErrorCode(codeValue)
   } yield code
 
-  override def extractError(packet: MessagePackPacket): ZIO[Any, Throwable, String] =
-    extractByKey(packet, Key.Error).map(stringEncoder.decodeUnsafe)
+  override def extractError(
+    packet: MessagePackPacket
+  ): IO[TarantoolError, String] =
+    extractByKey(packet, Key.Error).flatMap(stringEncoder.decodeM)
 
-  override def extractData(packet: MessagePackPacket): ZIO[Any, Throwable, MessagePack] =
+  override def extractData(
+    packet: MessagePackPacket
+  ): IO[TarantoolError.ProtocolError, MessagePack] =
     extractByKey(packet, Key.Data)
 
-  override def extractSyncId(packet: MessagePackPacket): ZIO[Any, Throwable, Long] = for {
+  override def extractSyncId(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
     syncIdMp <- ZIO
       .fromOption(packet.header.get(Key.Sync.value))
-      .mapError(_ => IncorrectPacket("Packet has no Code in header", packet))
-    syncId <- ZIO
-      .effect(numberEncoder.decodeUnsafe(syncIdMp))
-      .mapError(MessagePackEncodingException)
+      .mapError(_ =>
+        TarantoolError.ProtocolError(s"Packet has no Code in header (${packet.header})")
+      )
+    syncId <- numberEncoder.decodeM(syncIdMp)
   } yield syncId
 
-  private def extractByKey(packet: MessagePackPacket, key: Key): ZIO[Any, Throwable, MessagePack] =
+  private def extractByKey(
+    packet: MessagePackPacket,
+    key: Key
+  ): ZIO[Any, TarantoolError.ProtocolError, MessagePack] =
     for {
       value <- ZIO
         .fromOption(packet.body.get(key.value))
-        .mapError(_ => IncorrectPacket(s"Packet has no $key value in body part", packet))
+        .mapError(_ =>
+          TarantoolError.ProtocolError(s"Packet has no $key value in body part ${packet.body}")
+        )
     } yield value
 
-  private def extractErrorCode(code: Long): ZIO[Any, IncorrectCodeFormat, Long] =
+  private def extractErrorCode(code: Long): ZIO[Any, TarantoolError.ProtocolError, Long] =
     if ((code & Code.ErrorTypeMarker.value) == 0) {
-      ZIO.fail(IncorrectCodeFormat(s"Code $code does not follow 0x8XXX format"))
+      ZIO.fail(TarantoolError.ProtocolError(s"Code $code does not follow 0x8XXX format"))
     } else {
       ZIO.succeed(~Code.ErrorTypeMarker.value & code)
     }
@@ -86,12 +96,4 @@ object PacketManagerLive {
 
   private val numberEncoder: Encoder[Long] = Encoder.longEncoder
   private val stringEncoder: Encoder[String] = Encoder.stringEncoder
-
-  final case class IncorrectPacket(reason: String, packet: MessagePackPacket)
-      extends RuntimeException(s"Reason: $reason\nPacket: $packet")
-      with NoStackTrace
-
-  final case class IncorrectCodeFormat(reason: String)
-      extends RuntimeException(reason)
-      with NoStackTrace
 }

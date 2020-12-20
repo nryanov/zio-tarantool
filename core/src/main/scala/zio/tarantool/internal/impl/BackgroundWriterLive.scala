@@ -2,12 +2,12 @@ package zio.tarantool.internal.impl
 
 import java.nio.ByteBuffer
 
-import zio.tarantool.Logging
+import zio.tarantool.TarantoolError.toIOError
+import zio.tarantool._
 import zio.tarantool.internal.impl.BackgroundWriterLive._
 import zio.tarantool.internal.{BackgroundWriter, ExecutionContextManager, SocketChannelProvider}
 import zio.{Semaphore, ZIO}
 
-import scala.concurrent.ExecutionContext
 import scala.util.control.NoStackTrace
 
 private[tarantool] final class BackgroundWriterLive(
@@ -16,11 +16,13 @@ private[tarantool] final class BackgroundWriterLive(
   directWriteSemaphore: Semaphore
 ) extends BackgroundWriter.Service
     with Logging {
-  def write(buffer: ByteBuffer): ZIO[Any, Throwable, Int] = directWrite(buffer)
+  def write(buffer: ByteBuffer): ZIO[Any, TarantoolError.IOError, Int] =
+    directWrite(buffer).refineOrDie(toIOError)
 
-  override def close(): ZIO[Any, Throwable, Unit] =
-    debug("Close BackgroundWriter") *> ec.shutdown()
+  override def close(): ZIO[Any, TarantoolError.IOError, Unit] =
+    (debug("Close BackgroundWriter") *> ec.shutdown()).refineOrDie(toIOError)
 
+  // todo: add timeout (from TarantoolClientConfig)
   private def directWrite(buffer: ByteBuffer): ZIO[Any, Throwable, Int] = for {
     dataSent <- directWriteSemaphore.withPermit(writeFully(buffer))
     _ <- debug(s"[direct write] bytes sent: $dataSent")

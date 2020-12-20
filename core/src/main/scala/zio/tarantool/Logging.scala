@@ -1,18 +1,18 @@
 package zio.tarantool
 
+import zio.UIO
 import org.slf4j.{Logger, LoggerFactory}
-import zio.{Task, ZIO}
 
 private[tarantool] trait Logging { self =>
   val logger: Logger = LoggerFactory.getLogger(self.getClass)
 
-  def trace(msg: String): Task[Unit] = ZIO.effect(logger.trace(msg))
+  def trace(msg: String): UIO[Unit] = UIO.effectTotal(logger.trace(msg))
 
-  def debug(msg: String): Task[Unit] = ZIO.effect(logger.debug(msg))
+  def debug(msg: String): UIO[Unit] = UIO.effectTotal(logger.debug(msg))
 
-  def info(msg: String): Task[Unit] = ZIO.effect(logger.info(msg))
+  def info(msg: String): UIO[Unit] = UIO.effectTotal(logger.info(msg))
 
-  def warn(msg: String): Task[Unit] = ZIO.effect(logger.warn(msg))
+  def warn(msg: String): UIO[Unit] = UIO.effectTotal(logger.warn(msg))
 
-  def error(msg: String): Task[Unit] = ZIO.effect(logger.error(msg))
+  def error(msg: String): UIO[Unit] = UIO.effectTotal(logger.error(msg))
 }

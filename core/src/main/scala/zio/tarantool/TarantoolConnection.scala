@@ -22,7 +22,7 @@ object TarantoolConnection {
     def send(
       op: OperationCode,
       body: Map[Long, MessagePack]
-    ): ZIO[Any, Throwable, TarantoolOperation]
+    ): IO[TarantoolError, TarantoolOperation]
   }
 
   def live(): ZLayer[Has[TarantoolConfig] with Clock, Throwable, TarantoolConnection] =
@@ -43,6 +43,6 @@ object TarantoolConnection {
   def send(
     op: OperationCode,
     body: Map[Long, MessagePack]
-  ): ZIO[TarantoolConnection, Throwable, TarantoolOperation] =
+  ): ZIO[TarantoolConnection, TarantoolError, TarantoolOperation] =
     ZIO.accessM(_.get.send(op, body))
 }

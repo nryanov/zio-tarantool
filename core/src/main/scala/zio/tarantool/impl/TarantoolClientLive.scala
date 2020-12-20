@@ -1,16 +1,17 @@
 package zio.tarantool.impl
 
 import zio._
+import zio.tarantool._
+import zio.tarantool.protocol.Implicits._
 import zio.tarantool.msgpack.Encoder.{longEncoder, stringEncoder}
 import zio.tarantool.msgpack._
 import zio.tarantool.protocol.{IteratorCode, Key, OperationCode, TupleEncoder}
-import zio.tarantool.{Logging, TarantoolClient, TarantoolConnection, TarantoolOperation}
 import TarantoolClientLive._
 
 final class TarantoolClientLive(connection: TarantoolConnection.Service)
     extends TarantoolClient.Service
     with Logging {
-  override def ping(): Task[TarantoolOperation] = for {
+  override def ping(): IO[TarantoolError, TarantoolOperation] = for {
     _ <- debug("Ping request")
     response <- send(OperationCode.Ping, Map.empty)
   } yield response
@@ -22,10 +23,12 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
     offset: Int,
     iterator: IteratorCode,
     key: MpArray
-  ): Task[TarantoolOperation] =
+  ): IO[TarantoolError, TarantoolOperation] =
     for {
       _ <- debug(s"Select request: $key")
-      body <- ZIO.effect(selectBody(spaceId, indexId, limit, offset, iterator, key))
+      body <- ZIO
+        .effect(selectBody(spaceId, indexId, limit, offset, iterator, key))
+        .mapError(TarantoolError.CodecError)
       response <- send(OperationCode.Select, body)
     } yield response
 
@@ -36,19 +39,24 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
     offset: Int,
     iterator: IteratorCode,
     key: A
-  ): Task[TarantoolOperation] = for {
-    encodedKey <- ZIO.effect(TupleEncoder[A].encodeUnsafe(key))
+  ): IO[TarantoolError, TarantoolOperation] = for {
+    encodedKey <- TupleEncoder[A].encodeM(key)
     response <- select(spaceId, indexId, limit, offset, iterator, encodedKey)
   } yield response
 
-  override def insert(spaceId: Int, tuple: MpArray): Task[TarantoolOperation] = for {
+  override def insert(spaceId: Int, tuple: MpArray): IO[TarantoolError, TarantoolOperation] = for {
     _ <- debug(s"Insert request: $tuple")
-    body <- ZIO.effect(insertBody(spaceId, tuple))
+    body <- ZIO.effect(insertBody(spaceId, tuple)).mapError(TarantoolError.CodecError)
     response <- send(OperationCode.Insert, body)
   } yield response
 
-  override def insert[A: TupleEncoder](spaceId: Int, tuple: A): Task[TarantoolOperation] = for {
-    encodedTuple <- ZIO.effect(TupleEncoder[A].encodeUnsafe(tuple))
+  override def insert[A: TupleEncoder](
+    spaceId: Int,
+    tuple: A
+  ): IO[TarantoolError, TarantoolOperation] = for {
+    encodedTuple <- ZIO
+      .effect(TupleEncoder[A].encodeUnsafe(tuple))
+      .mapError(TarantoolError.CodecError)
     response <- insert(spaceId, encodedTuple)
   } yield response
 
@@ -57,9 +65,9 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
     indexId: Int,
     key: MpArray,
     ops: MpArray
-  ): Task[TarantoolOperation] = for {
+  ): IO[TarantoolError, TarantoolOperation] = for {
     _ <- debug(s"Update request. Key: $key, operations: $ops")
-    body <- ZIO.effect(updateBody(spaceId, indexId, key, ops))
+    body <- ZIO.effect(updateBody(spaceId, indexId, key, ops)).mapError(TarantoolError.CodecError)
     response <- send(OperationCode.Update, body)
   } yield response
 
@@ -68,15 +76,19 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
     indexId: Int,
     key: A,
     tuple: B
-  ): Task[TarantoolOperation] = for {
-    encodedKey <- ZIO.effect(TupleEncoder[A].encodeUnsafe(key))
-    encodedTuple <- ZIO.effect(TupleEncoder[B].encodeUnsafe(tuple))
+  ): IO[TarantoolError, TarantoolOperation] = for {
+    encodedKey <- TupleEncoder[A].encodeM(key)
+    encodedTuple <- TupleEncoder[B].encodeM(tuple)
     response <- update(spaceId, indexId, encodedKey, encodedTuple)
   } yield response
 
-  override def delete(spaceId: Int, indexId: Int, key: MpArray): Task[TarantoolOperation] = for {
+  override def delete(
+    spaceId: Int,
+    indexId: Int,
+    key: MpArray
+  ): IO[TarantoolError, TarantoolOperation] = for {
     _ <- debug(s"Delete request: $key")
-    body <- ZIO.effect(deleteBody(spaceId, indexId, key))
+    body <- ZIO.effect(deleteBody(spaceId, indexId, key)).mapError(TarantoolError.CodecError)
     response <- send(OperationCode.Delete, body)
   } yield response
 
@@ -84,8 +96,8 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
     spaceId: Int,
     indexId: Int,
     key: A
-  ): Task[TarantoolOperation] = for {
-    encodedKey <- ZIO.effect(TupleEncoder[A].encodeUnsafe(key))
+  ): IO[TarantoolError, TarantoolOperation] = for {
+    encodedKey <- TupleEncoder[A].encodeM(key)
     response <- delete(spaceId, indexId, encodedKey)
   } yield response
 
@@ -94,9 +106,9 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
     indexId: Int,
     ops: MpArray,
     tuple: MpArray
-  ): Task[TarantoolOperation] = for {
+  ): IO[TarantoolError, TarantoolOperation] = for {
     _ <- debug(s"Upsert request. Operations: $ops, tuple: $tuple")
-    body <- ZIO.effect(upsertBody(spaceId, indexId, ops, tuple))
+    body <- ZIO.effect(upsertBody(spaceId, indexId, ops, tuple)).mapError(TarantoolError.CodecError)
     response <- send(OperationCode.Upsert, body)
   } yield response
 
@@ -105,53 +117,67 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
     indexId: Int,
     ops: A,
     tuple: B
-  ): Task[TarantoolOperation] = for {
-    encodedKey <- ZIO.effect(TupleEncoder[A].encodeUnsafe(ops))
-    encodedTuple <- ZIO.effect(TupleEncoder[B].encodeUnsafe(tuple))
+  ): IO[TarantoolError, TarantoolOperation] = for {
+    encodedKey <- TupleEncoder[A].encodeM(ops)
+    encodedTuple <- TupleEncoder[B].encodeM(tuple)
     response <- upsert(spaceId, indexId, encodedKey, encodedTuple)
   } yield response
 
-  override def replace(spaceId: Int, tuple: MpArray): Task[TarantoolOperation] = for {
+  override def replace(spaceId: Int, tuple: MpArray): IO[TarantoolError, TarantoolOperation] = for {
     _ <- debug(s"Replace request: $tuple")
-    body <- ZIO.effect(replaceBody(spaceId, tuple))
+    body <- ZIO.effect(replaceBody(spaceId, tuple)).mapError(TarantoolError.CodecError)
     response <- send(OperationCode.Replace, body)
   } yield response
 
-  override def replace[A: TupleEncoder](spaceId: Int, tuple: A): Task[TarantoolOperation] = for {
-    encodedTuple <- ZIO.effect(TupleEncoder[A].encodeUnsafe(tuple))
+  override def replace[A: TupleEncoder](
+    spaceId: Int,
+    tuple: A
+  ): IO[TarantoolError, TarantoolOperation] = for {
+    encodedTuple <- TupleEncoder[A].encodeM(tuple)
     response <- replace(spaceId, encodedTuple)
   } yield response
 
-  override def call(functionName: String, tuple: MpArray): Task[TarantoolOperation] = for {
-    _ <- debug(s"Call request: $functionName, args: $tuple")
-    body <- ZIO.effect(callBody(functionName, tuple))
-    response <- send(OperationCode.Call, body)
-  } yield response
+  override def call(functionName: String, tuple: MpArray): IO[TarantoolError, TarantoolOperation] =
+    for {
+      _ <- debug(s"Call request: $functionName, args: $tuple")
+      body <- ZIO.effect(callBody(functionName, tuple)).mapError(TarantoolError.CodecError)
+      response <- send(OperationCode.Call, body)
+    } yield response
 
-  override def call(functionName: String): Task[TarantoolOperation] =
+  override def call(functionName: String): IO[TarantoolError, TarantoolOperation] =
     call(functionName, EmptyTuple)
 
-  override def call[A: TupleEncoder](functionName: String, args: A): Task[TarantoolOperation] =
+  override def call[A: TupleEncoder](
+    functionName: String,
+    args: A
+  ): IO[TarantoolError, TarantoolOperation] =
     for {
-      encodedArgs <- ZIO.effect(TupleEncoder[A].encodeUnsafe(args))
+      encodedArgs <- TupleEncoder[A].encodeM(args)
       response <- call(functionName, encodedArgs)
     } yield response
 
-  override def eval(expression: String, tuple: MpArray): Task[TarantoolOperation] = for {
-    _ <- debug(s"Eval request: $expression, args: $tuple")
-    body <- ZIO.effect(evalBody(expression, tuple))
-    response <- send(OperationCode.Eval, body)
-  } yield response
+  override def eval(expression: String, tuple: MpArray): IO[TarantoolError, TarantoolOperation] =
+    for {
+      _ <- debug(s"Eval request: $expression, args: $tuple")
+      body <- ZIO.effect(evalBody(expression, tuple)).mapError(TarantoolError.CodecError)
+      response <- send(OperationCode.Eval, body)
+    } yield response
 
-  override def eval(expression: String): Task[TarantoolOperation] =
+  override def eval(expression: String): IO[TarantoolError, TarantoolOperation] =
     eval(expression, EmptyTuple)
 
-  override def eval[A: TupleEncoder](expression: String, args: A): Task[TarantoolOperation] = for {
-    encodedArgs <- ZIO.effect(TupleEncoder[A].encodeUnsafe(args))
+  override def eval[A: TupleEncoder](
+    expression: String,
+    args: A
+  ): IO[TarantoolError, TarantoolOperation] = for {
+    encodedArgs <- TupleEncoder[A].encodeM(args)
     response <- eval(expression, encodedArgs)
   } yield response
 
-  private def send(op: OperationCode, body: Map[Long, MessagePack]): Task[TarantoolOperation] =
+  private def send(
+    op: OperationCode,
+    body: Map[Long, MessagePack]
+  ): IO[TarantoolError, TarantoolOperation] =
     connection.send(op, body)
 }
 

@@ -2,10 +2,11 @@ package zio.tarantool.internal
 
 import java.nio.ByteBuffer
 
+import zio.tarantool.TarantoolError
 import zio.tarantool.internal.impl.PacketManagerLive
 import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.{MessagePackPacket, OperationCode}
-import zio.{Has, RIO, ULayer, ZIO, ZManaged}
+import zio.{Has, IO, RIO, ULayer, ZIO, ZManaged}
 
 private[tarantool] object PacketManager {
   type PacketManager = Has[Service]
@@ -16,17 +17,17 @@ private[tarantool] object PacketManager {
       syncId: Long,
       schemaId: Option[Long],
       body: Map[Long, MessagePack]
-    ): ZIO[Any, Throwable, MessagePackPacket]
+    ): IO[TarantoolError.CodecError, MessagePackPacket]
 
-    def toBuffer(packet: MessagePackPacket): ZIO[Any, Throwable, ByteBuffer]
+    def toBuffer(packet: MessagePackPacket): IO[TarantoolError, ByteBuffer]
 
-    def extractCode(packet: MessagePackPacket): ZIO[Any, Throwable, Long]
+    def extractCode(packet: MessagePackPacket): IO[TarantoolError, Long]
 
-    def extractError(packet: MessagePackPacket): ZIO[Any, Throwable, String]
+    def extractError(packet: MessagePackPacket): IO[TarantoolError, String]
 
-    def extractData(packet: MessagePackPacket): ZIO[Any, Throwable, MessagePack]
+    def extractData(packet: MessagePackPacket): IO[TarantoolError.ProtocolError, MessagePack]
 
-    def extractSyncId(packet: MessagePackPacket): ZIO[Any, Throwable, Long]
+    def extractSyncId(packet: MessagePackPacket): IO[Throwable, Long]
 
   }
 

@@ -7,11 +7,12 @@ import java.nio.channels.{SelectionKey, Selector}
 import scodec.bits.ByteVector
 import zio._
 import zio.internal.Executor
-import zio.tarantool.Logging
+import zio.tarantool._
+import zio.tarantool.TarantoolError.toIOError
 import zio.tarantool.internal.BackgroundReader.Service
 import zio.tarantool.internal.{ExecutionContextManager, SocketChannelProvider}
 import zio.tarantool.internal.impl.BackgroundReaderLive.MessagePackPacketReadError
-import zio.tarantool.msgpack.Implicits._
+import zio.tarantool.protocol.Implicits._
 import zio.tarantool.protocol.Constants.MessageSizeLength
 import zio.tarantool.protocol.{MessagePackPacket, MessagePackPacketCodec}
 
@@ -25,14 +26,16 @@ private[tarantool] final class BackgroundReaderLive(
 
   override def start(
     completeHandler: MessagePackPacket => ZIO[Any, Throwable, Unit]
-  ): ZIO[Any, Throwable, Unit] =
-    ZIO.ifM(ZIO.succeed(channelProvider.channel.isBlocking))(
-      ZIO.fail(new IllegalArgumentException("Channel should be in non-blocking mode")),
-      start0(completeHandler)
-    )
+  ): IO[TarantoolError.IOError, Unit] =
+    ZIO
+      .ifM(ZIO.succeed(channelProvider.channel.isBlocking))(
+        ZIO.fail(new IllegalArgumentException("Channel should be in non-blocking mode")),
+        start0(completeHandler)
+      )
+      .refineOrDie(toIOError)
 
-  override def close(): ZIO[Any, Throwable, Unit] =
-    debug("Close BackgroundReader") *> ec.shutdown()
+  override def close(): IO[TarantoolError.IOError, Unit] =
+    (debug("Close BackgroundReader") *> ec.shutdown()).refineOrDie(toIOError)
 
   private def start0(
     completeHandler: MessagePackPacket => ZIO[Any, Throwable, Unit]
@@ -53,7 +56,7 @@ private[tarantool] final class BackgroundReaderLive(
     buffer <- ZIO.effectTotal(ByteBuffer.allocate(MessageSizeLength))
     _ <- readBuffer(buffer, selector)
     vector = ByteVector(buffer.flip())
-    size <- ZIO.effect(vector.decode().require.toNumber.toInt)
+    size <- vector.decodeM().map(_.toNumber.toInt)
     messageBuffer <- ZIO.effectTotal(ByteBuffer.allocate(size))
     _ <- readBuffer(messageBuffer, selector)
     packet <- ZIO.effect(

@@ -13,7 +13,13 @@ import zio.tarantool.internal.{
   PacketManager,
   SocketChannelProvider
 }
-import zio.tarantool.{Logging, TarantoolConfig, TarantoolConnection, TarantoolOperation}
+import zio.tarantool.{
+  Logging,
+  TarantoolConfig,
+  TarantoolConnection,
+  TarantoolError,
+  TarantoolOperation
+}
 import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.Constants._
 import zio.tarantool.protocol.{Code, MessagePackPacket, OperationCode}
@@ -44,7 +50,7 @@ final class TarantoolConnectionLive(
   override def send(
     op: OperationCode,
     body: Map[Long, MessagePack]
-  ): ZIO[Any, Throwable, TarantoolOperation] = {
+  ): IO[TarantoolError, TarantoolOperation] = {
     val id = syncId.incrementAndGet()
     for {
       packet <- packetManager.createPacket(op, id, None, body)

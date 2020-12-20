@@ -3,16 +3,17 @@ package zio.tarantool.internal
 import java.nio.ByteBuffer
 
 import SocketChannelProvider.SocketChannelProvider
+import zio.tarantool.TarantoolError
 import zio.tarantool.internal.impl.BackgroundWriterLive
-import zio.{Has, RIO, Semaphore, ZIO, ZLayer, ZManaged}
+import zio.{Has, IO, Semaphore, ZIO, ZLayer, ZManaged}
 
 private[tarantool] object BackgroundWriter {
   type BackgroundWriter = Has[Service]
 
   trait Service extends Serializable {
-    def write(buffer: ByteBuffer): ZIO[Any, Throwable, Int]
+    def write(buffer: ByteBuffer): IO[TarantoolError.IOError, Int]
 
-    def close(): ZIO[Any, Throwable, Unit]
+    def close(): IO[TarantoolError.IOError, Unit]
   }
 
   def live(): ZLayer[SocketChannelProvider, Nothing, BackgroundWriter] =
@@ -27,9 +28,9 @@ private[tarantool] object BackgroundWriter {
         .map(new BackgroundWriterLive(scp, ExecutionContextManager.singleThreaded(), _))
     )(_.close().orDie)
 
-  def write(buffer: ByteBuffer): RIO[BackgroundWriter, Int] =
+  def write(buffer: ByteBuffer): ZIO[BackgroundWriter, TarantoolError.IOError, Int] =
     ZIO.accessM(_.get.write(buffer))
 
-  def close(): RIO[BackgroundWriter, Unit] =
+  def close(): ZIO[BackgroundWriter, TarantoolError.IOError, Unit] =
     ZIO.accessM(_.get.close())
 }
