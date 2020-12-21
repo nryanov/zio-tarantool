@@ -3,32 +3,54 @@ package zio.tarantool.internal
 import java.nio.ByteBuffer
 
 import SocketChannelProvider.SocketChannelProvider
-import zio.tarantool.TarantoolError
+import zio.clock.Clock
+import zio.tarantool.{TarantoolConfig, TarantoolError}
 import zio.tarantool.internal.impl.BackgroundWriterLive
-import zio.{Has, IO, Semaphore, ZIO, ZLayer, ZManaged}
+import zio.{Has, IO, Queue, Semaphore, ZIO, ZLayer, ZManaged}
 
 private[tarantool] object BackgroundWriter {
   type BackgroundWriter = Has[Service]
 
   trait Service extends Serializable {
-    def write(buffer: ByteBuffer): IO[TarantoolError.IOError, Int]
+    def write(buffer: ByteBuffer): IO[TarantoolError.IOError, Unit]
 
     def close(): IO[TarantoolError.IOError, Unit]
   }
 
-  def live(): ZLayer[SocketChannelProvider, Nothing, BackgroundWriter] =
-    ZLayer.fromServiceManaged[SocketChannelProvider.Service, Any, Nothing, Service](scp =>
-      make(scp)
-    )
+  def live(): ZLayer[Has[
+    TarantoolConfig
+  ] with SocketChannelProvider with Clock, Nothing, BackgroundWriter] =
+    ZLayer.fromServicesManaged[
+      TarantoolConfig,
+      SocketChannelProvider.Service,
+      Clock,
+      Nothing,
+      Service
+    ] { (cfg, scp) =>
+      make(cfg, scp)
+    }
 
-  def make(scp: SocketChannelProvider.Service): ZManaged[Any, Nothing, Service] =
+  def make(
+    cfg: TarantoolConfig,
+    scp: SocketChannelProvider.Service
+  ): ZManaged[Clock, Nothing, Service] =
     ZManaged.make(
-      Semaphore
-        .make(1)
-        .map(new BackgroundWriterLive(scp, ExecutionContextManager.singleThreaded(), _))
+      for {
+        clock <- ZIO.environment[Clock]
+        semaphore <- Semaphore.make(1)
+        // todo: capacity from cfg
+        queue <- Queue.bounded[ByteBuffer](1024)
+      } yield new BackgroundWriterLive(
+        cfg,
+        scp,
+        ExecutionContextManager.singleThreaded(),
+        semaphore,
+        queue,
+        clock
+      )
     )(_.close().orDie)
 
-  def write(buffer: ByteBuffer): ZIO[BackgroundWriter, TarantoolError.IOError, Int] =
+  def write(buffer: ByteBuffer): ZIO[BackgroundWriter, TarantoolError.IOError, Unit] =
     ZIO.accessM(_.get.write(buffer))
 
   def close(): ZIO[BackgroundWriter, TarantoolError.IOError, Unit] =

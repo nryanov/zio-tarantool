@@ -34,7 +34,7 @@ object TarantoolConnection {
   private def make0(config: TarantoolConfig): ZManaged[Any with Clock, Throwable, Service] = for {
     channelProvider <- SocketChannelProvider.make(config)
     reader <- BackgroundReader.make(channelProvider)
-    writer <- BackgroundWriter.make(channelProvider)
+    writer <- BackgroundWriter.make(config, channelProvider)
     packetManager <- PacketManager.make()
   } yield new TarantoolConnectionLive(config, channelProvider, packetManager, reader, writer)
 
