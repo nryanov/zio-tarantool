@@ -44,6 +44,7 @@ final class TarantoolConnectionLive(
     greeting()
       .flatMap(_ => channel.blockingMode(false))
       .flatMap(_ => backgroundReader.start(complete))
+      .flatMap(_ => backgroundWriter.start())
       .orDie
       .unit
 
@@ -66,11 +67,11 @@ final class TarantoolConnectionLive(
   private def greeting(): ZIO[Any, Throwable, String] = for {
     buffer <- ZIO(ByteBuffer.allocate(GreetingLength))
     _ <- channel.read(buffer)
-    firstLine <- ZIO(new String(buffer.array()))
+    firstLine = new String(buffer.array())
     _ <- info(firstLine)
     _ <- ZIO.effectTotal(buffer.clear())
     _ <- channel.read(buffer)
-    salt <- ZIO(new String(buffer.array()))
+    salt = new String(buffer.array())
   } yield salt
 
   private def auth(): IO[IOException, Unit] = ???

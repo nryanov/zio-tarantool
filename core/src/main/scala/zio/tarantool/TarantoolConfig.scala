@@ -35,4 +35,6 @@ object TarantoolConfig {
   def apply(host: String, port: Int) = new TarantoolConfig(
     ConnectionConfig(host, port)
   )
+
+  def apply() = new TarantoolConfig(ConnectionConfig("localhost", 3301))
 }

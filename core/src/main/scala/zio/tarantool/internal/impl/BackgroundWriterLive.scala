@@ -28,11 +28,16 @@ private[tarantool] final class BackgroundWriterLive(
   override def write(buffer: ByteBuffer): ZIO[Any, TarantoolError.IOError, Unit] =
     directWrite(buffer).refineOrDie(toIOError)
 
-  def start(): UIO[Unit] =
+  override def start(): UIO[Unit] =
     start0().forever.lock(Executor.fromExecutionContext(1000)(ec.executionContext)).fork.unit
 
   override def close(): ZIO[Any, TarantoolError.IOError, Unit] =
-    (debug("Close BackgroundWriter") *> ec.shutdown()).refineOrDie(toIOError)
+    for {
+      _ <- debug("Shutdown background queue")
+      _ <- queue.shutdown
+      _ <- debug("Close BackgroundWriter")
+      _ <- ec.shutdown().refineOrDie(toIOError)
+    } yield ()
 
   private def start0(): ZIO[Any, Throwable, Unit] = for {
     buffer <- queue.take

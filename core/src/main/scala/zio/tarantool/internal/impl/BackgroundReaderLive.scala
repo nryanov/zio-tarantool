@@ -28,7 +28,7 @@ private[tarantool] final class BackgroundReaderLive(
     completeHandler: MessagePackPacket => ZIO[Any, Throwable, Unit]
   ): IO[TarantoolError.IOError, Unit] =
     ZIO
-      .ifM(ZIO.succeed(channelProvider.channel.isBlocking))(
+      .ifM(channelProvider.isBlocking())(
         ZIO.fail(new IllegalArgumentException("Channel should be in non-blocking mode")),
         start0(completeHandler)
       )
@@ -41,12 +41,12 @@ private[tarantool] final class BackgroundReaderLive(
     completeHandler: MessagePackPacket => ZIO[Any, Throwable, Unit]
   ): ZIO[Any, Throwable, Unit] = {
     val selector: Selector = SelectorProvider.provider.openSelector
-    channelProvider.channel.register(selector, SelectionKey.OP_READ)
 
-    read(selector, completeHandler).forever
-      .lock(Executor.fromExecutionContext(1000)(ec.executionContext))
-      .fork
-      .unit
+    channelProvider.registerSelector(selector, SelectionKey.OP_READ) *>
+      read(selector, completeHandler).forever
+        .lock(Executor.fromExecutionContext(1000)(ec.executionContext))
+        .fork
+        .unit
   }
 
   private def read(

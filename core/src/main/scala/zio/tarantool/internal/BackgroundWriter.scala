@@ -6,13 +6,15 @@ import SocketChannelProvider.SocketChannelProvider
 import zio.clock.Clock
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 import zio.tarantool.internal.impl.BackgroundWriterLive
-import zio.{Has, IO, Queue, Semaphore, ZIO, ZLayer, ZManaged}
+import zio.{Has, IO, Queue, Semaphore, UIO, ZIO, ZLayer, ZManaged}
 
 private[tarantool] object BackgroundWriter {
   type BackgroundWriter = Has[Service]
 
   trait Service extends Serializable {
     def write(buffer: ByteBuffer): IO[TarantoolError.IOError, Unit]
+
+    def start(): UIO[Unit]
 
     def close(): IO[TarantoolError.IOError, Unit]
   }
@@ -52,6 +54,9 @@ private[tarantool] object BackgroundWriter {
 
   def write(buffer: ByteBuffer): ZIO[BackgroundWriter, TarantoolError.IOError, Unit] =
     ZIO.accessM(_.get.write(buffer))
+
+  def start(): ZIO[BackgroundWriter, Nothing, Unit] =
+    ZIO.accessM(_.get.start())
 
   def close(): ZIO[BackgroundWriter, TarantoolError.IOError, Unit] =
     ZIO.accessM(_.get.close())
