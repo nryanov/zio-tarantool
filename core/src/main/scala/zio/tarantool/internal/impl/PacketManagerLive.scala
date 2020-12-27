@@ -66,7 +66,7 @@ private[tarantool] final class PacketManagerLive extends PacketManager.Service {
     syncIdMp <- ZIO
       .fromOption(packet.header.get(Key.Sync.value))
       .mapError(_ =>
-        TarantoolError.ProtocolError(s"Packet has no Code in header (${packet.header})")
+        TarantoolError.ProtocolError(s"Packet has no SyncId in header (${packet.header})")
       )
     syncId <- numberEncoder.decodeM(syncIdMp)
   } yield syncId

@@ -10,6 +10,7 @@ object TarantoolError {
   final case class ProtocolError(message: String) extends TarantoolError
   final case class CodecError(exception: Throwable) extends TarantoolError
   final case class IOError(exception: IOException) extends TarantoolError
+  final case class Timeout(message: String) extends TarantoolError
 
   private[tarantool] val toIOError: PartialFunction[Throwable, TarantoolError.IOError] = {
     case e: IOException => TarantoolError.IOError(e)

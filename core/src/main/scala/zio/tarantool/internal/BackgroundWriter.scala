@@ -12,6 +12,8 @@ private[tarantool] object BackgroundWriter {
   type BackgroundWriter = Has[Service]
 
   trait Service extends Serializable {
+    private[tarantool] def requestQueue: Queue[ByteBuffer]
+
     def write(buffer: ByteBuffer): IO[TarantoolError.IOError, Unit]
 
     def start(): UIO[Unit]
@@ -60,4 +62,7 @@ private[tarantool] object BackgroundWriter {
 
   def close(): ZIO[BackgroundWriter, TarantoolError.IOError, Unit] =
     ZIO.accessM(_.get.close())
+
+  def requestQueue(): ZIO[BackgroundWriter, Nothing, Queue[ByteBuffer]] =
+    ZIO.access(_.get.requestQueue)
 }

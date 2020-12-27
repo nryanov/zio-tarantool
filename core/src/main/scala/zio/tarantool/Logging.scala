@@ -15,4 +15,6 @@ private[tarantool] trait Logging { self =>
   def warn(msg: String): UIO[Unit] = UIO.effectTotal(logger.warn(msg))
 
   def error(msg: String): UIO[Unit] = UIO.effectTotal(logger.error(msg))
+
+  def error(msg: String, cause: Throwable): UIO[Unit] = UIO.effectTotal(logger.error(msg, cause))
 }
