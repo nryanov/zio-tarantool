@@ -1,6 +1,7 @@
 package zio.tarantool
 
 import zio._
+import zio.macros.accessible
 import zio.clock.Clock
 import zio.tarantool.msgpack._
 import zio.tarantool.protocol.OperationCode
@@ -12,6 +13,7 @@ import zio.tarantool.internal.{
   SocketChannelProvider
 }
 
+@accessible
 object TarantoolConnection {
 
   type TarantoolConnection = Has[Service]
@@ -25,7 +27,7 @@ object TarantoolConnection {
     ): IO[TarantoolError, TarantoolOperation]
   }
 
-  def live(): ZLayer[Has[TarantoolConfig] with Clock, Throwable, TarantoolConnection] =
+  val live: ZLayer[Has[TarantoolConfig] with Clock, Throwable, TarantoolConnection] =
     ZLayer.fromServiceManaged[TarantoolConfig, Any with Clock, Throwable, Service](cfg => make(cfg))
 
   def make(config: TarantoolConfig): ZManaged[Any with Clock, Throwable, Service] =
@@ -33,16 +35,8 @@ object TarantoolConnection {
 
   private def make0(config: TarantoolConfig): ZManaged[Any with Clock, Throwable, Service] = for {
     channelProvider <- SocketChannelProvider.make(config)
-    reader <- BackgroundReader.make(channelProvider)
-    writer <- BackgroundWriter.make(config, channelProvider)
     packetManager <- PacketManager.make()
+    reader <- BackgroundReader.make(channelProvider, packetManager)
+    writer <- BackgroundWriter.make(config, channelProvider)
   } yield new TarantoolConnectionLive(config, channelProvider, packetManager, reader, writer)
-
-  def connect(): ZIO[TarantoolConnection, Throwable, Unit] = ZIO.accessM(_.get.connect())
-
-  def send(
-    op: OperationCode,
-    body: Map[Long, MessagePack]
-  ): ZIO[TarantoolConnection, TarantoolError, TarantoolOperation] =
-    ZIO.accessM(_.get.send(op, body))
 }

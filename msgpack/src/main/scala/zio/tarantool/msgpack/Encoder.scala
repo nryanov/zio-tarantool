@@ -42,17 +42,20 @@ object Encoder {
       }
 
     override def decode(v: MessagePack): Attempt[Byte] = v match {
-      case MpPositiveFixInt(value)                                            => Attempt.successful(value.toByte)
-      case MpNegativeFixInt(value)                                            => Attempt.successful(value.toByte)
-      case MpUint8(value)                                                     => Attempt.successful(value.toByte)
-      case MpUint16(value) if value <= Byte.MaxValue                          => Attempt.successful(value.toByte)
-      case MpUint32(value) if value <= Byte.MaxValue                          => Attempt.successful(value.toByte)
-      case MpUint64(value) if value <= Byte.MaxValue                          => Attempt.successful(value.toByte)
-      case MpInt8(value)                                                      => Attempt.successful(value.toByte)
-      case MpInt16(value) if value >= Byte.MinValue && value <= Byte.MaxValue => Attempt.successful(value.toByte)
-      case MpInt32(value) if value >= Byte.MinValue && value <= Byte.MaxValue => Attempt.successful(value.toByte)
-      case MpInt64(value) if value >= Byte.MinValue && value <= Byte.MaxValue => Attempt.successful(value.toByte)
-      case _                                                                  => fail("byte", v)
+      case MpPositiveFixInt(value)                   => Attempt.successful(value.toByte)
+      case MpNegativeFixInt(value)                   => Attempt.successful(value.toByte)
+      case MpUint8(value)                            => Attempt.successful(value.toByte)
+      case MpUint16(value) if value <= Byte.MaxValue => Attempt.successful(value.toByte)
+      case MpUint32(value) if value <= Byte.MaxValue => Attempt.successful(value.toByte)
+      case MpUint64(value) if value <= Byte.MaxValue => Attempt.successful(value.toByte)
+      case MpInt8(value)                             => Attempt.successful(value.toByte)
+      case MpInt16(value) if value >= Byte.MinValue && value <= Byte.MaxValue =>
+        Attempt.successful(value.toByte)
+      case MpInt32(value) if value >= Byte.MinValue && value <= Byte.MaxValue =>
+        Attempt.successful(value.toByte)
+      case MpInt64(value) if value >= Byte.MinValue && value <= Byte.MaxValue =>
+        Attempt.successful(value.toByte)
+      case _ => fail("byte", v)
     }
   }
 
@@ -76,17 +79,19 @@ object Encoder {
       }
 
     override def decode(v: MessagePack): Attempt[Short] = v match {
-      case MpPositiveFixInt(value)                                              => Attempt.successful(value.toShort)
-      case MpNegativeFixInt(value)                                              => Attempt.successful(value.toShort)
-      case MpUint8(value)                                                       => Attempt.successful(value.toShort)
-      case MpUint16(value)                                                      => Attempt.successful(value.toShort)
-      case MpUint32(value) if value <= Short.MaxValue                           => Attempt.successful(value.toShort)
-      case MpUint64(value) if value <= Short.MaxValue                           => Attempt.successful(value.toShort)
-      case MpInt8(value)                                                        => Attempt.successful(value.toShort)
-      case MpInt16(value)                                                       => Attempt.successful(value.toShort)
-      case MpInt32(value) if value >= Short.MinValue && value <= Short.MaxValue => Attempt.successful(value.toShort)
-      case MpInt64(value) if value >= Short.MinValue && value <= Short.MaxValue => Attempt.successful(value.toShort)
-      case _                                                                    => fail("short", v)
+      case MpPositiveFixInt(value)                    => Attempt.successful(value.toShort)
+      case MpNegativeFixInt(value)                    => Attempt.successful(value.toShort)
+      case MpUint8(value)                             => Attempt.successful(value.toShort)
+      case MpUint16(value)                            => Attempt.successful(value.toShort)
+      case MpUint32(value) if value <= Short.MaxValue => Attempt.successful(value.toShort)
+      case MpUint64(value) if value <= Short.MaxValue => Attempt.successful(value.toShort)
+      case MpInt8(value)                              => Attempt.successful(value.toShort)
+      case MpInt16(value)                             => Attempt.successful(value.toShort)
+      case MpInt32(value) if value >= Short.MinValue && value <= Short.MaxValue =>
+        Attempt.successful(value.toShort)
+      case MpInt64(value) if value >= Short.MinValue && value <= Short.MaxValue =>
+        Attempt.successful(value.toShort)
+      case _ => fail("short", v)
     }
   }
 
@@ -108,17 +113,18 @@ object Encoder {
       }
 
     override def decode(v: MessagePack): Attempt[Int] = v match {
-      case MpPositiveFixInt(value)                                          => Attempt.successful(value.toInt)
-      case MpNegativeFixInt(value)                                          => Attempt.successful(value.toInt)
-      case MpUint8(value)                                                   => Attempt.successful(value.toInt)
-      case MpUint16(value)                                                  => Attempt.successful(value.toInt)
-      case MpUint32(value)                                                  => Attempt.successful(value.toInt)
-      case MpUint64(value) if value <= Int.MaxValue                         => Attempt.successful(value.toInt)
-      case MpInt8(value)                                                    => Attempt.successful(value.toInt)
-      case MpInt16(value)                                                   => Attempt.successful(value.toInt)
-      case MpInt32(value)                                                   => Attempt.successful(value.toInt)
-      case MpInt64(value) if value >= Int.MinValue && value <= Int.MaxValue => Attempt.successful(value.toInt)
-      case _                                                                => fail("int", v)
+      case MpPositiveFixInt(value)                  => Attempt.successful(value.toInt)
+      case MpNegativeFixInt(value)                  => Attempt.successful(value.toInt)
+      case MpUint8(value)                           => Attempt.successful(value.toInt)
+      case MpUint16(value)                          => Attempt.successful(value.toInt)
+      case MpUint32(value)                          => Attempt.successful(value.toInt)
+      case MpUint64(value) if value <= Int.MaxValue => Attempt.successful(value.toInt)
+      case MpInt8(value)                            => Attempt.successful(value.toInt)
+      case MpInt16(value)                           => Attempt.successful(value.toInt)
+      case MpInt32(value)                           => Attempt.successful(value.toInt)
+      case MpInt64(value) if value >= Int.MinValue && value <= Int.MaxValue =>
+        Attempt.successful(value.toInt)
+      case _ => fail("int", v)
     }
   }
 
@@ -215,10 +221,12 @@ object Encoder {
   }
 
   // save it as string
-  implicit val bigIntEncoder: Encoder[BigInt] = stringEncoder.xmap(s => BigInt(s), b => b.toString())
+  implicit val bigIntEncoder: Encoder[BigInt] =
+    stringEncoder.xmap(s => BigInt(s), b => b.toString())
 
   // save it as string
-  implicit val bigDecimalEncoder: Encoder[BigDecimal] = stringEncoder.xmap(s => BigDecimal(s), b => b.toString())
+  implicit val bigDecimalEncoder: Encoder[BigDecimal] =
+    stringEncoder.xmap(s => BigDecimal(s), b => b.toString())
 
   implicit val binaryEncoder: Encoder[ByteVector] = new Encoder[ByteVector] {
     override def encode(v: ByteVector): Attempt[MessagePack] = {
@@ -245,18 +253,16 @@ object Encoder {
     override def encode(v: Vector[A]): Attempt[MessagePack] = {
       val len = v.length
       val encoder = implicitly[Encoder[A]]
-      v.foldLeft(Attempt.successful(Vector.empty[MessagePack])) {
-          case (acc, value) =>
-            for {
-              a <- acc
-              encodedValue <- encoder.encode(value)
-            } yield a :+ encodedValue
-        }
-        .map(mpVector =>
-          if (len <= 15) MpFixArray(mpVector)
-          else if (len <= 65535) MpArray16(mpVector)
-          else MpArray32(mpVector)
-        )
+      v.foldLeft(Attempt.successful(Vector.empty[MessagePack])) { case (acc, value) =>
+        for {
+          a <- acc
+          encodedValue <- encoder.encode(value)
+        } yield a :+ encodedValue
+      }.map(mpVector =>
+        if (len <= 15) MpFixArray(mpVector)
+        else if (len <= 65535) MpArray16(mpVector)
+        else MpArray32(mpVector)
+      )
     }
 
     override def decode(v: MessagePack): Attempt[Vector[A]] = v match {
@@ -269,12 +275,11 @@ object Encoder {
     private def decodeVector(v: Vector[MessagePack]): Attempt[Vector[A]] = {
       val encoder = implicitly[Encoder[A]]
 
-      v.foldLeft(Attempt.successful(Vector.empty[A])) {
-        case (acc, value) =>
-          for {
-            a <- acc
-            decodedValue <- encoder.decode(value)
-          } yield a :+ decodedValue
+      v.foldLeft(Attempt.successful(Vector.empty[A])) { case (acc, value) =>
+        for {
+          a <- acc
+          decodedValue <- encoder.decode(value)
+        } yield a :+ decodedValue
       }
     }
   }
@@ -291,7 +296,7 @@ object Encoder {
               a <- acc
               encodedKey <- keyEncoder.encode(key)
               encodedValue <- valueEncoder.encode(value)
-            } yield a :+ (encodedKey, encodedValue)
+            } yield a :+ ((encodedKey, encodedValue))
         }
         .map(_.toMap)
         .map(mpMap =>
@@ -313,42 +318,42 @@ object Encoder {
       val valueEncoder = implicitly[Encoder[B]]
 
       map.toSeq
-        .foldLeft(Attempt.successful(Vector.empty[(A, B)])) {
-          case (acc, (key, value)) =>
-            for {
-              a <- acc
-              decodedKey <- keyEncoder.decode(key)
-              decodedValue <- valueEncoder.decode(value)
-            } yield a :+ (decodedKey, decodedValue)
+        .foldLeft(Attempt.successful(Vector.empty[(A, B)])) { case (acc, (key, value)) =>
+          for {
+            a <- acc
+            decodedKey <- keyEncoder.decode(key)
+            decodedValue <- valueEncoder.decode(value)
+          } yield a :+ ((decodedKey, decodedValue))
         }
         .map(_.toMap)
     }
   }
 
-  implicit def extensionEncoder[A](code: ByteVector)(implicit C: Codec[A]): Encoder[A] = new Encoder[A] {
-    def encode(v: A): Attempt[MessagePack] =
-      C.encode(v).map(_.bytes).map { encoded =>
-        val len: Long = encoded.size
-        if (len <= 1) MpFixExtension1(code.toInt(), encoded)
-        if (len <= 2) MpFixExtension2(code.toInt(), encoded)
-        if (len <= 4) MpFixExtension4(code.toInt(), encoded)
-        if (len <= 8) MpFixExtension8(code.toInt(), encoded)
-        if (len <= 16) MpFixExtension16(code.toInt(), encoded)
-        if (len <= 256) MpExtension8(len.toInt, code.toInt(), encoded)
-        else if (len <= 65536) MpExtension16(len.toInt, code.toInt(), encoded)
-        else MpExtension32(len.toInt, code.toInt(), encoded)
-      }
+  implicit def extensionEncoder[A](code: ByteVector)(implicit C: Codec[A]): Encoder[A] =
+    new Encoder[A] {
+      def encode(v: A): Attempt[MessagePack] =
+        C.encode(v).map(_.bytes).map { encoded =>
+          val len: Long = encoded.size
+          if (len <= 1) MpFixExtension1(code.toInt(), encoded)
+          if (len <= 2) MpFixExtension2(code.toInt(), encoded)
+          if (len <= 4) MpFixExtension4(code.toInt(), encoded)
+          if (len <= 8) MpFixExtension8(code.toInt(), encoded)
+          if (len <= 16) MpFixExtension16(code.toInt(), encoded)
+          if (len <= 256) MpExtension8(len.toInt, code.toInt(), encoded)
+          else if (len <= 65536) MpExtension16(len.toInt, code.toInt(), encoded)
+          else MpExtension32(len.toInt, code.toInt(), encoded)
+        }
 
-    def decode(v: MessagePack): Attempt[A] = v match {
-      case MpFixExtension1(_, value)  => C.decode(value.bits).map(_.value)
-      case MpFixExtension2(_, value)  => C.decode(value.bits).map(_.value)
-      case MpFixExtension4(_, value)  => C.decode(value.bits).map(_.value)
-      case MpFixExtension8(_, value)  => C.decode(value.bits).map(_.value)
-      case MpFixExtension16(_, value) => C.decode(value.bits).map(_.value)
-      case MpExtension8(_, _, value)  => C.decode(value.bits).map(_.value)
-      case MpExtension16(_, _, value) => C.decode(value.bits).map(_.value)
-      case MpExtension32(_, _, value) => C.decode(value.bits).map(_.value)
-      case _                          => fail("extension", v)
+      def decode(v: MessagePack): Attempt[A] = v match {
+        case MpFixExtension1(_, value)  => C.decode(value.bits).map(_.value)
+        case MpFixExtension2(_, value)  => C.decode(value.bits).map(_.value)
+        case MpFixExtension4(_, value)  => C.decode(value.bits).map(_.value)
+        case MpFixExtension8(_, value)  => C.decode(value.bits).map(_.value)
+        case MpFixExtension16(_, value) => C.decode(value.bits).map(_.value)
+        case MpExtension8(_, _, value)  => C.decode(value.bits).map(_.value)
+        case MpExtension16(_, _, value) => C.decode(value.bits).map(_.value)
+        case MpExtension32(_, _, value) => C.decode(value.bits).map(_.value)
+        case _                          => fail("extension", v)
+      }
     }
-  }
 }

@@ -5,11 +5,13 @@ import java.nio.ByteBuffer
 import java.nio.channels.{Selector, SocketChannel}
 
 import zio.duration._
+import zio.macros.accessible
 import zio.clock.Clock
 import zio.tarantool.TarantoolError.toIOError
 import zio.tarantool.{Logging, TarantoolConfig, TarantoolError}
 import zio.{Has, IO, Schedule, UIO, ZIO, ZLayer, ZManaged}
 
+@accessible
 private[tarantool] object SocketChannelProvider {
   type SocketChannelProvider = Has[Service]
 
@@ -49,7 +51,7 @@ private[tarantool] object SocketChannelProvider {
       IO.effect(channel.configureBlocking(flag)).unit.refineOrDie(toIOError)
   }
 
-  def live(): ZLayer[Has[TarantoolConfig] with Clock, Throwable, SocketChannelProvider] =
+  val live: ZLayer[Has[TarantoolConfig] with Clock, Throwable, SocketChannelProvider] =
     ZLayer.fromServiceManaged[TarantoolConfig, Any with Clock, Throwable, Service](cfg => make(cfg))
 
   def make(config: TarantoolConfig): ZManaged[Any with Clock, Throwable, Service] =
@@ -69,25 +71,4 @@ private[tarantool] object SocketChannelProvider {
           )
       }
     } yield Live(channel))(channel => channel.close().orDie)
-
-  def isBlocking(): ZIO[SocketChannelProvider, Nothing, Unit] =
-    ZIO.access(_.get.isBlocking())
-
-  def registerSelector(
-    selector: Selector,
-    selectionKey: Int
-  ): ZIO[SocketChannelProvider, TarantoolError.IOError, Unit] =
-    ZIO.access(_.get.registerSelector(selector, selectionKey))
-
-  def close(): ZIO[SocketChannelProvider, TarantoolError.IOError, Unit] =
-    ZIO.accessM(_.get.close())
-
-  def read(buffer: ByteBuffer): ZIO[SocketChannelProvider, TarantoolError.IOError, Int] =
-    ZIO.accessM(_.get.read(buffer))
-
-  def write(buffer: ByteBuffer): ZIO[SocketChannelProvider, TarantoolError.IOError, Int] =
-    ZIO.accessM(_.get.write(buffer))
-
-  def blockingMode(flag: Boolean): ZIO[SocketChannelProvider, TarantoolError.IOError, Unit] =
-    ZIO.accessM(_.get.blockingMode(flag))
 }

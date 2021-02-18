@@ -12,7 +12,7 @@ import zio.tarantool.msgpack.{Encoder, MessagePack, MpPositiveFixInt}
 import zio.tarantool.protocol.{Code, Key, MessagePackPacket, OperationCode}
 
 object PacketManagerSpec extends DefaultRunnableSpec {
-  val packetManager = PacketManager.live()
+  val packetManager = PacketManager.live
 
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     suite("Packet manager")(

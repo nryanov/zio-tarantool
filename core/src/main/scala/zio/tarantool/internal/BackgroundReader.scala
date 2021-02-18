@@ -1,38 +1,41 @@
 package zio.tarantool.internal
 
+import SocketChannelProvider.SocketChannelProvider
+import zio.macros.accessible
+import zio.{Fiber, Has, IO, RIO, ZIO, ZLayer, ZManaged}
 import zio.tarantool.TarantoolError
 import zio.tarantool.internal.impl.BackgroundReaderLive
 import zio.tarantool.protocol.MessagePackPacket
-import zio.{Has, IO, RIO, ZIO, ZLayer, ZManaged}
+import zio.tarantool.internal.PacketManager.PacketManager
 
-import SocketChannelProvider.SocketChannelProvider
-
+@accessible
 private[tarantool] object BackgroundReader {
   type BackgroundReader = Has[Service]
 
   trait Service extends Serializable {
     def start(
       completeHandler: MessagePackPacket => ZIO[Any, Throwable, Unit]
-    ): IO[TarantoolError.IOError, Unit]
+    ): IO[TarantoolError.IOError, Fiber.Runtime[Throwable, Nothing]]
 
     def close(): IO[TarantoolError.IOError, Unit]
   }
 
-  def live(): ZLayer[SocketChannelProvider, Nothing, BackgroundReader] =
-    ZLayer.fromServiceManaged[SocketChannelProvider.Service, Any, Nothing, Service](scp =>
-      make(scp)
-    )
+  val live: ZLayer[SocketChannelProvider with PacketManager, Nothing, BackgroundReader] =
+    ZLayer.fromServicesManaged[
+      SocketChannelProvider.Service,
+      PacketManager.Service,
+      Any,
+      Nothing,
+      Service
+    ]((scp, packetManager) => make(scp, packetManager))
 
-  def make(scp: SocketChannelProvider.Service): ZManaged[Any, Nothing, Service] =
+  def make(
+    scp: SocketChannelProvider.Service,
+    packetManager: PacketManager.Service
+  ): ZManaged[Any, Nothing, Service] =
     ZManaged.make(
-      ZIO.succeed(new BackgroundReaderLive(scp, ExecutionContextManager.singleThreaded()))
+      ZIO.succeed(
+        new BackgroundReaderLive(scp, packetManager, ExecutionContextManager.singleThreaded())
+      )
     )(_.close().orDie)
-
-  def start(
-    completeHandler: MessagePackPacket => ZIO[Any, TarantoolError.IOError, Unit]
-  ): RIO[BackgroundReader, Unit] =
-    ZIO.accessM(_.get.start(completeHandler))
-
-  def close(): ZIO[BackgroundReader, TarantoolError.IOError, Unit] =
-    ZIO.accessM(_.get.close())
 }

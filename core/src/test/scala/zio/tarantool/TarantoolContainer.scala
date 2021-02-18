@@ -7,7 +7,9 @@ import zio._
 object TarantoolContainer {
   type Tarantool = Has[GenericContainer]
 
-  def tarantool(imageName: String = "tarantool/tarantool:2.6"): ZLayer[Blocking, Nothing, Tarantool] =
+  def tarantool(
+    imageName: String = "tarantool/tarantool:2.6"
+  ): ZLayer[Blocking, Nothing, Tarantool] =
     ZManaged.make {
       effectBlocking {
         val container = new GenericContainer(dockerImage = imageName, exposedPorts = Seq(3301))

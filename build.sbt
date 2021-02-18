@@ -7,8 +7,15 @@ val scalatestVersion = "3.2.0"
 val scalacheckPlusVersion = "3.2.0.0"
 val scalamockVersion = "5.0.0"
 val scalacheckVersion = "1.14.3"
-val testContainersVersion = "0.38.7"
+val testContainersVersion = "0.39.1"
 val logbackVersion = "1.2.3"
+val paradiseVersion = "2.1.1"
+
+def priorTo2_13(scalaVersion: String): Boolean =
+  CrossVersion.partialVersion(scalaVersion) match {
+    case Some((2, minor)) if minor < 13 => true
+    case _                              => false
+  }
 
 def compilerOptions(scalaVersion: String): Seq[String] = Seq(
   "-deprecation",
@@ -20,7 +27,6 @@ def compilerOptions(scalaVersion: String): Seq[String] = Seq(
   "-language:implicitConversions",
   "-unchecked",
   "-Ywarn-dead-code",
-  "-Ywarn-numeric-widen",
   "-Xlint",
   "-language:existentials",
   "-language:postfixOps"
@@ -40,6 +46,25 @@ lazy val scala213CompilerOptions = Seq(
   "-Wunused:imports"
 )
 
+// src: https://github.com/circe/circe/blob/master/build.sbt#L263
+lazy val macroSettings: Seq[Setting[_]] = Seq(
+  libraryDependencies ++= (Seq(
+    scalaOrganization.value % "scala-compiler" % scalaVersion.value % Provided,
+    scalaOrganization.value % "scala-reflect" % scalaVersion.value % Provided
+  ) ++ (
+    if (priorTo2_13(scalaVersion.value)) {
+      Seq(
+        compilerPlugin(
+          ("org.scalamacros" % "paradise" % paradiseVersion).cross(CrossVersion.patch)
+        )
+      )
+    } else Nil
+  )),
+  scalacOptions ++= (
+    if (priorTo2_13(scalaVersion.value)) Nil else Seq("-Ymacro-annotations")
+  )
+)
+
 lazy val commonSettings = Seq(
   libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % scalatestVersion % Test,
@@ -50,19 +75,19 @@ lazy val commonSettings = Seq(
   ),
   scalacOptions ++= compilerOptions(scalaVersion.value),
   organization := "",
-  scalaVersion := "2.13.3",
-  crossScalaVersions := Seq("2.12.10", "2.13.3"),
+  scalaVersion := "2.13.4",
+  crossScalaVersions := Seq("2.12.13", "2.13.4"),
   Test / parallelExecution := false
 )
 
-lazy val root =
+lazy val zioTarantool =
   project.in(file(".")).settings(skip in publish := true).aggregate(msgpack, core, auto)
 
 lazy val msgpack = project
   .in(file("msgpack"))
   .settings(commonSettings)
   .settings(
-    name := "zio-tarantool-msgpack",
+    moduleName := "zio-tarantool-msgpack",
     libraryDependencies ++= Seq(
       "org.scodec" %% "scodec-core" % scodecVersion,
       "org.scodec" %% "scodec-bits" % scodecBitsVersion
@@ -72,25 +97,29 @@ lazy val msgpack = project
 lazy val core = project
   .in(file("core"))
   .settings(commonSettings)
+  .settings(macroSettings)
   .settings(
-    name := "zio-tarantool",
+    moduleName := "zio-tarantool-core",
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio" % zioVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
+      "dev.zio" %% "zio-macros" % zioVersion,
       "org.slf4j" % "slf4j-api" % slf4jVersion,
       "dev.zio" %% "zio-test" % zioVersion % Test,
+      "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
       "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test
-    )
+    ),
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
-  .dependsOn(msgpack)
+  .dependsOn(msgpack % "compile->compile;test->test")
 
 lazy val auto = project
   .in(file("auto"))
   .settings(commonSettings)
   .settings(
-    name := "zio-tarantool-auto",
+    moduleName := "zio-tarantool-auto",
     libraryDependencies ++= Seq(
       "com.chuusai" %% "shapeless" % shapelessVersion
     )
   )
-  .dependsOn(core)
+  .dependsOn(core % "compile->compile;test->test")

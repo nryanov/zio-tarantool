@@ -16,7 +16,7 @@ class TupleEncoderSpec extends BaseSpec with ScalaCheckPropertyChecks with Optio
       val decoded: Unit = tupleEncoder.decode(encoded, 0).toOption.value
 
       encoded shouldBe MpFixArray(Vector.empty)
-      decoded shouldBe ()
+      decoded shouldBe (())
     }
 
     "encode/decode byte" in {

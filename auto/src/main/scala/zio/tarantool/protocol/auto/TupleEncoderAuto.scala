@@ -11,13 +11,14 @@ object TupleEncoderAuto extends LowPriorityInstances {
 }
 
 trait LowPriorityInstances extends LowestPriorityInstances {
-  implicit def genericEncoder[A, H <: HList](
-    implicit gen: LabelledGeneric.Aux[A, H],
+  implicit def genericEncoder[A, H <: HList](implicit
+    gen: LabelledGeneric.Aux[A, H],
     hEncoder: Lazy[TupleEncoder[H]]
   ): TupleEncoder[A] = new TupleEncoder[A] {
     override def encode(v: A): Attempt[MpArray] = hEncoder.value.encode(gen.to(v))
 
-    override def decode(v: MpArray, idx: Int): Attempt[A] = hEncoder.value.decode(v, idx).map(gen.from)
+    override def decode(v: MpArray, idx: Int): Attempt[A] =
+      hEncoder.value.decode(v, idx).map(gen.from)
   }
 
   implicit val hnilEncoder: TupleEncoder[HNil] = new TupleEncoder[HNil] {
@@ -26,8 +27,8 @@ trait LowPriorityInstances extends LowestPriorityInstances {
     override def decode(v: MpArray, idx: Int): Attempt[HNil] = Attempt.successful(HNil)
   }
 
-  implicit def hlistEncoder[K <: Symbol, H, T <: HList](
-    implicit witness: Witness.Aux[K],
+  implicit def hlistEncoder[K <: Symbol, H, T <: HList](implicit
+    witness: Witness.Aux[K],
     hEncoder: Lazy[TupleEncoder[H]],
     tEncoder: Lazy[TupleEncoder[T]]
   ): TupleEncoder[FieldType[K, H] :: T] = new TupleEncoder[FieldType[K, H] :: T] {
@@ -40,11 +41,10 @@ trait LowPriorityInstances extends LowestPriorityInstances {
           h <- head
           t <- tail
           vector = h.value.++(t.value)
-        } yield {
+        } yield
           if (vector.length <= 15) MpFixArray(vector)
           else if (vector.length <= 65535) MpArray16(vector)
           else MpArray32(vector)
-        }
     }
 
     override def decode(v: MpArray, idx: Int): Attempt[FieldType[K, H] :: T] = for {
@@ -55,8 +55,8 @@ trait LowPriorityInstances extends LowestPriorityInstances {
 }
 
 trait LowestPriorityInstances {
-  implicit def genericOptionEncoder[A, H <: HList](
-    implicit gen: LabelledGeneric.Aux[A, H],
+  implicit def genericOptionEncoder[A, H <: HList](implicit
+    gen: LabelledGeneric.Aux[A, H],
     hEncoder: Lazy[TupleEncoder[Option[H]]]
   ): TupleEncoder[Option[A]] = new TupleEncoder[Option[A]] {
     override def encode(v: Option[A]): Attempt[MpArray] = v match {
@@ -65,40 +65,43 @@ trait LowestPriorityInstances {
     }
 
     override def decode(v: MpArray, idx: Int): Attempt[Option[A]] = v match {
-      case msg: MpArray if msg.value.nonEmpty => hEncoder.value.decode(msg, idx).map(_.map(gen.from))
-      case msg: MpArray if msg.value.isEmpty  => Attempt.successful(None)
+      case msg: MpArray if msg.value.nonEmpty =>
+        hEncoder.value.decode(msg, idx).map(_.map(gen.from))
+      case msg: MpArray if msg.value.isEmpty => Attempt.successful(None)
     }
   }
 
   implicit val hnilOptionEncoder: TupleEncoder[Option[HNil]] = new TupleEncoder[Option[HNil]] {
-    override def encode(v: Option[HNil]): Attempt[MpArray] = Attempt.successful(MpFixArray(Vector.empty))
+    override def encode(v: Option[HNil]): Attempt[MpArray] =
+      Attempt.successful(MpFixArray(Vector.empty))
 
-    override def decode(v: MpArray, idx: Int): Attempt[Option[HNil]] = Attempt.successful(Some(HNil))
+    override def decode(v: MpArray, idx: Int): Attempt[Option[HNil]] =
+      Attempt.successful(Some(HNil))
   }
 
-  implicit def hlistOptionEncoder1[K <: Symbol, H, T <: HList](
-    implicit witness: Witness.Aux[K],
+  implicit def hlistOptionEncoder1[K <: Symbol, H, T <: HList](implicit
+    witness: Witness.Aux[K],
     hEncoder: Lazy[TupleEncoder[Option[H]]],
     tEncoder: Lazy[TupleEncoder[Option[T]]],
     notOption: H <:!< Option[Z] forSome { type Z }
   ): TupleEncoder[Option[FieldType[K, H] :: T]] = new TupleEncoder[Option[FieldType[K, H] :: T]] {
     override def encode(v: Option[FieldType[K, H] :: T]): Attempt[MpArray] = {
-      def split[A](v: Option[H :: T])(f: (Option[H], Option[T]) => A): A = v.fold(f(None, None))({ case h :: t => f(Some(h), Some(t)) })
+      def split[A](v: Option[H :: T])(f: (Option[H], Option[T]) => A): A = v.fold(f(None, None))({
+        case h :: t => f(Some(h), Some(t))
+      })
 
-      split(v) {
-        case (head, tail) =>
-          val encodedHead: Attempt[MpArray] = hEncoder.value.encode(head)
-          val encodedTail: Attempt[MpArray] = tEncoder.value.encode(tail)
+      split(v) { case (head, tail) =>
+        val encodedHead: Attempt[MpArray] = hEncoder.value.encode(head)
+        val encodedTail: Attempt[MpArray] = tEncoder.value.encode(tail)
 
-          for {
-            h <- encodedHead
-            t <- encodedTail
-            vector = h.value.++(t.value)
-          } yield {
-            if (vector.length <= 15) MpFixArray(vector)
-            else if (vector.length <= 65535) MpArray16(vector)
-            else MpArray32(vector)
-          }
+        for {
+          h <- encodedHead
+          t <- encodedTail
+          vector = h.value.++(t.value)
+        } yield
+          if (vector.length <= 15) MpFixArray(vector)
+          else if (vector.length <= 65535) MpArray16(vector)
+          else MpArray32(vector)
       }
     }
 
@@ -110,16 +113,17 @@ trait LowestPriorityInstances {
     }
   }
 
-  implicit def hlistOptionEncoder2[K <: Symbol, H, T <: HList](
-    implicit witness: Witness.Aux[K],
+  implicit def hlistOptionEncoder2[K <: Symbol, H, T <: HList](implicit
+    witness: Witness.Aux[K],
     hEncoder: Lazy[TupleEncoder[Option[H]]],
     tEncoder: Lazy[TupleEncoder[Option[T]]]
-  ): TupleEncoder[Option[FieldType[K, Option[H]] :: T]] = new TupleEncoder[Option[FieldType[K, Option[H]] :: T]] {
-    override def encode(v: Option[FieldType[K, Option[H]] :: T]): Attempt[MpArray] = {
-      def split[A](v: Option[Option[H] :: T])(f: (Option[H], Option[T]) => A): A = v.fold(f(None, None))({ case h :: t => f(h, Some(t)) })
+  ): TupleEncoder[Option[FieldType[K, Option[H]] :: T]] =
+    new TupleEncoder[Option[FieldType[K, Option[H]] :: T]] {
+      override def encode(v: Option[FieldType[K, Option[H]] :: T]): Attempt[MpArray] = {
+        def split[A](v: Option[Option[H] :: T])(f: (Option[H], Option[T]) => A): A =
+          v.fold(f(None, None))({ case h :: t => f(h, Some(t)) })
 
-      split(v) {
-        case (head, tail) =>
+        split(v) { case (head, tail) =>
           val encodedHead: Attempt[MpArray] = hEncoder.value.encode(head)
           val encodedTail: Attempt[MpArray] = tEncoder.value.encode(tail)
 
@@ -127,17 +131,17 @@ trait LowestPriorityInstances {
             h <- encodedHead
             t <- encodedTail
             vector = h.value.++(t.value)
-          } yield {
+          } yield
             if (vector.length <= 15) MpFixArray(vector)
             else if (vector.length <= 65535) MpArray16(vector)
             else MpArray32(vector)
-          }
+        }
       }
-    }
 
-    override def decode(v: MpArray, idx: Int): Attempt[Option[FieldType[K, Option[H]] :: T]] = for {
-      head <- hEncoder.value.decode(v, idx)
-      tail <- tEncoder.value.decode(v, idx + 1)
-    } yield tail.map(t => field[K](head) :: t)
-  }
+      override def decode(v: MpArray, idx: Int): Attempt[Option[FieldType[K, Option[H]] :: T]] =
+        for {
+          head <- hEncoder.value.decode(v, idx)
+          tail <- tEncoder.value.decode(v, idx + 1)
+        } yield tail.map(t => field[K](head) :: t)
+    }
 }

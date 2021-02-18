@@ -3,18 +3,31 @@ package zio.tarantool.internal.impl
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
+import scodec.bits.{BitVector, ByteVector}
 import zio.{IO, ZIO}
 import zio.tarantool.TarantoolError
 import zio.tarantool.TarantoolError.toIOError
 import zio.tarantool.internal.PacketManager
 import zio.tarantool.internal.impl.PacketManagerLive._
-import zio.tarantool.msgpack.{Encoder, MessagePack}
+import zio.tarantool.msgpack.{Encoder, MessagePack, MessagePackCodec}
 import zio.tarantool.protocol.Implicits._
-import zio.tarantool.protocol.{Code, Key, MessagePackPacket, OperationCode}
+import zio.tarantool.protocol.{Code, Key, MessagePackPacket, MessagePackPacketCodec, OperationCode}
 
 import scala.collection.mutable
 
 private[tarantool] final class PacketManagerLive extends PacketManager.Service {
+  override def decodeToMessagePack(v: ByteVector): IO[TarantoolError.CodecError, MessagePack] =
+    IO.effect(MessagePackCodec.decodeValue(v.toBitVector).require)
+      .mapError(TarantoolError.CodecError)
+
+  override def decodeToMessagePackPacket(
+    vector: ByteVector
+  ): IO[TarantoolError.CodecError, MessagePackPacket] = IO
+    .effect(
+      MessagePackPacketCodec.decodeValue(vector.toBitVector).require
+    )
+    .mapError(TarantoolError.CodecError)
+
   override def createPacket(
     op: OperationCode,
     syncId: Long,
@@ -35,11 +48,11 @@ private[tarantool] final class PacketManagerLive extends PacketManager.Service {
 
   override def toBuffer(packet: MessagePackPacket): IO[TarantoolError, ByteBuffer] = for {
     os <- ZIO.effectTotal(new ByteArrayOutputStream(InitialRequestSize))
-    encodedPacket <- packet.encodeM()
+    encodedPacket <- encodePacket(packet)
     size <- numberEncoder.encodeM(encodedPacket.bytes.length)
-    sizeMp <- size.encodeM()
-    _ <- ZIO.effect(os.writeBytes(sizeMp.toByteArray)).refineOrDie(toIOError)
-    _ <- ZIO.effect(os.writeBytes(encodedPacket.toByteArray)).refineOrDie(toIOError)
+    sizeMp <- encodeMessagePack(size)
+    _ <- ZIO.effect(os.write(sizeMp.toByteArray)).refineOrDie(toIOError)
+    _ <- ZIO.effect(os.write(encodedPacket.toByteArray)).refineOrDie(toIOError)
   } yield ByteBuffer.wrap(os.toByteArray)
 
   override def extractCode(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
@@ -89,6 +102,12 @@ private[tarantool] final class PacketManagerLive extends PacketManager.Service {
     } else {
       ZIO.succeed(~Code.ErrorTypeMarker.value & code)
     }
+
+  private def encodeMessagePack(mp: MessagePack): IO[TarantoolError.CodecError, BitVector] =
+    IO.effect(MessagePackCodec.encode(mp).require).mapError(TarantoolError.CodecError)
+
+  private def encodePacket(packet: MessagePackPacket): IO[TarantoolError.CodecError, BitVector] =
+    ZIO.effect(MessagePackPacketCodec.encode(packet).require).mapError(TarantoolError.CodecError)
 }
 
 object PacketManagerLive {

@@ -2,7 +2,7 @@ package zio.tarantool.builder
 
 import scodec.Attempt
 import zio.tarantool.msgpack._
-import zio.tarantool.protocol.{OperationCode, OperatorCode}
+import zio.tarantool.protocol.OperatorCode
 
 import scala.collection.mutable
 

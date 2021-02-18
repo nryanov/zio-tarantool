@@ -35,8 +35,7 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
     Clock.live ++ (tarantoolLayer >>> tarantoolClientLayer)
 
   val timeoutAspect = timeout(Duration.ofSeconds(5))
-  val truncateAspect = after(truncateSpace())
-  val afterEach = truncateAspect >>> timeoutAspect
+  val truncateAspect = after(truncateSpace()) >>> timeoutAspect
 
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     (suite("TarantoolClient spec")(
@@ -45,7 +44,7 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
           response <- TarantoolClient.eval("return box.space.test.id")
           result <- response.valueUnsafe[Int]
         } yield assert(result)(not(isZero))
-      } @@ afterEach,
+      },
       testM("should return and decode inserted tuple") {
         for {
           spaceId <- getSpaceId()
@@ -55,7 +54,7 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
           response <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
           result <- response.dataUnsafe[TestTuple]
         } yield assert(result)(equalTo(Vector(tuple)))
-      } @@ afterEach,
+      },
       testM("should decode deleted tuples as empty vector") {
         for {
           spaceId <- getSpaceId()
@@ -69,7 +68,7 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
           deletedValue <- response.dataUnsafe[TestTuple]
         } yield assert(insertedValue)(equalTo(Vector(tuple))) &&
           assert(deletedValue)(equalTo(Vector.empty))
-      } @@ afterEach,
+      },
       testM("should correctly upsert data") {
         for {
           spaceId <- getSpaceId()
@@ -84,7 +83,7 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
           updatedValue <- response.dataUnsafe[TestTuple]
         } yield assert(initialValue)(equalTo(Vector(tuple))) &&
           assert(updatedValue)(equalTo(Vector(tuple.copy(f2 = 321, f3 = 11))))
-      } @@ afterEach,
+      },
       testM("should correctly update update data") {
         for {
           spaceId <- getSpaceId()
@@ -99,7 +98,7 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
           updatedValue <- response.dataUnsafe[TestTuple]
         } yield assert(initialValue)(equalTo(Vector(tuple))) &&
           assert(updatedValue)(equalTo(Vector(tuple.copy(f2 = 123, f3 = 321))))
-      } @@ afterEach,
+      },
       testM("should replace existing tuple") {
         for {
           spaceId <- getSpaceId()
@@ -114,8 +113,8 @@ object TarantoolClientSpec extends DefaultRunnableSpec {
         } yield assert(initialValue)(equalTo(Vector(tuple))) && assert(replacedValue)(
           equalTo(Vector(tuple.copy(f2 = 12345)))
         )
-      } @@ afterEach
-    ) @@ sequential @@ before(createSpace().timeout(Duration.ofSeconds(5)).orDie))
+      }
+    ) @@ sequential @@ truncateAspect @@ before(createSpace().timeout(Duration.ofSeconds(5)).orDie))
       .provideCustomLayerShared(testEnv.orDie)
 
   private def createSpace(): ZIO[Any with TarantoolClient, Throwable, Unit] = for {

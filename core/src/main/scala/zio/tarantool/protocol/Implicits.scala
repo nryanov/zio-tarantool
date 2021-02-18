@@ -8,11 +8,6 @@ import zio.tarantool.msgpack._
 import zio.tarantool.msgpack.MessagePackException.UnexpectedMessagePackType
 
 object Implicits {
-  private[tarantool] implicit class RichMessagePackPacket(v: MessagePackPacket) {
-    def encodeM(): IO[TarantoolError.CodecError, BitVector] =
-      ZIO.effect(MessagePackPacketCodec.encode(v).require).mapError(TarantoolError.CodecError)
-  }
-
   private[tarantool] implicit class RichEncoder[A](encoder: Encoder[A]) {
     def encodeM(v: A): IO[TarantoolError.CodecError, MessagePack] =
       ZIO.effect(encoder.encode(v).require).mapError(TarantoolError.CodecError)
@@ -30,8 +25,6 @@ object Implicits {
   }
 
   private[tarantool] implicit class RichMessagePack(v: MessagePack) {
-    def encodeM(): IO[TarantoolError.CodecError, BitVector] =
-      IO.effect(MessagePackCodec.encode(v).require).mapError(TarantoolError.CodecError)
 
     /** Used for getting message size */
     final def toNumber: Long = v match {

@@ -2,16 +2,25 @@ package zio.tarantool.internal
 
 import java.nio.ByteBuffer
 
+import scodec.bits.ByteVector
+import zio.macros.accessible
 import zio.tarantool.TarantoolError
 import zio.tarantool.internal.impl.PacketManagerLive
 import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.{MessagePackPacket, OperationCode}
 import zio.{Has, IO, RIO, ULayer, ZIO, ZManaged}
 
+@accessible
 private[tarantool] object PacketManager {
   type PacketManager = Has[Service]
 
   trait Service extends Serializable {
+    def decodeToMessagePack(vector: ByteVector): IO[TarantoolError.CodecError, MessagePack]
+
+    def decodeToMessagePackPacket(
+      vector: ByteVector
+    ): IO[TarantoolError.CodecError, MessagePackPacket]
+
     def createPacket(
       op: OperationCode,
       syncId: Long,
@@ -31,31 +40,8 @@ private[tarantool] object PacketManager {
 
   }
 
-  def live(): ULayer[PacketManager] = make().toLayer
+  val live: ULayer[PacketManager] = make().toLayer
 
   def make(): ZManaged[Any, Nothing, Service] = ZManaged.succeed(new PacketManagerLive)
-
-  def createPacket(
-    op: OperationCode,
-    syncId: Long,
-    schemaId: Option[Long],
-    body: Map[Long, MessagePack]
-  ): RIO[PacketManager, MessagePackPacket] =
-    ZIO.accessM(_.get.createPacket(op, syncId, schemaId, body))
-
-  def toBuffer(packet: MessagePackPacket): RIO[PacketManager, ByteBuffer] =
-    ZIO.accessM(_.get.toBuffer(packet))
-
-  def extractCode(packet: MessagePackPacket): RIO[PacketManager, Long] =
-    ZIO.accessM(_.get.extractCode(packet))
-
-  def extractError(packet: MessagePackPacket): RIO[PacketManager, String] =
-    ZIO.accessM(_.get.extractError(packet))
-
-  def extractData(packet: MessagePackPacket): RIO[PacketManager, MessagePack] =
-    ZIO.accessM(_.get.extractData(packet))
-
-  def extractSyncId(packet: MessagePackPacket): RIO[PacketManager, Long] =
-    ZIO.accessM(_.get.extractSyncId(packet))
 
 }

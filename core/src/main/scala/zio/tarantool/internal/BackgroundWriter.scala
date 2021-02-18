@@ -4,10 +4,12 @@ import java.nio.ByteBuffer
 
 import SocketChannelProvider.SocketChannelProvider
 import zio.clock.Clock
+import zio.macros.accessible
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 import zio.tarantool.internal.impl.BackgroundWriterLive
-import zio.{Has, IO, Queue, Semaphore, UIO, ZIO, ZLayer, ZManaged}
+import zio.{Fiber, Has, IO, Queue, Semaphore, UIO, ZIO, ZLayer, ZManaged}
 
+@accessible
 private[tarantool] object BackgroundWriter {
   type BackgroundWriter = Has[Service]
 
@@ -16,12 +18,12 @@ private[tarantool] object BackgroundWriter {
 
     def write(buffer: ByteBuffer): IO[TarantoolError.IOError, Unit]
 
-    def start(): UIO[Unit]
+    def start(): UIO[Fiber.Runtime[Throwable, Nothing]]
 
     def close(): IO[TarantoolError.IOError, Unit]
   }
 
-  def live(): ZLayer[Has[
+  val live: ZLayer[Has[
     TarantoolConfig
   ] with SocketChannelProvider with Clock, Nothing, BackgroundWriter] =
     ZLayer.fromServicesManaged[
@@ -53,15 +55,6 @@ private[tarantool] object BackgroundWriter {
         clock
       )
     )(_.close().orDie)
-
-  def write(buffer: ByteBuffer): ZIO[BackgroundWriter, TarantoolError.IOError, Unit] =
-    ZIO.accessM(_.get.write(buffer))
-
-  def start(): ZIO[BackgroundWriter, Nothing, Unit] =
-    ZIO.accessM(_.get.start())
-
-  def close(): ZIO[BackgroundWriter, TarantoolError.IOError, Unit] =
-    ZIO.accessM(_.get.close())
 
   def requestQueue(): ZIO[BackgroundWriter, Nothing, Queue[ByteBuffer]] =
     ZIO.access(_.get.requestQueue)
