@@ -32,8 +32,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [adopt@1.8, adopt@1.11]
-        scala: [2.12.13, 2.13.4]
+        java: [adopt@1.11]
+        scala: [2.13.4]
     runs-on: ubuntu-latest
     steps:
     - name: Checkout current branch
