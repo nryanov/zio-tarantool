@@ -58,9 +58,7 @@ private[tarantool] final class PacketManagerLive extends PacketManager.Service {
   override def extractCode(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
     codeMp <- ZIO
       .fromOption(packet.header.get(Key.Code.value))
-      .mapError(_ =>
-        TarantoolError.ProtocolError(s"Packet has no Code in header (${packet.header})")
-      )
+      .orElseFail(TarantoolError.ProtocolError(s"Packet has no Code in header (${packet.header})"))
     codeValue <- numberEncoder.decodeM(codeMp)
     code <- if (codeValue == 0) ZIO.succeed(codeValue) else extractErrorCode(codeValue)
   } yield code
@@ -78,11 +76,20 @@ private[tarantool] final class PacketManagerLive extends PacketManager.Service {
   override def extractSyncId(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
     syncIdMp <- ZIO
       .fromOption(packet.header.get(Key.Sync.value))
-      .mapError(_ =>
+      .orElseFail(
         TarantoolError.ProtocolError(s"Packet has no SyncId in header (${packet.header})")
       )
     syncId <- numberEncoder.decodeM(syncIdMp)
   } yield syncId
+
+  override def extractSchemaId(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
+    schemaIdMp <- ZIO
+      .fromOption(packet.header.get(Key.SchemaId.value))
+      .orElseFail(
+        TarantoolError.ProtocolError(s"Packet has no SchemaId in header (${packet.header})")
+      )
+    schemaId <- numberEncoder.decodeM(schemaIdMp)
+  } yield schemaId
 
   private def extractByKey(
     packet: MessagePackPacket,
@@ -91,7 +98,7 @@ private[tarantool] final class PacketManagerLive extends PacketManager.Service {
     for {
       value <- ZIO
         .fromOption(packet.body.get(key.value))
-        .mapError(_ =>
+        .orElseFail(
           TarantoolError.ProtocolError(s"Packet has no $key value in body part ${packet.body}")
         )
     } yield value
@@ -110,7 +117,7 @@ private[tarantool] final class PacketManagerLive extends PacketManager.Service {
     ZIO.effect(MessagePackPacketCodec.encode(packet).require).mapError(TarantoolError.CodecError)
 }
 
-object PacketManagerLive {
+private[tarantool] object PacketManagerLive {
   private val InitialRequestSize = 1024
 
   private val numberEncoder: Encoder[Long] = Encoder.longEncoder

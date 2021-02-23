@@ -136,6 +136,28 @@ object PacketManagerSpec extends DefaultRunnableSpec {
             )
           )
         )
+      },
+      testM("should extract schemaId") {
+        val packet = MessagePackPacket(
+          Map(
+            Key.Sync.value -> Encoder[Long].encodeUnsafe(1),
+            Key.Code.value -> Encoder[Long].encodeUnsafe(0x8123),
+            Key.SchemaId.value -> Encoder[Long].encodeUnsafe(2)
+          )
+        )
+        val result = PacketManager.extractSchemaId(packet)
+        assertM(result)(equalTo(2.toLong))
+      },
+      testM("should fail with ProtocolError when trying to extract not existing schemaId") {
+        val packet = MessagePackPacket(Map.empty[Long, MessagePack])
+        val result = PacketManager.extractSchemaId(packet)
+        assertM(result.run)(
+          fails(
+            equalTo(
+              TarantoolError.ProtocolError(s"Packet has no SchemaId in header (${packet.header})")
+            )
+          )
+        )
       }
     ).provideCustomLayerShared(testEnvironment ++ packetManager)
 }

@@ -38,6 +38,8 @@ private[tarantool] object PacketManager {
 
     def extractSyncId(packet: MessagePackPacket): IO[Throwable, Long]
 
+    def extractSchemaId(packet: MessagePackPacket): IO[Throwable, Long]
+
   }
 
   val live: ULayer[PacketManager] = make().toLayer
