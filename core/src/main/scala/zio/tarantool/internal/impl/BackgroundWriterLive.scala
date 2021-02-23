@@ -45,8 +45,7 @@ private[tarantool] final class BackgroundWriterLive(
 
   private def start0(): ZIO[Any, Throwable, Unit] = for {
     size <- queue.size
-    _ <- debug(s"Queue size: $size")
-    _ <- debug("Wait new delayed requests")
+    _ <- debug(s"Queue size: $size. Wait new delayed requests")
     buffer <- queue.take
     _ <- debug("Wait write permission in background")
     // just wait permission
@@ -79,7 +78,7 @@ private[tarantool] final class BackgroundWriterLive(
   override private[tarantool] val requestQueue = queue
 }
 
-object BackgroundWriterLive {
+private[tarantool] object BackgroundWriterLive {
   final case class DirectWriteError(buffer: ByteBuffer)
       extends RuntimeException(s"Error happened while sending buffer: $buffer")
       with NoStackTrace

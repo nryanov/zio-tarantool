@@ -14,7 +14,8 @@ final case class ConnectionConfig(
 
 final case class ClientConfig(
   writeTimeoutMillis: Int = 1000,
-  requestExpirationTimeoutMillis: Int = 1000
+  requestExpirationTimeoutMillis: Int = 1000,
+  backgroundQueueSize: Int = 1024
 )
 
 final case class TarantoolConfig(

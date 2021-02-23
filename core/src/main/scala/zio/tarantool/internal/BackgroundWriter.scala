@@ -5,6 +5,7 @@ import java.nio.ByteBuffer
 import SocketChannelProvider.SocketChannelProvider
 import zio.clock.Clock
 import zio.macros.accessible
+import zio.tarantool.TarantoolError.ConfigurationError
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 import zio.tarantool.internal.impl.BackgroundWriterLive
 import zio.{Fiber, Has, IO, Queue, Semaphore, UIO, ZIO, ZLayer, ZManaged}
@@ -25,12 +26,12 @@ private[tarantool] object BackgroundWriter {
 
   val live: ZLayer[Has[
     TarantoolConfig
-  ] with SocketChannelProvider with Clock, Nothing, BackgroundWriter] =
+  ] with SocketChannelProvider with Clock, TarantoolError, BackgroundWriter] =
     ZLayer.fromServicesManaged[
       TarantoolConfig,
       SocketChannelProvider.Service,
       Clock,
-      Nothing,
+      TarantoolError,
       Service
     ] { (cfg, scp) =>
       make(cfg, scp)
@@ -39,13 +40,12 @@ private[tarantool] object BackgroundWriter {
   def make(
     cfg: TarantoolConfig,
     scp: SocketChannelProvider.Service
-  ): ZManaged[Clock, Nothing, Service] =
+  ): ZManaged[Clock, TarantoolError, Service] =
     ZManaged.make(
       for {
         clock <- ZIO.environment[Clock]
         semaphore <- Semaphore.make(1)
-        // todo: capacity from cfg
-        queue <- Queue.bounded[ByteBuffer](1024)
+        queue <- createQueue(cfg.clientConfig.backgroundQueueSize)
       } yield new BackgroundWriterLive(
         cfg,
         scp,
@@ -55,6 +55,13 @@ private[tarantool] object BackgroundWriter {
         clock
       )
     )(_.close().orDie)
+
+  private def createQueue(size: Int): IO[TarantoolError, Queue[ByteBuffer]] = size match {
+    case x if x > 0  => Queue.bounded(x)
+    case x if x == 0 => Queue.unbounded
+    case x =>
+      ZIO.fail(ConfigurationError(s"Configuration 'backgroundQueueSize' has incorrect value: $x"))
+  }
 
   def requestQueue(): ZIO[BackgroundWriter, Nothing, Queue[ByteBuffer]] =
     ZIO.access(_.get.requestQueue)
