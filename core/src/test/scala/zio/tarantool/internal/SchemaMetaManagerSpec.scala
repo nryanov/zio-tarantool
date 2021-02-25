@@ -2,14 +2,23 @@ package zio.tarantool.internal
 
 import java.time.Duration
 
-import zio.{Has, ZLayer}
+import zio.{Has, ZIO, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
-import zio.tarantool.{TarantoolConfig, TarantoolConnection, TarantoolContainer}
+import zio.duration._
+import zio.tarantool.TarantoolClient.TarantoolClient
+import zio.tarantool.{
+  TarantoolClient,
+  TarantoolConfig,
+  TarantoolConnection,
+  TarantoolContainer,
+  TarantoolError
+}
 import zio.tarantool.TarantoolConnection.TarantoolConnection
 import zio.tarantool.TarantoolContainer.Tarantool
 import zio.tarantool.internal.SchemaMetaManager.SchemaMetaManager
-import zio.test.{DefaultRunnableSpec, ZSpec, assert, suite, testM}
+import zio.tarantool.internal.schema.SpaceMeta
+import zio.test.{DefaultRunnableSpec, ZSpec, assert, assertM, suite, testM}
 import zio.test.Assertion._
 import zio.test.TestAspect._
 
@@ -25,38 +34,70 @@ object SchemaMetaManagerSpec extends DefaultRunnableSpec {
     )
   val tarantoolConnectionLayer: ZLayer[Tarantool, Throwable, TarantoolConnection] =
     (Clock.live ++ configLayer) >>> TarantoolConnection.live
+  val tarantoolClientLayer: ZLayer[Any with Tarantool, Throwable, TarantoolClient] =
+    tarantoolConnectionLayer >>> TarantoolClient.live
   val schemaManagerLayer: ZLayer[Any with Tarantool, Throwable, SchemaMetaManager] =
     (Clock.live ++ configLayer ++ tarantoolConnectionLayer) >>> SchemaMetaManager.live
-  val testEnv: ZLayer[Any, Throwable, Clock with SchemaMetaManager] =
-    Clock.live ++ (tarantoolLayer >>> schemaManagerLayer)
+  val testEnv: ZLayer[Any, Throwable, Clock with SchemaMetaManager with TarantoolClient] =
+    Clock.live ++ (tarantoolLayer >>> (tarantoolClientLayer ++ schemaManagerLayer))
 
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     (suite("SchemaMetaManager spec")(
+      testM("should fail if space not found in cache") {
+        assertM(SchemaMetaManager.getSpaceMeta("some space").run)(
+          fails(
+            equalTo(
+              TarantoolError.SpaceNotFound(s"Space some space not found in cache")
+            )
+          )
+        )
+      },
+      testM("should update schema id after fetching meta") {
+        for {
+          initialSchemaId <- SchemaMetaManager.schemaVersion
+          _ <- SchemaMetaManager.fetchMeta
+          updatedSchemaId <- SchemaMetaManager.schemaVersion
+        } yield assert(initialSchemaId)(equalTo(0L)) && assert(updatedSchemaId)(not(equalTo(0L)))
+      },
       testM("should fetch spaces and indexes") {
         for {
+          _ <- createSpace()
           _ <- SchemaMetaManager.fetchMeta
-        } yield assert(true)(isTrue)
+          space <- SchemaMetaManager.getSpaceMeta("test")
+          index <- SchemaMetaManager.getIndexMeta("test", "primary")
+        } yield assert(space.spaceName)(equalTo("test")) && assert(index.indexName)(
+          equalTo("primary")
+        )
+      },
+      testM("should fail if index not found in cache") {
+        val result = for {
+          _ <- createSpace()
+          _ <- SchemaMetaManager.fetchMeta
+          _ <- SchemaMetaManager.getIndexMeta("test", "notExistingIndex")
+        } yield ()
+
+        assertM(result.run)(
+          fails(
+            equalTo(
+              TarantoolError.IndexNotFound(
+                "Index notExistingIndex not found in cache for space test"
+              )
+            )
+          )
+        )
       }
-    ) @@ sequential @@ timeout(Duration.ofSeconds(5))).provideCustomLayerShared(testEnv.orDie)
+    ) @@ sequential @@ timeout(30 seconds)).provideCustomLayerShared(testEnv.orDie)
+
+  private def createSpace(): ZIO[Any with TarantoolClient, Throwable, Unit] = for {
+    r1 <- TarantoolClient.eval("box.schema.create_space('test', {if_not_exists = true})")
+    r2 <- TarantoolClient.eval(
+      "box.space.test:create_index('primary', {if_not_exists = true, unique = true, parts = {1, 'string'} })"
+    )
+    r3 <- TarantoolClient.eval(
+      "box.space.test:create_index('secondary', {if_not_exists = true, unique = false, parts = {2, 'string'} })"
+    )
+    _ <- r1.response.await
+    _ <- r2.response.await
+    _ <- r3.response.await
+  } yield ()
 }
-
-/*
-  - [372, 1, '_func_index', 'memtx', 0, {}, [{'name': 'space_id', 'type': 'unsigned'},
-      {'name': 'index_id', 'type': 'unsigned'}, {'name': 'func_id', 'type': 'unsigned'}]]
-
-
-MpArray32(
-Vector(
-MpFixArray(
-  Vector(MpUint16(257),  -- space Id
-  MpPositiveFixInt(1),  -- ???
-  MpFixString(_vinyl_deferred_delete), -- spaceName
-  MpFixString(blackhole), -- spaceEngine
-  MpPositiveFixInt(0),  -- ???
-  MpFixMap(Map(MpFixString(group_id) -> MpPositiveFixInt(1))),
-MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(space_id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(lsn), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(tuple), MpFixString(type) -> MpFixString(array))))))),
-MpFixArray(Vector(MpUint16(272), MpPositiveFixInt(1), MpFixString(_schema), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(type) -> MpFixString(string), MpFixString(name) -> MpFixString(key))), MpFixMap(Map(MpFixString(type) -> MpFixString(any), MpFixString(name) -> MpFixString(value), MpFixString(is_nullable) -> MpTrue)))))),
-MpFixArray(Vector(MpUint16(276), MpPositiveFixInt(1), MpFixString(_collation), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(owner), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(type), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(locale), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(opts), MpFixString(type) -> MpFixString(map))))))), MpFixArray(Vector(MpUint16(277), MpPositiveFixInt(1), MpFixString(_vcollation), MpFixString(sysview), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(owner), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(type), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(locale), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(opts), MpFixString(type) -> MpFixString(map))))))), MpFixArray(Vector(MpUint16(280), MpPositiveFixInt(1), MpFixString(_space), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(owner), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(engine), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(field_count), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(flags), MpFixString(type) -> MpFixString(map))), MpFixMap(Map(MpFixString(name) -> MpFixString(format), MpFixString(type) -> MpFixString(array))))))), MpFixArray(Vector(MpUint16(281), MpPositiveFixInt(1), MpFixString(_vspace), MpFixString(sysview), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(owner), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(engine), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(field_count), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(flags), MpFixString(type) -> MpFixString(map))), MpFixMap(Map(MpFixString(name) -> MpFixString(format), MpFixString(type) -> MpFixString(array))))))), MpFixArray(Vector(MpUint16(284), MpPositiveFixInt(1), MpFixString(_sequence), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(owner), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(step), MpFixString(type) -> MpFixString(integer))), MpFixMap(Map(MpFixString(name) -> MpFixString(min), MpFixString(type) -> MpFixString(integer))), MpFixMap(Map(MpFixString(name) -> MpFixString(max), MpFixString(type) -> MpFixString(integer))), MpFixMap(Map(MpFixString(name) -> MpFixString(start), MpFixString(type) -> MpFixString(integer))), MpFixMap(Map(MpFixString(name) -> MpFixString(cache), MpFixString(type) -> MpFixString(integer))), MpFixMap(Map(MpFixString(name) -> MpFixString(cycle), MpFixString(type) -> MpFixString(boolean))))))), MpFixArray(Vector(MpUint16(285), MpPositiveFixInt(1), MpFixString(_sequence_data), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(value), MpFixString(type) -> MpFixString(integer))))))), MpFixArray(Vector(MpUint16(286), MpPositiveFixInt(1), MpFixString(_vsequence), MpFixString(sysview), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(owner), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(step), MpFixString(type) -> MpFixString(integer))), MpFixMap(Map(MpFixString(name) -> MpFixString(min), MpFixString(type) -> MpFixString(integer))), MpFixMap(Map(MpFixString(name) -> MpFixString(max), MpFixString(type) -> MpFixString(integer))), MpFixMap(Map(MpFixString(name) -> MpFixString(start), MpFixString(type) -> MpFixString(integer))), MpFixMap(Map(MpFixString(name) -> MpFixString(cache), MpFixString(type) -> MpFixString(integer))), MpFixMap(Map(MpFixString(name) -> MpFixString(cycle), MpFixString(type) -> MpFixString(boolean))))))), MpFixArray(Vector(MpUint16(288), MpPositiveFixInt(1), MpFixString(_index), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(iid), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(type), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(opts), MpFixString(type) -> MpFixString(map))), MpFixMap(Map(MpFixString(name) -> MpFixString(parts), MpFixString(type) -> MpFixString(array))))))), MpFixArray(Vector(MpUint16(289), MpPositiveFixInt(1), MpFixString(_vindex), MpFixString(sysview), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(iid), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(type), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(opts), MpFixString(type) -> MpFixString(map))), MpFixMap(Map(MpFixString(name) -> MpFixString(parts), MpFixString(type) -> MpFixString(array))))))), MpFixArray(Vector(MpUint16(296), MpPositiveFixInt(1), MpFixString(_func), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpArray16(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(owner), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(setuid), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(language), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(body), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(routine_type), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(param_list), MpFixString(type) -> MpFixString(array))), MpFixMap(Map(MpFixString(name) -> MpFixString(returns), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(aggregate), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(sql_data_access), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(is_deterministic), MpFixString(type) -> MpFixString(boolean))), MpFixMap(Map(MpFixString(name) -> MpFixString(is_sandboxed), MpFixString(type) -> MpFixString(boolean))), MpFixMap(Map(MpFixString(name) -> MpFixString(is_null_call), MpFixString(type) -> MpFixString(boolean))), MpFixMap(Map(MpFixString(name) -> MpFixString(exports), MpFixString(type) -> MpFixString(array))), MpFixMap(Map(MpFixString(name) -> MpFixString(opts), MpFixString(type) -> MpFixString(map))), MpFixMap(Map(MpFixString(name) -> MpFixString(comment), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(created), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(last_altered), MpFixString(type) -> MpFixString(string))))))), MpFixArray(Vector(MpUint16(297), MpPositiveFixInt(1), MpFixString(_vfunc), MpFixString(sysview), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(owner), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(setuid), MpFixString(type) -> MpFixString(unsigned))))))), MpFixArray(Vector(MpUint16(304), MpPositiveFixInt(1), MpFixString(_user), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(owner), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(type), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(auth), MpFixString(type) -> MpFixString(map))))))), MpFixArray(Vector(MpUint16(305), MpPositiveFixInt(1), MpFixString(_vuser), MpFixString(sysview), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(owner), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(type), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(auth), MpFixString(type) -> MpFixString(map))))))), MpFixArray(Vector(MpUint16(312), MpPositiveFixInt(1), MpFixString(_priv), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(grantor), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(grantee), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(object_type), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(object_id), MpFixString(type) -> MpFixString(scalar))), MpFixMap(Map(MpFixString(name) -> MpFixString(privilege), MpFixString(type) -> MpFixString(unsigned))))))), MpFixArray(Vector(MpUint16(313), MpPositiveFixInt(1), MpFixString(_vpriv), MpFixString(sysview), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(grantor), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(grantee), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(object_type), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(object_id), MpFixString(type) -> MpFixString(scalar))), MpFixMap(Map(MpFixString(name) -> MpFixString(privilege), MpFixString(type) -> MpFixString(unsigned))))))), MpFixArray(Vector(MpUint16(320), MpPositiveFixInt(1), MpFixString(_cluster), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(uuid), MpFixString(type) -> MpFixString(string))))))), MpFixArray(Vector(MpUint16(328), MpPositiveFixInt(1), MpFixString(_trigger), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(space_id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(opts), MpFixString(type) -> MpFixString(map))))))), MpFixArray(Vector(MpUint16(330), MpPositiveFixInt(1), MpFixString(_truncate), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(count), MpFixString(type) -> MpFixString(unsigned))))))), MpFixArray(Vector(MpUint16(340), MpPositiveFixInt(1), MpFixString(_space_sequence), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(sequence_id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(is_generated), MpFixString(type) -> MpFixString(boolean))), MpFixMap(Map(MpFixString(name) -> MpFixString(field), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(path), MpFixString(type) -> MpFixString(string))))))), MpFixArray(Vector(MpUint16(356), MpPositiveFixInt(1), MpFixString(_fk_constraint), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(child_id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(parent_id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(is_deferred), MpFixString(type) -> MpFixString(boolean))), MpFixMap(Map(MpFixString(name) -> MpFixString(match), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(on_delete), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(on_update), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(child_cols), MpFixString(type) -> MpFixString(array))), MpFixMap(Map(MpFixString(name) -> MpFixString(parent_cols), MpFixString(type) -> MpFixString(array))))))), MpFixArray(Vector(MpUint16(364), MpPositiveFixInt(1), MpFixString(_ck_constraint), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(space_id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(is_deferred), MpFixString(type) -> MpFixString(boolean))), MpFixMap(Map(MpFixString(name) -> MpFixString(language), MpFixString(type) -> MpFixString(str))), MpFixMap(Map(MpFixString(name) -> MpFixString(code), MpFixString(type) -> MpFixString(str))), MpFixMap(Map(MpFixString(name) -> MpFixString(is_enabled), MpFixString(type) -> MpFixString(boolean))))))), MpFixArray(Vector(MpUint16(372), MpPositiveFixInt(1), MpFixString(_func_index), MpFixString(memtx), MpPositiveFixInt(0), MpFixMap(Map()), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(space_id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(index_id), MpFixString(type) -> MpFixString(unsigned))), MpFixMap(Map(MpFixString(name) -> MpFixString(func_id), MpFixString(type) -> MpFixString(unsigned))))))), MpFixArray(Vector(MpUint16(380), MpPositiveFixInt(1), MpFixString(_session_settings), MpFixString(service), MpPositiveFixInt(2), MpFixMap(Map(MpFixString(temporary) -> MpTrue)), MpFixArray(Vector(MpFixMap(Map(MpFixString(name) -> MpFixString(name), MpFixString(type) -> MpFixString(string))), MpFixMap(Map(MpFixString(name) -> MpFixString(value), MpFixString(type) -> MpFixString(any))))))))
-)
-
- */

@@ -62,7 +62,7 @@ class TupleEncoderSpec extends BaseSpec with ScalaCheckPropertyChecks with Optio
     }
 
     "encode/decode string" in {
-      forAll(nonEmptyString(32)) { value =>
+      forAll(nonEmptyString(256)) { value =>
         val tupleEncoder: TupleEncoder[String] = TupleEncoder[String]
         checkTupleEncoder(value, tupleEncoder)
       }
