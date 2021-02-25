@@ -1,11 +1,11 @@
-package zio.tarantool.protocol
+package zio.tarantool.codec
 
 import org.scalatest.OptionValues
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import scodec.bits.ByteVector
 import zio.tarantool.BaseSpec
-import zio.tarantool.msgpack.MpFixArray
 import zio.tarantool.Generators._
+import zio.tarantool.msgpack.MpFixArray
 
 class TupleEncoderSpec extends BaseSpec with ScalaCheckPropertyChecks with OptionValues {
   "TupleEncoder for primitive types" should {

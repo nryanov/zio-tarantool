@@ -3,9 +3,10 @@ package zio.tarantool
 import zio._
 import zio.macros.accessible
 import zio.tarantool.TarantoolConnection.TarantoolConnection
+import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.impl.TarantoolClientLive
 import zio.tarantool.msgpack.MpArray
-import zio.tarantool.protocol.{IteratorCode, TupleEncoder}
+import zio.tarantool.protocol.{IteratorCode, TarantoolOperation}
 
 @accessible
 object TarantoolClient {

@@ -12,6 +12,8 @@ object TarantoolError {
   final case class SpaceNotFound(message: String) extends TarantoolError
   final case class IndexNotFound(message: String) extends TarantoolError
 
+  final case class NotEqualSchemaId(message: String) extends TarantoolError
+
   final case class ProtocolError(message: String) extends TarantoolError
   final case class CodecError(exception: Throwable) extends TarantoolError
   final case class IOError(exception: IOException) extends TarantoolError

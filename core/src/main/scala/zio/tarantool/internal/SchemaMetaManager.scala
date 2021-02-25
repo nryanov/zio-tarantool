@@ -1,11 +1,11 @@
 package zio.tarantool.internal
 
+import zio._
 import zio.clock.Clock
 import zio.macros.accessible
-import zio.tarantool.TarantoolClient.TarantoolClient
+import zio.tarantool.TarantoolConnection.TarantoolConnection
 import zio.tarantool.internal.schema.{IndexMeta, SpaceMeta}
-import zio.tarantool.{TarantoolClient, TarantoolConfig, TarantoolError}
-import zio._
+import zio.tarantool.{TarantoolConfig, TarantoolConnection, TarantoolError}
 import zio.tarantool.internal.impl.SchemaMetaManagerLive
 
 @accessible
@@ -24,10 +24,10 @@ private[tarantool] object SchemaMetaManager {
 
   val live: ZLayer[Has[
     TarantoolConfig
-  ] with TarantoolClient with Clock, Nothing, SchemaMetaManager] =
+  ] with TarantoolConnection with Clock, Nothing, SchemaMetaManager] =
     ZLayer.fromServicesManaged[
       TarantoolConfig,
-      TarantoolClient.Service,
+      TarantoolConnection.Service,
       Clock,
       Nothing,
       Service
@@ -37,18 +37,20 @@ private[tarantool] object SchemaMetaManager {
 
   def make(
     cfg: TarantoolConfig,
-    client: TarantoolClient.Service
+    connection: TarantoolConnection.Service
   ): ZManaged[Clock, Nothing, Service] =
     ZManaged.fromEffect(
       for {
         clock <- ZIO.environment[Clock]
         currentSchemaVersion <- Ref.make(0L)
+        spaceMetaMap <- Ref.make(Map.empty[String, SpaceMeta])
         semaphore <- Semaphore.make(1)
       } yield new SchemaMetaManagerLive(
         cfg,
-        client,
+        connection,
         clock,
         currentSchemaVersion,
+        spaceMetaMap,
         semaphore
       )
     )

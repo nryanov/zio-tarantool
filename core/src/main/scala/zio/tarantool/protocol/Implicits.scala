@@ -1,9 +1,9 @@
 package zio.tarantool.protocol
 
 import scodec.bits.{BitVector, ByteVector}
-
 import zio.{IO, ZIO}
 import zio.tarantool.TarantoolError
+import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.msgpack._
 import zio.tarantool.msgpack.MessagePackException.UnexpectedMessagePackType
 

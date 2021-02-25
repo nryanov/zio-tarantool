@@ -1,11 +1,12 @@
-package zio.tarantool.protocol
+package zio.tarantool.codec
 
-import scodec.{Attempt, Codec, DecodeResult, Err, SizeBound}
 import scodec.bits.BitVector
+import scodec.{Attempt, Codec, DecodeResult, Err, SizeBound}
 import shapeless.HNil
 import zio.tarantool.msgpack.Codecs.mpMapCodec
 import zio.tarantool.msgpack.Encoder.mapEncoder
 import zio.tarantool.msgpack.{MessagePack, MpMap}
+import zio.tarantool.protocol.MessagePackPacket
 
 object MessagePackPacketCodec extends Codec[MessagePackPacket] {
   private val packetMapEncoder = mapEncoder[Long, MessagePack]

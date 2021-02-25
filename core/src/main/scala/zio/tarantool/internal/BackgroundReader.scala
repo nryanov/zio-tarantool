@@ -2,7 +2,7 @@ package zio.tarantool.internal
 
 import SocketChannelProvider.SocketChannelProvider
 import zio.macros.accessible
-import zio.{Fiber, Has, IO, RIO, ZIO, ZLayer, ZManaged}
+import zio.{Fiber, Has, IO, ZIO, ZLayer, ZManaged}
 import zio.tarantool.TarantoolError
 import zio.tarantool.internal.impl.BackgroundReaderLive
 import zio.tarantool.protocol.MessagePackPacket

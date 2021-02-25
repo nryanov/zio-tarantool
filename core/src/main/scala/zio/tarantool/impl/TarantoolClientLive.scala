@@ -3,9 +3,11 @@ package zio.tarantool.impl
 import zio._
 import zio.tarantool._
 import zio.tarantool.protocol.Implicits._
-import zio.tarantool.msgpack.Encoder.{longEncoder, stringEncoder}
+import zio.tarantool.protocol.TarantoolRequestBody._
 import zio.tarantool.msgpack._
-import zio.tarantool.protocol.{IteratorCode, Key, OperationCode, TupleEncoder}
+import zio.tarantool.protocol.{IteratorCode, OperationCode, TarantoolOperation}
+import zio.tarantool.codec.TupleEncoder
+
 import TarantoolClientLive._
 
 final class TarantoolClientLive(connection: TarantoolConnection.Service)
@@ -183,80 +185,4 @@ final class TarantoolClientLive(connection: TarantoolConnection.Service)
 
 object TarantoolClientLive {
   private val EmptyTuple = MpFixArray(Vector.empty)
-
-  private def selectBody(
-    spaceId: Int,
-    indexId: Int,
-    limit: Int,
-    offset: Int,
-    iterator: IteratorCode,
-    key: MpArray
-  ): Map[Long, MessagePack] = Map(
-    Key.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
-    Key.Index.value -> Encoder[Long].encodeUnsafe(indexId),
-    Key.Limit.value -> Encoder[Long].encodeUnsafe(limit),
-    Key.Offset.value -> Encoder[Long].encodeUnsafe(offset),
-    Key.Iterator.value -> Encoder[Long].encodeUnsafe(iterator.value),
-    Key.Key.value -> key
-  )
-
-  private def insertBody(spaceId: Int, tuple: MpArray): Map[Long, MessagePack] = Map(
-    Key.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
-    Key.Tuple.value -> tuple
-  )
-
-  private def updateBody(
-    spaceId: Int,
-    indexId: Int,
-    key: MpArray,
-    tuple: MpArray
-  ): Map[Long, MessagePack] = Map(
-    Key.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
-    Key.Index.value -> Encoder[Long].encodeUnsafe(indexId),
-    Key.Key.value -> key,
-    Key.Tuple.value -> tuple
-  )
-
-  private def deleteBody(spaceId: Int, indexId: Int, tuple: MpArray): Map[Long, MessagePack] = Map(
-    Key.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
-    Key.Index.value -> Encoder[Long].encodeUnsafe(indexId),
-    Key.Key.value -> tuple
-  )
-
-  private def upsertBody(
-    spaceId: Int,
-    indexId: Int,
-    ops: MpArray,
-    tuple: MpArray
-  ): Map[Long, MessagePack] = Map(
-    Key.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
-    Key.Index.value -> Encoder[Long].encodeUnsafe(indexId),
-    Key.UpsertOps.value -> ops,
-    Key.Tuple.value -> tuple
-  )
-
-  private def replaceBody(
-    spaceId: Int,
-    tuple: MpArray
-  ): Map[Long, MessagePack] =
-    Map(
-      Key.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
-      Key.Tuple.value -> tuple
-    )
-
-  private def callBody(
-    functionName: String,
-    tuple: MpArray
-  ): Map[Long, MessagePack] = Map(
-    Key.Function.value -> Encoder[String].encodeUnsafe(functionName),
-    Key.Tuple.value -> tuple
-  )
-
-  private def evalBody(
-    expression: String,
-    tuple: MpArray
-  ): Map[Long, MessagePack] = Map(
-    Key.Expression.value -> Encoder[String].encodeUnsafe(expression),
-    Key.Tuple.value -> tuple
-  )
 }

@@ -1,8 +1,8 @@
 package zio.tarantool.internal.schema
 
 import scodec.{Attempt, Err}
+import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.msgpack.{Encoder, MessagePack, MpArray, MpFalse}
-import zio.tarantool.protocol.TupleEncoder
 
 object SchemaEncoder {
   implicit val indexPartMetaEncoder: TupleEncoder[IndexPartMeta] = new TupleEncoder[IndexPartMeta] {

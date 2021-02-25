@@ -90,7 +90,7 @@ private[tarantool] final class BackgroundReaderLive(
   }
 }
 
-object BackgroundReaderLive {
+private[tarantool] object BackgroundReaderLive {
   case object MessagePackPacketReadError
       extends RuntimeException("Error while reading message pack packet")
       with NoStackTrace

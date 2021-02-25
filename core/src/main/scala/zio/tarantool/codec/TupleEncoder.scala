@@ -1,4 +1,4 @@
-package zio.tarantool.protocol
+package zio.tarantool.codec
 
 import scodec.{Attempt, Err}
 import zio.tarantool.msgpack.{Encoder, MpArray, MpFixArray}

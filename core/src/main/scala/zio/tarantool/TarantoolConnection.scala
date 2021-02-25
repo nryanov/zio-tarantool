@@ -4,7 +4,7 @@ import zio._
 import zio.macros.accessible
 import zio.clock.Clock
 import zio.tarantool.msgpack._
-import zio.tarantool.protocol.OperationCode
+import zio.tarantool.protocol.{OperationCode, TarantoolOperation}
 import zio.tarantool.impl.TarantoolConnectionLive
 import zio.tarantool.internal.{
   BackgroundReader,

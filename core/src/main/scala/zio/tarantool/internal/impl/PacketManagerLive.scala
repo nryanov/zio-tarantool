@@ -7,11 +7,12 @@ import scodec.bits.{BitVector, ByteVector}
 import zio.{IO, ZIO}
 import zio.tarantool.TarantoolError
 import zio.tarantool.TarantoolError.toIOError
+import zio.tarantool.codec.MessagePackPacketCodec
 import zio.tarantool.internal.PacketManager
 import zio.tarantool.internal.impl.PacketManagerLive._
 import zio.tarantool.msgpack.{Encoder, MessagePack, MessagePackCodec}
 import zio.tarantool.protocol.Implicits._
-import zio.tarantool.protocol.{Code, Key, MessagePackPacket, MessagePackPacketCodec, OperationCode}
+import zio.tarantool.protocol.{Code, Key, MessagePackPacket, OperationCode}
 
 import scala.collection.mutable
 
