@@ -1,6 +1,7 @@
 package zio.tarantool
 
 import java.io.IOException
+import java.nio.ByteBuffer
 
 import scala.util.control.NoStackTrace
 
@@ -18,6 +19,12 @@ object TarantoolError {
   final case class CodecError(exception: Throwable) extends TarantoolError
   final case class IOError(exception: IOException) extends TarantoolError
   final case class Timeout(message: String) extends TarantoolError
+
+  final case class DirectWriteError(message: String) extends TarantoolError
+  final case class MessagePackPacketReadError(message: String) extends TarantoolError
+
+  final case class OperationException(reason: String) extends TarantoolError
+  final case class NotFoundOperation(reason: String) extends TarantoolError
 
   private[tarantool] val toIOError: PartialFunction[Throwable, TarantoolError.IOError] = {
     case e: IOException => TarantoolError.IOError(e)

@@ -1,4 +1,4 @@
-package zio.tarantool.internal.schema
+package zio.tarantool.core.schema
 
 private[tarantool] final case class FieldMeta(
   fieldName: String,

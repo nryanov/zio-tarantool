@@ -1,4 +1,4 @@
-package zio.tarantool.internal
+package zio.tarantool.core
 
 import java.util.concurrent.{ExecutorService, Executors}
 

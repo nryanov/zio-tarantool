@@ -1,4 +1,4 @@
-package zio.tarantool.internal.schema
+package zio.tarantool.core.schema
 
 /*
   - [281, 0, 'primary', 'tree', {'unique': true}, [[0, 'unsigned']]]

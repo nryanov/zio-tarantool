@@ -1,3 +1,3 @@
-package zio.tarantool.internal.schema
+package zio.tarantool.core.schema
 
 final case class SpaceOptions(isTemporary: Boolean)

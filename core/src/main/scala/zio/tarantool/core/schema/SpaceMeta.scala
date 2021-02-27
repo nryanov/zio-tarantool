@@ -1,4 +1,4 @@
-package zio.tarantool.internal.schema
+package zio.tarantool.core.schema
 
 /*
   - [372, 1, '_func_index', 'memtx', 0, {}, [{'name': 'space_id', 'type': 'unsigned'},

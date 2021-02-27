@@ -1,4 +1,5 @@
 val zioVersion = "1.0.3"
+val zioLoggingVersion = "0.5.4"
 val scodecVersion = "1.11.7"
 val scodecBitsVersion = "1.1.17"
 val shapelessVersion = "2.3.3"
@@ -104,6 +105,7 @@ lazy val core = project
       "dev.zio" %% "zio" % zioVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
       "dev.zio" %% "zio-macros" % zioVersion,
+      "dev.zio" %% "zio-logging" % zioLoggingVersion,
       "org.slf4j" % "slf4j-api" % slf4jVersion,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
