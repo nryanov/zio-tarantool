@@ -1,15 +1,15 @@
 package zio.tarantool
 
 import zio._
-import zio.logging.Logger
+import zio.logging._
 import zio.macros.accessible
 import zio.tarantool.msgpack.MpArray
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.protocol.TarantoolRequestBody._
 import zio.tarantool.msgpack._
 import zio.tarantool.codec.TupleEncoder
-import zio.tarantool.core.TarantoolCommunicationInterceptor
-import zio.tarantool.core.TarantoolCommunicationInterceptor.TarantoolCommunicationInterceptor
+import zio.tarantool.core.CommunicationInterceptor
+import zio.tarantool.core.CommunicationInterceptor.CommunicationInterceptor
 import zio.tarantool.protocol.{IteratorCode, OperationCode, TarantoolOperation}
 
 @accessible
@@ -94,22 +94,25 @@ object TarantoolClient {
     def eval(expression: String): IO[TarantoolError, TarantoolOperation]
   }
 
-  val live: ZLayer[TarantoolCommunicationInterceptor, Nothing, TarantoolClient] = ???
-//    ZLayer.fromServiceManaged[TarantoolCommunicationInterceptor.Service, Any, Nothing, Service](
-//      make
-//    )
-//
-//  def make(service: TarantoolCommunicationInterceptor.Service): ZManaged[Any, Nothing, Service] =
-//    ZManaged.succeed(service).map(new Live(_))
+  val live: ZLayer[CommunicationInterceptor with Logging, Nothing, TarantoolClient] =
+    ZLayer.fromServiceManaged[CommunicationInterceptor.Service, Logging, Nothing, Service] {
+      communicationInterceptor => make(communicationInterceptor)
+    }
+
+  def make(service: CommunicationInterceptor.Service): ZManaged[Logging, Nothing, Service] =
+    ZManaged.fromEffect {
+      for {
+        logger <- ZIO.service[Logger[String]]
+      } yield new Live(logger, service)
+    }
 
   private[this] val EmptyTuple = MpFixArray(Vector.empty)
 
   private[this] final class Live(
     logger: Logger[String],
-    service: TarantoolCommunicationInterceptor.Service
+    service: CommunicationInterceptor.Service
   ) extends TarantoolClient.Service {
     override def ping(): IO[TarantoolError, TarantoolOperation] = for {
-      _ <- logger.debug("Ping request")
       response <- send(OperationCode.Ping, Map.empty)
     } yield response
 
@@ -122,7 +125,6 @@ object TarantoolClient {
       key: MpArray
     ): IO[TarantoolError, TarantoolOperation] =
       for {
-        _ <- logger.debug(s"Select request: $key")
         body <- ZIO
           .effect(selectBody(spaceId, indexId, limit, offset, iterator, key))
           .mapError(TarantoolError.CodecError)
@@ -143,7 +145,6 @@ object TarantoolClient {
 
     override def insert(spaceId: Int, tuple: MpArray): IO[TarantoolError, TarantoolOperation] =
       for {
-        _ <- logger.debug(s"Insert request: $tuple")
         body <- ZIO.effect(insertBody(spaceId, tuple)).mapError(TarantoolError.CodecError)
         response <- send(OperationCode.Insert, body)
       } yield response
@@ -164,7 +165,6 @@ object TarantoolClient {
       key: MpArray,
       ops: MpArray
     ): IO[TarantoolError, TarantoolOperation] = for {
-      _ <- logger.debug(s"Update request. Key: $key, operations: $ops")
       body <- ZIO.effect(updateBody(spaceId, indexId, key, ops)).mapError(TarantoolError.CodecError)
       response <- send(OperationCode.Update, body)
     } yield response
@@ -185,7 +185,6 @@ object TarantoolClient {
       indexId: Int,
       key: MpArray
     ): IO[TarantoolError, TarantoolOperation] = for {
-      _ <- logger.debug(s"Delete request: $key")
       body <- ZIO.effect(deleteBody(spaceId, indexId, key)).mapError(TarantoolError.CodecError)
       response <- send(OperationCode.Delete, body)
     } yield response
@@ -205,7 +204,6 @@ object TarantoolClient {
       ops: MpArray,
       tuple: MpArray
     ): IO[TarantoolError, TarantoolOperation] = for {
-      _ <- logger.debug(s"Upsert request. Operations: $ops, tuple: $tuple")
       body <- ZIO
         .effect(upsertBody(spaceId, indexId, ops, tuple))
         .mapError(TarantoolError.CodecError)
@@ -225,7 +223,6 @@ object TarantoolClient {
 
     override def replace(spaceId: Int, tuple: MpArray): IO[TarantoolError, TarantoolOperation] =
       for {
-        _ <- logger.debug(s"Replace request: $tuple")
         body <- ZIO.effect(replaceBody(spaceId, tuple)).mapError(TarantoolError.CodecError)
         response <- send(OperationCode.Replace, body)
       } yield response
@@ -243,7 +240,6 @@ object TarantoolClient {
       tuple: MpArray
     ): IO[TarantoolError, TarantoolOperation] =
       for {
-        _ <- logger.debug(s"Call request: $functionName, args: $tuple")
         body <- ZIO.effect(callBody(functionName, tuple)).mapError(TarantoolError.CodecError)
         response <- send(OperationCode.Call, body)
       } yield response
@@ -262,7 +258,6 @@ object TarantoolClient {
 
     override def eval(expression: String, tuple: MpArray): IO[TarantoolError, TarantoolOperation] =
       for {
-        _ <- logger.debug(s"Eval request: $expression, args: $tuple")
         body <- ZIO.effect(evalBody(expression, tuple)).mapError(TarantoolError.CodecError)
         response <- send(OperationCode.Eval, body)
       } yield response

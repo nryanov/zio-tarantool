@@ -2,15 +2,12 @@ package zio.tarantool
 
 import java.time.Duration
 
+import zio._
+import zio.clock.Clock
 import zio.test.{DefaultRunnableSpec, ZSpec, assert, suite, testM}
 import zio.test.Assertion._
 import zio.test.TestAspect._
-import zio.{Has, ZIO, ZLayer}
-import zio.blocking.Blocking
-import zio.clock.Clock
 import zio.tarantool.TarantoolClient.TarantoolClient
-import zio.tarantool.TarantoolConnection.TarantoolConnection
-import zio.tarantool.TarantoolContainer.Tarantool
 import zio.tarantool.builder.{TupleBuilder, UpdateOpsBuilder}
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.data.TestTuple
@@ -18,22 +15,9 @@ import zio.tarantool.data.TestTuple._
 import zio.tarantool.protocol.{IteratorCode, TarantoolOperation}
 import zio.tarantool.codec.TupleEncoder._
 
-object TarantoolClientSpec extends DefaultRunnableSpec {
-  val tarantoolLayer: ZLayer[Any, Nothing, Tarantool] =
-    Blocking.live >>> TarantoolContainer.tarantool()
-  val configLayer: ZLayer[Tarantool, Nothing, Has[TarantoolConfig]] =
-    ZLayer.fromService(container =>
-      TarantoolConfig(
-        host = container.container.getHost,
-        port = container.container.getMappedPort(3301)
-      )
-    )
-  val tarantoolConnectionLayer: ZLayer[Tarantool, Throwable, TarantoolConnection] =
-    (Clock.live ++ configLayer) >>> TarantoolConnection.live
-  val tarantoolClientLayer: ZLayer[Any with Tarantool, Throwable, TarantoolClient] =
-    tarantoolConnectionLayer >>> TarantoolClient.live
+object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
   val testEnv: ZLayer[Any, Throwable, Clock with TarantoolClient] =
-    Clock.live ++ (tarantoolLayer >>> tarantoolClientLayer)
+    Clock.live ++ tarantoolClientLayer
 
   val timeoutAspect = timeout(Duration.ofSeconds(5))
   val truncateAspect = after(truncateSpace()) >>> timeoutAspect

@@ -106,6 +106,7 @@ lazy val core = project
       "dev.zio" %% "zio-streams" % zioVersion,
       "dev.zio" %% "zio-macros" % zioVersion,
       "dev.zio" %% "zio-logging" % zioLoggingVersion,
+      "dev.zio" %% "zio-logging-slf4j" % zioLoggingVersion,
       "org.slf4j" % "slf4j-api" % slf4jVersion,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,

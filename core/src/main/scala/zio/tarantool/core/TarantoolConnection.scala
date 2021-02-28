@@ -1,15 +1,14 @@
 package zio.tarantool.core
 
 import zio._
+import zio.logging._
 import zio.clock.Clock
 import zio.macros.accessible
+import zio.tarantool.{TarantoolConfig, TarantoolError}
 import zio.tarantool.protocol.Constants._
-import zio.tarantool.protocol._
-import zio.tarantool.{Logging, TarantoolConfig, TarantoolError}
 import java.io.IOException
 import java.nio.ByteBuffer
-
-import zio.logging.Logger
+import java.nio.channels.Selector
 
 @accessible
 object TarantoolConnection {
@@ -19,44 +18,58 @@ object TarantoolConnection {
   trait Service extends Serializable {
     def connect(): ZIO[Any, Throwable, Unit]
 
-    def send(packet: MessagePackPacket): IO[TarantoolError, Unit]
+    def isConnected: UIO[Boolean]
+
+    def sendRequest(buffer: ByteBuffer): IO[TarantoolError, Option[Int]]
+
+    def isBlocking(): UIO[Boolean]
+
+    def registerSelector(selector: Selector, selectionKey: Int): IO[TarantoolError.IOError, Unit]
+
+    def read(buffer: ByteBuffer): IO[TarantoolError.IOError, Int]
   }
 
-  val live: ZLayer[Has[TarantoolConfig] with Clock, Throwable, TarantoolConnection] = ???
-//    ZLayer.fromServiceManaged[TarantoolConfig, Any with Clock, Throwable, Service](cfg => make(cfg))
-//
-//  def make(config: TarantoolConfig): ZManaged[Any with Clock, Throwable, Service] =
-//    make0(config).tapM(_.connect())
-//
-//  private def make0(config: TarantoolConfig): ZManaged[Any with Clock, Throwable, Service] = for {
-//    channelProvider <- SocketChannelProvider.make(config)
-//    packetManager <- PacketManager.make()
-//    reader <- TarantoolResponseHandler.make(channelProvider, packetManager)
-//    writer <- BackgroundWriter.make(config, channelProvider)
-//  } yield new Live(config, channelProvider, packetManager, reader, writer)
+  val live: ZLayer[Logging with Clock with Has[TarantoolConfig], Throwable, Has[Service]] =
+    ZLayer.fromServiceManaged[TarantoolConfig, Logging with Clock, Throwable, Service](cfg =>
+      make(cfg)
+    )
+
+  def make(config: TarantoolConfig): ZManaged[Logging with Clock, Throwable, Service] =
+    make0(config).tapM(_.connect())
+
+  private def make0(config: TarantoolConfig): ZManaged[Logging with Clock, Throwable, Service] =
+    for {
+      logger <- ZIO.service[Logger[String]].toManaged_
+      channelProvider <- SocketChannelProvider.make(config)
+      connected <- Ref.make(false).toManaged_
+    } yield new Live(logger, config, channelProvider, connected)
 
   private[this] final class Live(
     logger: Logger[String],
     tarantoolConfig: TarantoolConfig,
     channel: SocketChannelProvider.Service,
-    packetManager: PacketManager.Service,
-    backgroundReader: TarantoolResponseHandler.Service,
-    backgroundWriter: BackgroundWriter.Service
+    connected: Ref[Boolean]
   ) extends TarantoolConnection.Service {
 
-    def connect(): ZIO[Any, Throwable, Unit] =
-      greeting()
-        .zipRight(channel.blockingMode(false))
-        .zipRight(backgroundReader.start())
-        .zipRight(backgroundWriter.start())
-        .orDie
-        .unit
+    override def connect(): ZIO[Any, Throwable, Unit] =
+      ZIO.ifM(isConnected)(
+        ZIO.unit,
+        greeting().zipRight(channel.blockingMode(false)).orDie.unit *> connected.set(true)
+      )
 
-    override def send(packet: MessagePackPacket): IO[TarantoolError, Unit] =
-      for {
-        buffer <- MessagePackPacket.toBuffer(packet)
-        _ <- backgroundWriter.write(buffer)
-      } yield ()
+    override def isConnected: UIO[Boolean] = connected.get
+
+    override def sendRequest(buffer: ByteBuffer): IO[TarantoolError, Option[Int]] =
+      channel.writeFully(buffer)
+
+    override def isBlocking(): UIO[Boolean] = channel.isBlocking()
+
+    override def registerSelector(
+      selector: Selector,
+      selectionKey: Int
+    ): IO[TarantoolError.IOError, Unit] = channel.registerSelector(selector, selectionKey)
+
+    override def read(buffer: ByteBuffer): IO[TarantoolError.IOError, Int] = channel.read(buffer)
 
     private def greeting(): ZIO[Any, Throwable, String] = for {
       buffer <- ZIO(ByteBuffer.allocate(GreetingLength))

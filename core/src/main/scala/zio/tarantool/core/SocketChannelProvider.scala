@@ -7,10 +7,10 @@ import java.nio.channels.{Selector, SocketChannel}
 import zio.duration._
 import zio.macros.accessible
 import zio.clock.Clock
-import zio.logging.Logger
+import zio.logging.{Logger, Logging}
 import zio.tarantool.TarantoolError.toIOError
-import zio.tarantool.{Logging, TarantoolConfig, TarantoolError}
-import zio.{Has, IO, Schedule, UIO, ZIO, ZLayer, ZManaged}
+import zio.tarantool.{TarantoolConfig, TarantoolError}
+import zio.{Has, IO, Schedule, Semaphore, UIO, ZIO, ZLayer, ZManaged}
 
 @accessible
 private[tarantool] object SocketChannelProvider {
@@ -25,12 +25,20 @@ private[tarantool] object SocketChannelProvider {
 
     def read(buffer: ByteBuffer): IO[TarantoolError.IOError, Int]
 
-    def write(buffer: ByteBuffer): IO[TarantoolError.IOError, Int]
+    def writeFully(buffer: ByteBuffer): IO[TarantoolError, Option[Int]]
 
     def blockingMode(flag: Boolean): IO[TarantoolError.IOError, Unit]
   }
 
-  final case class Live(logger: Logger[String], channel: SocketChannel) extends Service {
+  final case class Live(
+    logger: Logger[String],
+    tarantoolConfig: TarantoolConfig,
+    channel: SocketChannel,
+    writeSemaphore: Semaphore,
+    clock: Clock
+  ) extends Service {
+    private val writeTimeout = tarantoolConfig.clientConfig.writeTimeoutMillis
+
     override def isBlocking(): UIO[Boolean] = UIO.effectTotal(channel.isBlocking)
 
     override def registerSelector(
@@ -45,31 +53,51 @@ private[tarantool] object SocketChannelProvider {
     override def read(buffer: ByteBuffer): IO[TarantoolError.IOError, Int] =
       IO.effect(channel.read(buffer)).refineOrDie(toIOError)
 
-    override def write(buffer: ByteBuffer): IO[TarantoolError.IOError, Int] =
-      IO.effect(channel.write(buffer)).refineOrDie(toIOError)
+    override def writeFully(buffer: ByteBuffer): ZIO[Any, TarantoolError, Option[Int]] =
+      writeSemaphore.withPermitManaged.timeout(writeTimeout.milliseconds).provide(clock).use {
+        case Some(_) =>
+          writeFully0(buffer).map(Some(_))
+        case None => ZIO.none
+      }
 
     override def blockingMode(flag: Boolean): IO[TarantoolError.IOError, Unit] =
       IO.effect(channel.configureBlocking(flag)).unit.refineOrDie(toIOError)
+
+    private def writeFully0(buffer: ByteBuffer): IO[TarantoolError, Int] = for {
+      res <- if (buffer.remaining() > 0) write(buffer) else ZIO.succeed(0)
+      _ <- ZIO
+        .fail(TarantoolError.DirectWriteError(s"Error happened while sending buffer: $buffer"))
+        .when(res < 0)
+      total <- if (buffer.remaining() > 0) writeFully0(buffer).map(_ + res) else ZIO.succeed(res)
+    } yield total
+
+    private def write(buffer: ByteBuffer): IO[TarantoolError.IOError, Int] =
+      IO.effect(channel.write(buffer)).refineOrDie(toIOError)
   }
 
-  val live: ZLayer[Has[TarantoolConfig] with Clock, Throwable, SocketChannelProvider] = ???
-//    ZLayer.fromServiceManaged[TarantoolConfig, Any with Clock, Throwable, Service](cfg => make(cfg))
+  val live: ZLayer[Has[TarantoolConfig] with Clock with Logging, Throwable, SocketChannelProvider] =
+    ZLayer.fromServiceManaged[TarantoolConfig, Logging with Clock, Throwable, Service](cfg =>
+      make(cfg)
+    )
 
-//  def make(config: TarantoolConfig): ZManaged[Any with Clock, Throwable, Service] =
-//    ZManaged.make(for {
-//      channel <- ZIO.effect(SocketChannel.open()).tap { channel =>
-//        ZIO
-//          .effect(new InetSocketAddress(config.connectionConfig.host, config.connectionConfig.port))
-//          .flatMap(address =>
-//            ZIO
-//              .effect(channel.connect(address))
-//              .timeout(config.connectionConfig.connectionTimeoutMillis.milliseconds)
-//          )
-//          .retry(
-//            Schedule
-//              .recurs(config.connectionConfig.retries)
-//              .delayed(_ => config.connectionConfig.retryTimeoutMillis.milliseconds)
-//          )
-//      }
-//    } yield Live(channel))(channel => channel.close().orDie)
+  def make(config: TarantoolConfig): ZManaged[Logging with Clock, Throwable, Service] =
+    ZManaged.make(for {
+      logger <- ZIO.service[Logger[String]]
+      clock <- ZIO.environment[Clock]
+      semaphore <- Semaphore.make(1)
+      channel <- ZIO.effect(SocketChannel.open()).tap { channel =>
+        ZIO
+          .effect(new InetSocketAddress(config.connectionConfig.host, config.connectionConfig.port))
+          .flatMap(address =>
+            ZIO
+              .effect(channel.connect(address))
+              .timeout(config.connectionConfig.connectionTimeoutMillis.milliseconds)
+          )
+          .retry(
+            Schedule
+              .recurs(config.connectionConfig.retries)
+              .delayed(_ => config.connectionConfig.retryTimeoutMillis.milliseconds)
+          )
+      }
+    } yield Live(logger, config, channel, semaphore, clock))(channel => channel.close().orDie)
 }

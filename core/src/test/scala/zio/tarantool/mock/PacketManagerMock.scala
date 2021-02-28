@@ -1,6 +1,6 @@
 package zio.tarantool.mock
 
-import zio.tarantool.internal.PacketManager
+import zio.tarantool.core.PacketManager
 import zio.test.mock.mockable
 
 @mockable[PacketManager.Service]

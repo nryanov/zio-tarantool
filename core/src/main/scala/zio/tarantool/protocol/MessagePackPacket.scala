@@ -41,7 +41,7 @@ object MessagePackPacket {
 
   def extractCode(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
     codeMp <- ZIO
-      .fromOption(packet.header.get(Key.Code.value))
+      .fromOption(packet.header.get(FieldKey.Code.value))
       .orElseFail(
         TarantoolError.ProtocolError(s"Packet has no Code in header (${packet.header})")
       )
@@ -52,16 +52,16 @@ object MessagePackPacket {
   def extractError(
     packet: MessagePackPacket
   ): IO[TarantoolError, String] =
-    extractByKey(packet, Key.Error).flatMap(Encoder.stringEncoder.decodeM)
+    extractByKey(packet, FieldKey.Error).flatMap(Encoder.stringEncoder.decodeM)
 
   def extractData(
     packet: MessagePackPacket
   ): IO[TarantoolError.ProtocolError, MessagePack] =
-    extractByKey(packet, Key.Data)
+    extractByKey(packet, FieldKey.Data)
 
   def extractSyncId(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
     syncIdMp <- ZIO
-      .fromOption(packet.header.get(Key.Sync.value))
+      .fromOption(packet.header.get(FieldKey.Sync.value))
       .orElseFail(
         TarantoolError.ProtocolError(s"Packet has no SyncId in header (${packet.header})")
       )
@@ -70,7 +70,7 @@ object MessagePackPacket {
 
   def extractSchemaId(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
     schemaIdMp <- ZIO
-      .fromOption(packet.header.get(Key.SchemaId.value))
+      .fromOption(packet.header.get(FieldKey.SchemaId.value))
       .orElseFail(
         TarantoolError.ProtocolError(s"Packet has no SchemaId in header (${packet.header})")
       )
@@ -79,7 +79,7 @@ object MessagePackPacket {
 
   def extractByKey(
     packet: MessagePackPacket,
-    key: Key
+    key: FieldKey
   ): ZIO[Any, TarantoolError.ProtocolError, MessagePack] =
     for {
       value <- ZIO
@@ -90,10 +90,10 @@ object MessagePackPacket {
     } yield value
 
   private def extractErrorCode(code: Long): ZIO[Any, TarantoolError.ProtocolError, Long] =
-    if ((code & Code.ErrorTypeMarker.value) == 0) {
+    if ((code & ResponseCode.ErrorTypeMarker.value) == 0) {
       ZIO.fail(TarantoolError.ProtocolError(s"Code $code does not follow 0x8XXX format"))
     } else {
-      ZIO.succeed(~Code.ErrorTypeMarker.value & code)
+      ZIO.succeed(~ResponseCode.ErrorTypeMarker.value & code)
     }
 
   private def encodePacket(packet: MessagePackPacket): IO[TarantoolError.CodecError, BitVector] =

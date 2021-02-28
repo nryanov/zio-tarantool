@@ -9,8 +9,8 @@ import zio.tarantool.protocol.{TarantoolOperation, TarantoolRequest, TarantoolRe
 import scala.collection.concurrent.TrieMap
 
 @accessible
-object TarantoolRequestHandler {
-  type TarantoolRequestManager = Has[Service]
+object RequestHandler {
+  type RequestHandler = Has[Service]
 
   trait Service {
     def submitRequest(request: TarantoolRequest): IO[TarantoolError, TarantoolOperation]
@@ -22,14 +22,10 @@ object TarantoolRequestHandler {
     def close(): UIO[Unit]
   }
 
-  val live: ZLayer[Logging, TarantoolError, TarantoolRequestManager] =
-    ZLayer.identity[Logging] >>> Manager
+  val live: ZLayer[Logging, TarantoolError, RequestHandler] = make().toLayer
 
-  private[this] lazy val Manager =
-    ZLayer
-      .fromServiceManaged[Logger[String], Any, TarantoolError, TarantoolRequestHandler.Service] {
-        (logging: Logger[String]) => ZManaged.make(ZIO.succeed(new Live(logging)))(_.close())
-      }
+  def make(): ZManaged[Logging, Nothing, Service] =
+    ZManaged.make(ZIO.service[Logger[String]].map(new Live(_)))(_.close())
 
   private[this] final class Live(logger: Logger[String]) extends Service {
     private val awaitingRequestMap: TrieMap[Long, TarantoolOperation] =

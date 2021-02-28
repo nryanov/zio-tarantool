@@ -1,45 +1,19 @@
-package zio.tarantool.internal
+package zio.tarantool.core
 
-import java.time.Duration
-
-import zio.{Has, ZIO, ZLayer}
-import zio.blocking.Blocking
-import zio.clock.Clock
+import zio._
 import zio.duration._
 import zio.tarantool.TarantoolClient.TarantoolClient
-import zio.tarantool.{
-  TarantoolClient,
-  TarantoolConfig,
-  TarantoolConnection,
-  TarantoolContainer,
-  TarantoolError
-}
-import zio.tarantool.TarantoolConnection.TarantoolConnection
-import zio.tarantool.TarantoolContainer.Tarantool
-import zio.tarantool.internal.SchemaMetaManager.SchemaMetaManager
-import zio.tarantool.internal.schema.SpaceMeta
+import zio.tarantool.core.SchemaIdProvider.SchemaIdProvider
+import zio.tarantool.{BaseLayers, TarantoolClient, TarantoolError}
+import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
 import zio.test.{DefaultRunnableSpec, ZSpec, assert, assertM, suite, testM}
 import zio.test.Assertion._
 import zio.test.TestAspect._
 
-object SchemaMetaManagerSpec extends DefaultRunnableSpec {
-  val tarantoolLayer: ZLayer[Any, Nothing, Tarantool] =
-    Blocking.live >>> TarantoolContainer.tarantool()
-  val configLayer: ZLayer[Tarantool, Nothing, Has[TarantoolConfig]] =
-    ZLayer.fromService(container =>
-      TarantoolConfig(
-        host = container.container.getHost,
-        port = container.container.getMappedPort(3301)
-      )
-    )
-  val tarantoolConnectionLayer: ZLayer[Tarantool, Throwable, TarantoolConnection] =
-    (Clock.live ++ configLayer) >>> TarantoolConnection.live
-  val tarantoolClientLayer: ZLayer[Any with Tarantool, Throwable, TarantoolClient] =
-    tarantoolConnectionLayer >>> TarantoolClient.live
-  val schemaManagerLayer: ZLayer[Any with Tarantool, Throwable, SchemaMetaManager] =
-    (Clock.live ++ configLayer ++ tarantoolConnectionLayer) >>> SchemaMetaManager.live
-  val testEnv: ZLayer[Any, Throwable, Clock with SchemaMetaManager with TarantoolClient] =
-    Clock.live ++ (tarantoolLayer >>> (tarantoolClientLayer ++ schemaManagerLayer))
+object SchemaMetaManagerSpec extends DefaultRunnableSpec with BaseLayers {
+  val testEnv
+    : ZLayer[Any, Throwable, SchemaIdProvider with TarantoolClient with SchemaMetaManager] =
+    schemaIdProviderLayer ++ tarantoolClientLayer ++ schemaMetaManagerLayer
 
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     (suite("SchemaMetaManager spec")(
@@ -54,9 +28,9 @@ object SchemaMetaManagerSpec extends DefaultRunnableSpec {
       },
       testM("should update schema id after fetching meta") {
         for {
-          initialSchemaId <- SchemaMetaManager.schemaVersion
+          initialSchemaId <- SchemaIdProvider.schemaId
           _ <- SchemaMetaManager.fetchMeta
-          updatedSchemaId <- SchemaMetaManager.schemaVersion
+          updatedSchemaId <- SchemaIdProvider.schemaId
         } yield assert(initialSchemaId)(equalTo(0L)) && assert(updatedSchemaId)(not(equalTo(0L)))
       },
       testM("should fetch spaces and indexes") {
