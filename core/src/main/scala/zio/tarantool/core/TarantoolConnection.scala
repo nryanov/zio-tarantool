@@ -10,7 +10,7 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.Selector
 
-@accessible
+@accessible[TarantoolConnection.Service]
 object TarantoolConnection {
 
   type TarantoolConnection = Has[Service]
@@ -22,7 +22,7 @@ object TarantoolConnection {
 
     def sendRequest(buffer: ByteBuffer): IO[TarantoolError, Option[Int]]
 
-    def isBlocking(): UIO[Boolean]
+    def isBlocking: UIO[Boolean]
 
     def registerSelector(selector: Selector, selectionKey: Int): IO[TarantoolError.IOError, Unit]
 
@@ -34,8 +34,26 @@ object TarantoolConnection {
       make(cfg)
     )
 
+  val test: ZLayer[Any, Nothing, Has[Service]] =
+    ZLayer.succeed(new Service {
+      override def connect(): ZIO[Any, Throwable, Unit] = IO.unit
+
+      override def isConnected: UIO[Boolean] = IO.succeed(false)
+
+      override def sendRequest(buffer: ByteBuffer): IO[TarantoolError, Option[Int]] = IO.none
+
+      override def isBlocking: UIO[Boolean] = IO.succeed(false)
+
+      override def registerSelector(
+        selector: Selector,
+        selectionKey: Int
+      ): IO[TarantoolError.IOError, Unit] = IO.unit
+
+      override def read(buffer: ByteBuffer): IO[TarantoolError.IOError, Int] = IO.succeed(0)
+    })
+
   def make(config: TarantoolConfig): ZManaged[Logging with Clock, Throwable, Service] =
-    make0(config).tapM(_.connect())
+    make0(config)
 
   private def make0(config: TarantoolConfig): ZManaged[Logging with Clock, Throwable, Service] =
     for {
@@ -62,7 +80,7 @@ object TarantoolConnection {
     override def sendRequest(buffer: ByteBuffer): IO[TarantoolError, Option[Int]] =
       channel.writeFully(buffer)
 
-    override def isBlocking(): UIO[Boolean] = channel.isBlocking()
+    override def isBlocking: UIO[Boolean] = channel.isBlocking()
 
     override def registerSelector(
       selector: Selector,

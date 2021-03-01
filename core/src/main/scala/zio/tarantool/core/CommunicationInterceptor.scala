@@ -2,15 +2,17 @@ package zio.tarantool.core
 
 import zio._
 import zio.logging._
+import zio.macros.accessible
 import zio.tarantool.protocol._
 import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.TarantoolError
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.ResponseHandler.ResponseHandler
-import zio.tarantool.core.SchemaIdProvider.SchemaIdProvider
+import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
 import zio.tarantool.core.SocketChannelQueuedWriter.SocketChannelQueuedWriter
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
 
+@accessible[CommunicationInterceptor.Service]
 object CommunicationInterceptor {
   type CommunicationInterceptor = Has[Service]
 
@@ -22,11 +24,11 @@ object CommunicationInterceptor {
   }
 
   val live: ZLayer[
-    Logging with SchemaIdProvider with RequestHandler with ResponseHandler with SocketChannelQueuedWriter with SyncIdProvider,
+    Logging with SchemaMetaManager with RequestHandler with ResponseHandler with SocketChannelQueuedWriter with SyncIdProvider,
     TarantoolError,
     CommunicationInterceptor
   ] = ZLayer.fromServicesManaged[
-    SchemaIdProvider.Service,
+    SchemaMetaManager.Service,
     RequestHandler.Service,
     ResponseHandler.Service,
     SocketChannelQueuedWriter.Service,
@@ -34,12 +36,25 @@ object CommunicationInterceptor {
     Logging,
     TarantoolError,
     Service
-  ] { (schemaIdProviderLayer, requestHandler, responseHandler, queuedWriter, syncIdProvider) =>
-    make(schemaIdProviderLayer, requestHandler, responseHandler, queuedWriter, syncIdProvider)
+  ] {
+    (
+      schemaMetaManager,
+      requestHandler,
+      responseHandler,
+      queuedWriter,
+      syncIdProvider
+    ) =>
+      make(
+        schemaMetaManager,
+        requestHandler,
+        responseHandler,
+        queuedWriter,
+        syncIdProvider
+      )
   }
 
   def make(
-    schemaIdProviderLayer: SchemaIdProvider.Service,
+    schemaMetaManager: SchemaMetaManager.Service,
     requestHandler: RequestHandler.Service,
     responseHandler: ResponseHandler.Service,
     queuedWriter: SocketChannelQueuedWriter.Service,
@@ -48,12 +63,18 @@ object CommunicationInterceptor {
     for {
       logger <- ZIO.service[Logger[String]]
       _ <- responseHandler.start()
-    } yield new Live(logger, schemaIdProviderLayer, requestHandler, queuedWriter, syncIdProvider)
+    } yield new Live(
+      logger,
+      schemaMetaManager,
+      requestHandler,
+      queuedWriter,
+      syncIdProvider
+    )
   }
 
   private[this] final class Live(
     logger: Logger[String],
-    schemaIdProviderLayer: SchemaIdProvider.Service,
+    schemaMetaManager: SchemaMetaManager.Service,
     requestHandler: RequestHandler.Service,
     queuedWriter: SocketChannelQueuedWriter.Service,
     syncIdProvider: SyncIdProvider.Service
@@ -62,7 +83,7 @@ object CommunicationInterceptor {
       op: OperationCode,
       body: Map[Long, MessagePack]
     ): IO[TarantoolError, TarantoolOperation] = for {
-      schemaId <- schemaIdProviderLayer.schemaId
+      schemaId <- schemaMetaManager.schemaId
       syncId <- syncIdProvider.syncId()
       request = TarantoolRequest(op, syncId, Some(schemaId), body)
       operation <- requestHandler.submitRequest(request)

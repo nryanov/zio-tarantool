@@ -8,7 +8,7 @@ import zio.tarantool.protocol.MessagePackPacket
 import zio.tarantool.codec.MessagePackPacketCodec
 import zio.tarantool.msgpack.{MessagePack, MessagePackCodec}
 
-@accessible
+@accessible[PacketManager.Service]
 private[tarantool] object PacketManager {
   type PacketManager = Has[Service]
 

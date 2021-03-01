@@ -12,7 +12,6 @@ import zio.tarantool.core.CommunicationInterceptor.CommunicationInterceptor
 import zio.tarantool.core.PacketManager.PacketManager
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.ResponseHandler.ResponseHandler
-import zio.tarantool.core.SchemaIdProvider.SchemaIdProvider
 import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
 import zio.tarantool.core.SocketChannelQueuedWriter.SocketChannelQueuedWriter
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
@@ -35,8 +34,6 @@ trait BaseLayers {
 
   val syncIdProviderLayer: ZLayer[Any, Nothing, SyncIdProvider] = SyncIdProvider.live
 
-  val schemaIdProviderLayer: ZLayer[Any, Nothing, SchemaIdProvider] = SchemaIdProvider.live
-
   val packetManagerLayer: ULayer[PacketManager] = PacketManager.live
 
   val tarantoolConnectionLayer: ZLayer[Any, Throwable, TarantoolConnection] =
@@ -52,11 +49,11 @@ trait BaseLayers {
     (tarantoolConnectionLayer ++ packetManagerLayer ++ requestHandlerLayer ++ loggingLayer) >>> ResponseHandler.live
 
   val schemaMetaManagerLayer: ZLayer[Any, Throwable, SchemaMetaManager] =
-    (configLayer ++ requestHandlerLayer ++ socketChannelQueuedWriterLayer ++ syncIdProviderLayer ++ schemaIdProviderLayer ++ Clock.live ++ loggingLayer) >>> SchemaMetaManager.live
+    (configLayer ++ requestHandlerLayer ++ socketChannelQueuedWriterLayer ++ syncIdProviderLayer ++ Clock.live ++ loggingLayer) >>> SchemaMetaManager.live
 
   val communicationInterceptorLayer: ZLayer[Any, Throwable, CommunicationInterceptor] =
-    (loggingLayer ++ schemaIdProviderLayer ++ requestHandlerLayer ++ socketChannelQueuedWriterLayer ++ syncIdProviderLayer ++ responseHandlerLayer) >>> CommunicationInterceptor.live
+    (loggingLayer ++ schemaMetaManagerLayer ++ requestHandlerLayer ++ socketChannelQueuedWriterLayer ++ syncIdProviderLayer ++ responseHandlerLayer) >>> CommunicationInterceptor.live
 
   val tarantoolClientLayer: ZLayer[Any, Throwable, TarantoolClient] =
-    (loggingLayer ++ communicationInterceptorLayer) >>> TarantoolClient.live
+    (loggingLayer ++ Clock.live ++ configLayer) >>> TarantoolClient.live
 }

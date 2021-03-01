@@ -1,18 +1,18 @@
 package zio.tarantool
 
 import zio._
+import zio.clock.Clock
 import zio.logging._
 import zio.macros.accessible
+import zio.tarantool.core._
+import zio.tarantool.msgpack._
 import zio.tarantool.msgpack.MpArray
+import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.protocol.TarantoolRequestBody._
-import zio.tarantool.msgpack._
-import zio.tarantool.codec.TupleEncoder
-import zio.tarantool.core.CommunicationInterceptor
-import zio.tarantool.core.CommunicationInterceptor.CommunicationInterceptor
 import zio.tarantool.protocol.{IteratorCode, OperationCode, TarantoolOperation}
 
-@accessible
+@accessible[TarantoolClient.Service]
 object TarantoolClient {
   type TarantoolClient = Has[Service]
 
@@ -94,23 +94,43 @@ object TarantoolClient {
     def eval(expression: String): IO[TarantoolError, TarantoolOperation]
   }
 
-  val live: ZLayer[CommunicationInterceptor with Logging, Nothing, TarantoolClient] =
-    ZLayer.fromServiceManaged[CommunicationInterceptor.Service, Logging, Nothing, Service] {
-      communicationInterceptor => make(communicationInterceptor)
+  val live: ZLayer[Has[TarantoolConfig] with Logging with Clock, Throwable, TarantoolClient] =
+    ZLayer.fromServiceManaged[TarantoolConfig, Logging with Clock, Throwable, Service] { cfg =>
+      make(cfg)
     }
 
-  def make(service: CommunicationInterceptor.Service): ZManaged[Logging, Nothing, Service] =
-    ZManaged.fromEffect {
-      for {
-        logger <- ZIO.service[Logger[String]]
-      } yield new Live(logger, service)
-    }
+  def make(config: TarantoolConfig): ZManaged[Clock with Logging, Throwable, Service] =
+    for {
+      logger <- ZIO.service[Logger[String]].toManaged_
+      connection <- TarantoolConnection.make(config).tapM(_.connect())
+      syncIdProvider <- SyncIdProvider.make()
+      packetManager <- PacketManager.make()
+      requestHandler <- RequestHandler.make()
+      responseHandler <- ResponseHandler
+        .make(connection, packetManager, requestHandler)
+        .tapM(_.start())
+      queuedWriter <- SocketChannelQueuedWriter.make(config, connection).tapM(_.start())
+      schemaMetaManager <- SchemaMetaManager.make(
+        config,
+        requestHandler,
+        queuedWriter,
+        syncIdProvider
+      )
+//        .tapM(_.refresh)
+      communicationInterceptor <- CommunicationInterceptor.make(
+        schemaMetaManager,
+        requestHandler,
+        responseHandler,
+        queuedWriter,
+        syncIdProvider
+      )
+    } yield new Live(logger, communicationInterceptor)
 
   private[this] val EmptyTuple = MpFixArray(Vector.empty)
 
   private[this] final class Live(
     logger: Logger[String],
-    service: CommunicationInterceptor.Service
+    communicationInterceptor: CommunicationInterceptor.Service
   ) extends TarantoolClient.Service {
     override def ping(): IO[TarantoolError, TarantoolOperation] = for {
       response <- send(OperationCode.Ping, Map.empty)
@@ -277,6 +297,6 @@ object TarantoolClient {
       op: OperationCode,
       body: Map[Long, MessagePack]
     ): IO[TarantoolError, TarantoolOperation] =
-      service.submitRequest(op, body)
+      communicationInterceptor.submitRequest(op, body)
   }
 }

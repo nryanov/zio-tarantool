@@ -18,7 +18,7 @@ import scodec.bits.ByteVector
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 
-@accessible
+@accessible[ResponseHandler.Service]
 private[tarantool] object ResponseHandler {
   type ResponseHandler = Has[Service]
 
@@ -51,19 +51,17 @@ private[tarantool] object ResponseHandler {
     packetManager: PacketManager.Service,
     requestHandler: RequestHandler.Service
   ): ZManaged[Logging, TarantoolError.IOError, Service] =
-    ZManaged
-      .make(
-        for {
-          logger <- ZIO.service[Logger[String]]
-        } yield new Live(
-          logger,
-          connection,
-          packetManager,
-          requestHandler,
-          ExecutionContextManager.singleThreaded()
-        )
-      )(_.close().orDie)
-      .tapM(_.start())
+    ZManaged.make(
+      for {
+        logger <- ZIO.service[Logger[String]]
+      } yield new Live(
+        logger,
+        connection,
+        packetManager,
+        requestHandler,
+        ExecutionContextManager.singleThreaded()
+      )
+    )(_.close().orDie)
 
   private[this] final class Live(
     logger: Logger[String],
@@ -75,7 +73,7 @@ private[tarantool] object ResponseHandler {
 
     override def start(): IO[TarantoolError.IOError, Fiber.Runtime[Throwable, Nothing]] =
       ZIO
-        .ifM(connection.isBlocking())(
+        .ifM(connection.isBlocking)(
           ZIO.fail(new IllegalArgumentException("Channel should be in non-blocking mode")),
           start0()
         )

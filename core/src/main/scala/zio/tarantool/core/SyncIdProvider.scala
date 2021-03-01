@@ -1,7 +1,9 @@
 package zio.tarantool.core
 
 import zio._
+import zio.macros.accessible
 
+@accessible[SyncIdProvider.Service]
 object SyncIdProvider {
   type SyncIdProvider = Has[Service]
 

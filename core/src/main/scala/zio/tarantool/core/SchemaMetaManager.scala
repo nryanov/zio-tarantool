@@ -11,12 +11,11 @@ import zio.tarantool.msgpack.MpArray16
 import zio.tarantool.core.schema.{IndexMeta, SpaceMeta}
 import zio.tarantool.TarantoolError.{IndexNotFound, SpaceNotFound}
 import zio.tarantool.core.RequestHandler.RequestHandler
-import zio.tarantool.core.SchemaIdProvider.SchemaIdProvider
 import zio.tarantool.core.SocketChannelQueuedWriter.SocketChannelQueuedWriter
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 
-@accessible
+@accessible[SchemaMetaManager.Service]
 private[tarantool] object SchemaMetaManager {
   type SchemaMetaManager = Has[Service]
 
@@ -25,45 +24,46 @@ private[tarantool] object SchemaMetaManager {
 
     def getIndexMeta(spaceName: String, indexName: String): IO[TarantoolError, IndexMeta]
 
-    def fetchMeta: IO[TarantoolError, Unit]
+    def refresh: IO[TarantoolError, Unit]
+
+    def schemaId: UIO[Long]
   }
 
   val live: ZLayer[Has[
     TarantoolConfig
-  ] with RequestHandler with SocketChannelQueuedWriter with SyncIdProvider with SchemaIdProvider with Clock with Logging, Nothing, SchemaMetaManager] =
+  ] with RequestHandler with SocketChannelQueuedWriter with SyncIdProvider with Clock with Logging, Nothing, SchemaMetaManager] =
     ZLayer.fromServicesManaged[
       TarantoolConfig,
       RequestHandler.Service,
       SocketChannelQueuedWriter.Service,
       SyncIdProvider.Service,
-      SchemaIdProvider.Service,
       Clock with Logging,
       Nothing,
       Service
-    ] { (cfg, requestHandler, socketChannelQueuedWriter, syncIdProvider, schemaIdProvider) =>
-      make(cfg, requestHandler, socketChannelQueuedWriter, syncIdProvider, schemaIdProvider)
+    ] { (cfg, requestHandler, socketChannelQueuedWriter, syncIdProvider) =>
+      make(cfg, requestHandler, socketChannelQueuedWriter, syncIdProvider)
     }
 
   def make(
     cfg: TarantoolConfig,
     requestHandler: RequestHandler.Service,
     socketChannelQueuedWriter: SocketChannelQueuedWriter.Service,
-    syncIdProvider: SyncIdProvider.Service,
-    schemaIdProvider: SchemaIdProvider.Service
+    syncIdProvider: SyncIdProvider.Service
   ): ZManaged[Logging with Clock, Nothing, Service] =
     ZManaged.fromEffect(
       for {
         clock <- ZIO.environment[Clock]
         logger <- ZIO.service[Logger[String]]
         spaceMetaMap <- Ref.make(Map.empty[String, SpaceMeta])
+        currentSchemaId <- Ref.make(0L)
         semaphore <- Semaphore.make(1)
       } yield new Live(
         cfg,
         requestHandler,
         socketChannelQueuedWriter,
         syncIdProvider,
-        schemaIdProvider,
         spaceMetaMap,
+        currentSchemaId,
         semaphore,
         logger,
         clock
@@ -84,12 +84,12 @@ private[tarantool] object SchemaMetaManager {
     requestHandler: RequestHandler.Service,
     queuedWriter: SocketChannelQueuedWriter.Service,
     syncIdProvider: SyncIdProvider.Service,
-    schemaIdProvider: SchemaIdProvider.Service,
     spaceMetaMap: Ref[Map[String, SpaceMeta]],
+    currentSchemaId: Ref[Long],
     fetchSemaphore: Semaphore,
     logger: Logger[String],
     clock: Clock
-  ) extends SchemaMetaManager.Service {
+  ) extends Service {
 
     private val schedule: Schedule[Any, TarantoolError, Unit] =
       (Schedule.recurs(cfg.clientConfig.schemaRequestRetries) && Schedule.spaced(
@@ -117,9 +117,11 @@ private[tarantool] object SchemaMetaManager {
         )
       } yield index
 
-    override def fetchMeta: IO[TarantoolError, Unit] = fetchSemaphore.withPermit {
+    override def refresh: IO[TarantoolError, Unit] = fetchSemaphore.withPermit {
       fetchMeta0.retry(schedule).provide(clock)
     }
+
+    override def schemaId: UIO[Long] = currentSchemaId.get
 
     private def fetchMeta0: ZIO[Any, TarantoolError, Unit] =
       for {
@@ -153,7 +155,7 @@ private[tarantool] object SchemaMetaManager {
           )
       }
       _ <- spaceMetaMap.set(mappedSpaceMeta)
-      _ <- schemaIdProvider.updateSchemaId(schemaId)
+      _ <- currentSchemaId.set(schemaId)
     } yield ()
 
     private def selectMeta(
@@ -183,6 +185,7 @@ private[tarantool] object SchemaMetaManager {
               .selectBody(spaceId, indexId, Int.MaxValue, Offset, IteratorCode.All, EmptyMpArray)
           )
           .mapError(TarantoolError.CodecError)
+        // todo: schemaId
         request = TarantoolRequest(OperationCode.Select, syncId, None, body)
         response <- requestHandler.submitRequest(request)
         packet <- TarantoolRequest.createPacket(request)

@@ -12,7 +12,7 @@ import zio.tarantool.TarantoolError.toIOError
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 import zio.{Has, IO, Schedule, Semaphore, UIO, ZIO, ZLayer, ZManaged}
 
-@accessible
+@accessible[SocketChannelProvider.Service]
 private[tarantool] object SocketChannelProvider {
   type SocketChannelProvider = Has[Service]
 

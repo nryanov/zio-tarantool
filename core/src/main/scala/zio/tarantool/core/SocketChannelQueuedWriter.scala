@@ -12,7 +12,7 @@ import java.nio.ByteBuffer
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 import zio.tarantool.protocol.MessagePackPacket
 
-@accessible
+@accessible[SocketChannelQueuedWriter.Service]
 private[tarantool] object SocketChannelQueuedWriter {
   type SocketChannelQueuedWriter = Has[Service]
 

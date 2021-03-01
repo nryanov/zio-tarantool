@@ -1,4 +1,4 @@
-package zio.tarantool.mock
+package zio.tarantool.mock.custom
 
 import java.nio.ByteBuffer
 import java.nio.channels.Selector
@@ -9,7 +9,7 @@ import zio.tarantool.core.SocketChannelProvider
 import zio.tarantool.core.SocketChannelProvider.SocketChannelProvider
 import zio.test.mock
 import zio.test.mock.Mock
-import zio.{Has, IO, UIO, URLayer, ZLayer}
+import zio._
 
 class SocketChannelProviderMock(clock: Clock, writeDelayMs: Int = 0, readDelayMs: Int = 0)
     extends Mock[SocketChannelProvider] {
