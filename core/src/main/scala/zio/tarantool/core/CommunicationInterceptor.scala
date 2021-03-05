@@ -72,7 +72,7 @@ object CommunicationInterceptor {
     )
   }
 
-  private[this] final class Live(
+  private[tarantool] class Live(
     logger: Logger[String],
     schemaMetaManager: SchemaMetaManager.Service,
     requestHandler: RequestHandler.Service,

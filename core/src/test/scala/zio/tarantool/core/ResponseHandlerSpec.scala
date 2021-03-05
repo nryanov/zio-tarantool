@@ -3,12 +3,15 @@ package zio.tarantool.core
 import java.time.Duration
 
 import zio._
+import zio.logging.{Logger, Logging}
+import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.test._
 import zio.test.Assertion._
 import zio.test.mock.Expectation._
 import zio.test.TestAspect.{sequential, timeout}
 import zio.tarantool.mock.{RequestHandlerMock, TarantoolConnectionMock}
-import zio.tarantool.core.ResponseHandler.ResponseHandler
+import zio.tarantool.core.ResponseHandler.{Live, ResponseHandler, Service}
+import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 import zio.tarantool.msgpack.{MpFixString, MpPositiveFixInt}
 import zio.tarantool.protocol.{FieldKey, MessagePackPacket, ResponseCode}
 import zio.tarantool.{BaseLayers, TarantoolConfig, TarantoolError}
@@ -19,10 +22,9 @@ object ResponseHandlerSpec extends DefaultRunnableSpec with BaseLayers {
       testM("should die if channel is in blocking mode") {
         val configLayer = ZLayer.succeed(TarantoolConfig())
         val connectionMock = TarantoolConnectionMock.IsBlocking(value(true))
-        val packetManager = PacketManager.live
         val requestHandler = loggingLayer >>> RequestHandler.live
         val layer: ZLayer[Any, TarantoolError, ResponseHandler] =
-          (configLayer ++ loggingLayer ++ connectionMock ++ packetManager ++ requestHandler) >>> ResponseHandler.live
+          (configLayer ++ loggingLayer ++ connectionMock ++ requestHandler) >>> notStartedResponseHandlerLayer
 
         val result = for {
           _ <- ResponseHandler.start()
@@ -34,7 +36,6 @@ object ResponseHandlerSpec extends DefaultRunnableSpec with BaseLayers {
       },
       testM("should fail with error when bytes read < 0") {
         val configLayer = ZLayer.succeed(TarantoolConfig())
-        val packetManager = PacketManager.live
         val requestHandler = loggingLayer >>> RequestHandler.live
         val connectionMock = TarantoolConnectionMock.IsBlocking(
           value(false)
@@ -44,7 +45,7 @@ object ResponseHandlerSpec extends DefaultRunnableSpec with BaseLayers {
         ) ++ TarantoolConnectionMock.Read(anything, value(-1))
 
         val layer: ZLayer[Any, TarantoolError, ResponseHandler] =
-          (configLayer ++ loggingLayer ++ connectionMock ++ packetManager ++ requestHandler) >>> ResponseHandler.live
+          (configLayer ++ loggingLayer ++ connectionMock ++ requestHandler) >>> notStartedResponseHandlerLayer
 
         val result = for {
           fiber <- ResponseHandler.start()
@@ -61,12 +62,11 @@ object ResponseHandlerSpec extends DefaultRunnableSpec with BaseLayers {
       },
       testM("should complete operation") {
         val configLayer = ZLayer.succeed(TarantoolConfig())
-        val packetManager = PacketManager.live
         val requestHandlerMock = RequestHandlerMock.Complete(anything, value(()))
         val connectionLayer = TarantoolConnection.test
 
         val layer: ZLayer[Any, TarantoolError, ResponseHandler] =
-          (configLayer ++ loggingLayer ++ connectionLayer ++ packetManager ++ requestHandlerMock) >>> ResponseHandler.live
+          (configLayer ++ loggingLayer ++ connectionLayer ++ requestHandlerMock) >>> notStartedResponseHandlerLayer
 
         val messagePackPacket = MessagePackPacket(
           Map(
@@ -87,12 +87,11 @@ object ResponseHandlerSpec extends DefaultRunnableSpec with BaseLayers {
       },
       testM("should fail operation") {
         val configLayer = ZLayer.succeed(TarantoolConfig())
-        val packetManager = PacketManager.live
         val requestHandlerMock = RequestHandlerMock.Fail(anything, value(()))
         val connectionLayer = TarantoolConnection.test
 
         val layer: ZLayer[Any, TarantoolError, ResponseHandler] =
-          (configLayer ++ loggingLayer ++ connectionLayer ++ packetManager ++ requestHandlerMock) >>> ResponseHandler.live
+          (configLayer ++ loggingLayer ++ connectionLayer ++ requestHandlerMock) >>> notStartedResponseHandlerLayer
 
         val messagePackPacket = MessagePackPacket(
           Map(
@@ -112,4 +111,21 @@ object ResponseHandlerSpec extends DefaultRunnableSpec with BaseLayers {
         assertM(result.provideLayer(layer))(isUnit)
       }
     ) @@ sequential @@ timeout(Duration.ofSeconds(5))
+
+  private val notStartedResponseHandlerLayer
+    : ZLayer[RequestHandler with TarantoolConnection with Logging, Nothing, ResponseHandler] =
+    ZLayer.fromManaged(
+      ZManaged.make(
+        (for {
+          logger <- ZIO.service[Logger[String]]
+          connection <- ZIO.service[TarantoolConnection.Service]
+          requestHandler <- ZIO.service[RequestHandler.Service]
+        } yield new Live(
+          logger,
+          connection,
+          requestHandler,
+          ExecutionContextManager.singleThreaded()
+        ))
+      )(_.close().orDie)
+    )
 }

@@ -17,7 +17,8 @@ final case class ClientConfig(
   schemaRequestTimeoutMillis: Int = 1000,
   schemaRequestRetries: Int = 5,
   schemaRequestRetryTimeoutMillis: Int = 1000,
-  backgroundQueueSize: Int = 1024
+  backgroundQueueSize: Int = 1024,
+  useSchemaMetaCache: Boolean = true
 )
 
 final case class TarantoolConfig(

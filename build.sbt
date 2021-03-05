@@ -3,7 +3,6 @@ val zioLoggingVersion = "0.5.4"
 val scodecVersion = "1.11.7"
 val scodecBitsVersion = "1.1.17"
 val shapelessVersion = "2.3.3"
-val slf4jVersion = "1.7.30"
 val scalatestVersion = "3.2.0"
 val scalacheckPlusVersion = "3.2.0.0"
 val scalamockVersion = "5.0.0"
@@ -107,7 +106,6 @@ lazy val core = project
       "dev.zio" %% "zio-macros" % zioVersion,
       "dev.zio" %% "zio-logging" % zioLoggingVersion,
       "dev.zio" %% "zio-logging-slf4j" % zioLoggingVersion,
-      "org.slf4j" % "slf4j-api" % slf4jVersion,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
       "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test

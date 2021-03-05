@@ -13,6 +13,8 @@ object RequestHandler {
   type RequestHandler = Has[Service]
 
   trait Service {
+    private[tarantool] def sentRequests: Map[Long, TarantoolOperation]
+
     def submitRequest(request: TarantoolRequest): IO[TarantoolError, TarantoolOperation]
 
     def complete(syncId: Long, response: TarantoolResponse): IO[TarantoolError, Unit]
@@ -27,9 +29,15 @@ object RequestHandler {
   def make(): ZManaged[Logging, Nothing, Service] =
     ZManaged.make(ZIO.service[Logger[String]].map(new Live(_)))(_.close())
 
-  private[this] final class Live(logger: Logger[String]) extends Service {
+  private[tarantool] def sentRequests: ZIO[RequestHandler, Nothing, Map[Long, TarantoolOperation]] =
+    ZIO.access(_.get.sentRequests)
+
+  private[tarantool] class Live(logger: Logger[String]) extends Service {
     private val awaitingRequestMap: TrieMap[Long, TarantoolOperation] =
       new TrieMap[Long, TarantoolOperation]()
+
+    override private[tarantool] def sentRequests: Map[Long, TarantoolOperation] =
+      awaitingRequestMap.toMap
 
     override def submitRequest(
       request: TarantoolRequest
@@ -52,23 +60,25 @@ object RequestHandler {
       for {
         operation <- ZIO
           .fromOption(awaitingRequestMap.remove(syncId))
-          .orDieWith(_ => TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
+          .orElseFail(TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
         _ <- operation.response.succeed(response)
       } yield ()
 
     override def fail(syncId: Long, reason: String): IO[TarantoolError, Unit] = for {
       operation <- ZIO
         .fromOption(awaitingRequestMap.remove(syncId))
-        .orDieWith(_ => TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
+        .orElseFail(TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
       _ <- operation.response.fail(TarantoolError.OperationException(reason))
     } yield ()
 
-    override def close(): UIO[Unit] = ZIO.foreach_(awaitingRequestMap.values)(op =>
-      op.response.fail(
-        TarantoolError.OperationException(
-          s"Operation ${op.request.syncId}:${op.request.operationCode} was declined"
+    override def close(): UIO[Unit] = ZIO
+      .foreach_(awaitingRequestMap.values)(op =>
+        op.response.fail(
+          TarantoolError.OperationException(
+            s"Operation ${op.request.syncId}:${op.request.operationCode} was declined"
+          )
         )
       )
-    )
+      .zipLeft(IO.effectTotal(awaitingRequestMap.clear()))
   }
 }

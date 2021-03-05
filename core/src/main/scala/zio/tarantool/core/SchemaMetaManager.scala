@@ -11,6 +11,7 @@ import zio.tarantool.msgpack.MpArray16
 import zio.tarantool.core.schema.{IndexMeta, SpaceMeta}
 import zio.tarantool.TarantoolError.{IndexNotFound, SpaceNotFound}
 import zio.tarantool.core.RequestHandler.RequestHandler
+import zio.tarantool.core.ResponseHandler.ResponseHandler
 import zio.tarantool.core.SocketChannelQueuedWriter.SocketChannelQueuedWriter
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
 import zio.tarantool.{TarantoolConfig, TarantoolError}
@@ -31,22 +32,24 @@ private[tarantool] object SchemaMetaManager {
 
   val live: ZLayer[Has[
     TarantoolConfig
-  ] with RequestHandler with SocketChannelQueuedWriter with SyncIdProvider with Clock with Logging, Nothing, SchemaMetaManager] =
+  ] with RequestHandler with ResponseHandler with SocketChannelQueuedWriter with SyncIdProvider with Clock with Logging, Nothing, SchemaMetaManager] =
     ZLayer.fromServicesManaged[
       TarantoolConfig,
       RequestHandler.Service,
+      ResponseHandler.Service,
       SocketChannelQueuedWriter.Service,
       SyncIdProvider.Service,
       Clock with Logging,
       Nothing,
       Service
-    ] { (cfg, requestHandler, socketChannelQueuedWriter, syncIdProvider) =>
-      make(cfg, requestHandler, socketChannelQueuedWriter, syncIdProvider)
+    ] { (cfg, requestHandler, responseHandler, socketChannelQueuedWriter, syncIdProvider) =>
+      make(cfg, requestHandler, responseHandler, socketChannelQueuedWriter, syncIdProvider)
     }
 
   def make(
     cfg: TarantoolConfig,
     requestHandler: RequestHandler.Service,
+    responseHandler: ResponseHandler.Service,
     socketChannelQueuedWriter: SocketChannelQueuedWriter.Service,
     syncIdProvider: SyncIdProvider.Service
   ): ZManaged[Logging with Clock, Nothing, Service] =
@@ -79,7 +82,7 @@ private[tarantool] object SchemaMetaManager {
   private[this] val EmptyMpArray: MpArray16 = MpArray16(Vector.empty)
   private[this] val Offset = 0
 
-  private[this] class Live(
+  private[tarantool] class Live(
     cfg: TarantoolConfig,
     requestHandler: RequestHandler.Service,
     queuedWriter: SocketChannelQueuedWriter.Service,
@@ -117,9 +120,12 @@ private[tarantool] object SchemaMetaManager {
         )
       } yield index
 
-    override def refresh: IO[TarantoolError, Unit] = fetchSemaphore.withPermit {
-      fetchMeta0.retry(schedule).provide(clock)
-    }
+    override def refresh: IO[TarantoolError, Unit] =
+      IO.when(cfg.clientConfig.useSchemaMetaCache)(
+        fetchSemaphore.withPermit {
+          fetchMeta0.retry(schedule).provide(clock)
+        }
+      )
 
     override def schemaId: UIO[Long] = currentSchemaId.get
 
@@ -130,7 +136,7 @@ private[tarantool] object SchemaMetaManager {
         _ <- ZIO.when(spacesOp.schemaId != indexesOp.schemaId)(
           ZIO.fail(
             TarantoolError.NotEqualSchemaId(
-              "Not equals schema id of space and index meta responses"
+              "Not equal schema id of space and index meta responses"
             )
           )
         )
@@ -165,11 +171,13 @@ private[tarantool] object SchemaMetaManager {
       spaceId,
       indexId
     ).flatMap(
-      _.response.await.timeout(cfg.clientConfig.schemaRequestTimeoutMillis.milliseconds).flatMap {
-        v =>
-          ZIO.fromOption(v).tapError(_ => logger.error("Schema request timeout"))
-      }
-    ).orElseFail(TarantoolError.Timeout("Schema request timeout"))
+      _.response.await
+        .timeout(cfg.clientConfig.schemaRequestTimeoutMillis.milliseconds)
+        .flatMap(ZIO.fromOption(_))
+    ).tapError(_ => logger.error(s"Schema request timeout. SpaceId: $spaceId, indexId: $indexId"))
+      .orElseFail(
+        TarantoolError.Timeout(s"Schema request timeout. SpaceId: $spaceId, indexId: $indexId")
+      )
       .provide(clock)
 
     private def select(

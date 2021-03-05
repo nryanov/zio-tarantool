@@ -7,7 +7,6 @@ import zio.internal.Executor
 import zio.tarantool._
 import zio.tarantool.TarantoolError.toIOError
 import zio.tarantool.protocol.{MessagePackPacket, ResponseCode, TarantoolResponse}
-import zio.tarantool.core.PacketManager.PacketManager
 import zio.tarantool.protocol.Constants.MessageSizeLength
 import zio.tarantool.protocol.Implicits.{RichByteVector, RichMessagePack}
 import java.nio.ByteBuffer
@@ -15,6 +14,7 @@ import java.nio.channels.spi.SelectorProvider
 import java.nio.channels.{SelectionKey, Selector}
 
 import scodec.bits.ByteVector
+import zio.tarantool.codec.MessagePackPacketCodec
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 
@@ -31,42 +31,38 @@ private[tarantool] object ResponseHandler {
   }
 
   val live: ZLayer[
-    TarantoolConnection with PacketManager with RequestHandler with Logging,
+    TarantoolConnection with RequestHandler with Logging,
     TarantoolError.IOError,
     ResponseHandler
   ] =
     ZLayer.fromServicesManaged[
       TarantoolConnection.Service,
-      PacketManager.Service,
       RequestHandler.Service,
       Logging,
       TarantoolError.IOError,
       Service
-    ]((connection, packetManager, requestHandler) =>
-      make(connection, packetManager, requestHandler)
-    )
+    ]((connection, requestHandler) => make(connection, requestHandler))
 
   def make(
     connection: TarantoolConnection.Service,
-    packetManager: PacketManager.Service,
     requestHandler: RequestHandler.Service
   ): ZManaged[Logging, TarantoolError.IOError, Service] =
     ZManaged.make(
       for {
         logger <- ZIO.service[Logger[String]]
-      } yield new Live(
-        logger,
-        connection,
-        packetManager,
-        requestHandler,
-        ExecutionContextManager.singleThreaded()
-      )
+        live = new Live(
+          logger,
+          connection,
+          requestHandler,
+          ExecutionContextManager.singleThreaded()
+        )
+        _ <- live.start()
+      } yield live
     )(_.close().orDie)
 
-  private[this] final class Live(
+  private[tarantool] class Live(
     logger: Logger[String],
     connection: TarantoolConnection.Service,
-    packetManager: PacketManager.Service,
     requestHandler: RequestHandler.Service,
     ec: ExecutionContextManager
   ) extends Service {
@@ -98,9 +94,17 @@ private[tarantool] object ResponseHandler {
       size <- vector.decodeM().map(_.toNumber.toInt)
       messageBuffer: ByteBuffer <- ZIO.effectTotal(ByteBuffer.allocate(size))
       _ <- readBuffer(messageBuffer, selector)
-      packet <- packetManager.decodeToMessagePackPacket(makeByteVector(messageBuffer))
+      packet <- decodeToMessagePackPacket(makeByteVector(messageBuffer))
       _ <- complete(packet)
     } yield ()
+
+    private def decodeToMessagePackPacket(
+      vector: ByteVector
+    ): IO[TarantoolError.CodecError, MessagePackPacket] = IO
+      .effect(
+        MessagePackPacketCodec.decodeValue(vector.toBitVector).require
+      )
+      .mapError(TarantoolError.CodecError)
 
     private def readBuffer(buffer: ByteBuffer, selector: Selector): ZIO[Any, Throwable, Int] = {
       var total: Int = 0

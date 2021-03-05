@@ -1,15 +1,14 @@
 package zio.tarantool
 
-import zio.{Has, ULayer, ZLayer}
+import zio.{Has, ZLayer}
 import zio.console.Console
 import zio.blocking.Blocking
 import zio.clock.Clock
-import zio.logging.Logging
+import zio.logging.{LogLevel, Logging}
 import zio.tarantool.core._
 import zio.tarantool.TarantoolClient.TarantoolClient
 import zio.tarantool.TarantoolContainer.Tarantool
 import zio.tarantool.core.CommunicationInterceptor.CommunicationInterceptor
-import zio.tarantool.core.PacketManager.PacketManager
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.ResponseHandler.ResponseHandler
 import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
@@ -30,11 +29,9 @@ trait BaseLayers {
     )
 
   val loggingLayer: ZLayer[Any, Nothing, Logging] =
-    (Clock.live ++ Console.live) >>> Logging.console()
+    (Clock.live ++ Console.live) >>> Logging.console(logLevel = LogLevel.Debug)
 
   val syncIdProviderLayer: ZLayer[Any, Nothing, SyncIdProvider] = SyncIdProvider.live
-
-  val packetManagerLayer: ULayer[PacketManager] = PacketManager.live
 
   val tarantoolConnectionLayer: ZLayer[Any, Throwable, TarantoolConnection] =
     (Clock.live ++ configLayer ++ loggingLayer) >>> TarantoolConnection.live
@@ -46,10 +43,10 @@ trait BaseLayers {
     loggingLayer >>> RequestHandler.live
 
   val responseHandlerLayer: ZLayer[Any, Throwable, ResponseHandler] =
-    (tarantoolConnectionLayer ++ packetManagerLayer ++ requestHandlerLayer ++ loggingLayer) >>> ResponseHandler.live
+    (tarantoolConnectionLayer ++ requestHandlerLayer ++ loggingLayer) >>> ResponseHandler.live
 
   val schemaMetaManagerLayer: ZLayer[Any, Throwable, SchemaMetaManager] =
-    (configLayer ++ requestHandlerLayer ++ socketChannelQueuedWriterLayer ++ syncIdProviderLayer ++ Clock.live ++ loggingLayer) >>> SchemaMetaManager.live
+    (configLayer ++ requestHandlerLayer ++ responseHandlerLayer ++ socketChannelQueuedWriterLayer ++ syncIdProviderLayer ++ Clock.live ++ loggingLayer) >>> SchemaMetaManager.live
 
   val communicationInterceptorLayer: ZLayer[Any, Throwable, CommunicationInterceptor] =
     (loggingLayer ++ schemaMetaManagerLayer ++ requestHandlerLayer ++ socketChannelQueuedWriterLayer ++ syncIdProviderLayer ++ responseHandlerLayer) >>> CommunicationInterceptor.live

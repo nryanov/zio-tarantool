@@ -15,7 +15,7 @@ object SyncIdProvider {
 
   def make(): ZManaged[Any, Nothing, Service] = Ref.make(0L).map(new Live(_)).toManaged_
 
-  private[this] final class Live(ref: Ref[Long]) extends Service {
+  private[tarantool] class Live(ref: Ref[Long]) extends Service {
     override def syncId(): UIO[Long] = ref.updateAndGet(_ + 1)
   }
 }

@@ -102,21 +102,18 @@ object TarantoolClient {
   def make(config: TarantoolConfig): ZManaged[Clock with Logging, Throwable, Service] =
     for {
       logger <- ZIO.service[Logger[String]].toManaged_
-      connection <- TarantoolConnection.make(config).tapM(_.connect())
+      connection <- TarantoolConnection.make(config)
       syncIdProvider <- SyncIdProvider.make()
-      packetManager <- PacketManager.make()
       requestHandler <- RequestHandler.make()
-      responseHandler <- ResponseHandler
-        .make(connection, packetManager, requestHandler)
-        .tapM(_.start())
-      queuedWriter <- SocketChannelQueuedWriter.make(config, connection).tapM(_.start())
+      responseHandler <- ResponseHandler.make(connection, requestHandler)
+      queuedWriter <- SocketChannelQueuedWriter.make(config, connection)
       schemaMetaManager <- SchemaMetaManager.make(
         config,
         requestHandler,
+        responseHandler,
         queuedWriter,
         syncIdProvider
       )
-//        .tapM(_.refresh)
       communicationInterceptor <- CommunicationInterceptor.make(
         schemaMetaManager,
         requestHandler,

@@ -47,12 +47,14 @@ private[tarantool] object SocketChannelQueuedWriter {
       for {
         logger <- ZIO.service[Logger[String]]
         queue <- createQueue(cfg.clientConfig.backgroundQueueSize)
-      } yield new Live(
-        logger,
-        connection,
-        ExecutionContextManager.singleThreaded(),
-        queue
-      )
+        live = new Live(
+          logger,
+          connection,
+          ExecutionContextManager.singleThreaded(),
+          queue
+        )
+        _ <- live.start()
+      } yield live
     )(_.close().orDie)
 
   private def createQueue(size: Int): IO[TarantoolError, Queue[ByteBuffer]] = size match {
@@ -62,10 +64,11 @@ private[tarantool] object SocketChannelQueuedWriter {
       ZIO.fail(ConfigurationError(s"Configuration 'backgroundQueueSize' has incorrect value: $x"))
   }
 
-  def requestQueue(): ZIO[SocketChannelQueuedWriter, Nothing, Queue[ByteBuffer]] =
+  private[tarantool] def requestQueue()
+    : ZIO[SocketChannelQueuedWriter, Nothing, Queue[ByteBuffer]] =
     ZIO.access(_.get.requestQueue)
 
-  private[this] final class Live(
+  private[tarantool] class Live(
     logger: Logger[String],
     connection: TarantoolConnection.Service,
     ec: ExecutionContextManager,
