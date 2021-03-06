@@ -39,9 +39,20 @@ object MessagePackPacket {
     _ <- ZIO.effect(os.write(encodedPacket.toByteArray)).refineOrDie(toIOError)
   } yield ByteBuffer.wrap(os.toByteArray)
 
+  def responseType(packet: MessagePackPacket): IO[TarantoolError, ResponseType] =
+    packet.body match {
+      case mp if mp.contains(ResponseBodyKey.Data.value)    => IO.succeed(ResponseType.DataResponse)
+      case mp if mp.contains(ResponseBodyKey.SqlInfo.value) => IO.succeed(ResponseType.SqlResponse)
+      case mp if mp.contains(ResponseBodyKey.Error24.value) =>
+        IO.succeed(ResponseType.ErrorResponse)
+      case mp if mp.contains(ResponseBodyKey.Error.value) => IO.succeed(ResponseType.ErrorResponse)
+      case _                                              => IO.fail(TarantoolError.OperationException("Unknown response type"))
+    }
+
+  // todo: return ResponseCode instead of long. Throw error if code is unknown
   def extractCode(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
     codeMp <- ZIO
-      .fromOption(packet.header.get(FieldKey.Code.value))
+      .fromOption(packet.header.get(Header.Code.value))
       .orElseFail(
         TarantoolError.ProtocolError(s"Packet has no Code in header (${packet.header})")
       )
@@ -52,16 +63,21 @@ object MessagePackPacket {
   def extractError(
     packet: MessagePackPacket
   ): IO[TarantoolError, String] =
-    extractByKey(packet, FieldKey.Error).flatMap(Encoder.stringEncoder.decodeM)
+    extractByKey(packet, ResponseBodyKey.Error).flatMap(Encoder.stringEncoder.decodeM)
 
   def extractData(
     packet: MessagePackPacket
   ): IO[TarantoolError.ProtocolError, MessagePack] =
-    extractByKey(packet, FieldKey.Data)
+    extractByKey(packet, ResponseBodyKey.Data)
+
+  def extractSql(
+    packet: MessagePackPacket
+  ): IO[TarantoolError.ProtocolError, MessagePack] =
+    extractByKey(packet, ResponseBodyKey.SqlInfo)
 
   def extractSyncId(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
     syncIdMp <- ZIO
-      .fromOption(packet.header.get(FieldKey.Sync.value))
+      .fromOption(packet.header.get(Header.Sync.value))
       .orElseFail(
         TarantoolError.ProtocolError(s"Packet has no SyncId in header (${packet.header})")
       )
@@ -70,16 +86,16 @@ object MessagePackPacket {
 
   def extractSchemaId(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
     schemaIdMp <- ZIO
-      .fromOption(packet.header.get(FieldKey.SchemaId.value))
+      .fromOption(packet.header.get(Header.SchemaId.value))
       .orElseFail(
         TarantoolError.ProtocolError(s"Packet has no SchemaId in header (${packet.header})")
       )
     schemaId <- Encoder.longEncoder.decodeM(schemaIdMp)
   } yield schemaId
 
-  def extractByKey(
+  private def extractByKey(
     packet: MessagePackPacket,
-    key: FieldKey
+    key: ResponseBodyKey
   ): ZIO[Any, TarantoolError.ProtocolError, MessagePack] =
     for {
       value <- ZIO

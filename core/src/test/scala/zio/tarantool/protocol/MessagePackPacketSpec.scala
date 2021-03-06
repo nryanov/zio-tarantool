@@ -14,8 +14,8 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       testM("should convert to ByteBuffer") {
         val packet = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> Encoder[Long].encodeUnsafe(1),
-            FieldKey.Code.value -> Encoder[Long].encodeUnsafe(OperationCode.Ping.value)
+            Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
+            Header.Code.value -> Encoder[Long].encodeUnsafe(RequestCode.Ping.value)
           )
         )
         val result = MessagePackPacket.toBuffer(packet)
@@ -24,8 +24,8 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       testM("should extract code") {
         val packet = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> Encoder[Long].encodeUnsafe(1),
-            FieldKey.Code.value -> Encoder[Long].encodeUnsafe(
+            Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
+            Header.Code.value -> Encoder[Long].encodeUnsafe(
               ResponseCode.Success.value
             )
           )
@@ -35,7 +35,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       },
       testM("should fail with ProtocolError when trying to extract not existing code") {
         val packet =
-          MessagePackPacket(Map(FieldKey.Sync.value -> Encoder[Long].encodeUnsafe(1)))
+          MessagePackPacket(Map(Header.Sync.value -> Encoder[Long].encodeUnsafe(1)))
         val result = MessagePackPacket.extractCode(packet)
         assertM(result.run)(
           fails(
@@ -48,8 +48,8 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       testM("should extract error code") {
         val packet = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> Encoder[Long].encodeUnsafe(1),
-            FieldKey.Code.value -> Encoder[Long].encodeUnsafe(0x8123)
+            Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
+            Header.Code.value -> Encoder[Long].encodeUnsafe(0x8123)
           )
         )
         val result = MessagePackPacket.extractCode(packet)
@@ -58,8 +58,8 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       testM("should fail with ProtocolError when trying to extract incorrect error code") {
         val packet = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> Encoder[Long].encodeUnsafe(1),
-            FieldKey.Code.value -> Encoder[Long].encodeUnsafe(0x1234)
+            Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
+            Header.Code.value -> Encoder[Long].encodeUnsafe(0x1234)
           )
         )
         val result = MessagePackPacket.extractCode(packet)
@@ -72,12 +72,12 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       testM("should extract data") {
         val packet = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> Encoder[Long].encodeUnsafe(1),
-            FieldKey.Code.value -> Encoder[Long].encodeUnsafe(0x0)
+            Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
+            Header.Code.value -> Encoder[Long].encodeUnsafe(0x0)
           ),
           Some(
             Map(
-              FieldKey.Data.value -> Encoder[Long].encodeUnsafe(123)
+              ResponseBodyKey.Data.value -> Encoder[Long].encodeUnsafe(123)
             )
           )
         )
@@ -87,8 +87,8 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       testM("should fail with ProtocolError when trying to extract not existing data") {
         val packet = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> Encoder[Long].encodeUnsafe(1),
-            FieldKey.Code.value -> Encoder[Long].encodeUnsafe(0x0)
+            Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
+            Header.Code.value -> Encoder[Long].encodeUnsafe(0x0)
           ),
           Some(Map.empty[Long, MessagePack])
         )
@@ -97,7 +97,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
           fails(
             equalTo(
               TarantoolError.ProtocolError(
-                s"Packet has no ${FieldKey.Data} value in body part ${packet.body}"
+                s"Packet has no ${ResponseBodyKey.Data} value in body part ${packet.body}"
               )
             )
           )
@@ -106,8 +106,8 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       testM("should extract syncId") {
         val packet = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> Encoder[Long].encodeUnsafe(1),
-            FieldKey.Code.value -> Encoder[Long].encodeUnsafe(0x8123)
+            Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
+            Header.Code.value -> Encoder[Long].encodeUnsafe(0x8123)
           )
         )
         val result = MessagePackPacket.extractSyncId(packet)
@@ -127,9 +127,9 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       testM("should extract schemaId") {
         val packet = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> Encoder[Long].encodeUnsafe(1),
-            FieldKey.Code.value -> Encoder[Long].encodeUnsafe(0x8123),
-            FieldKey.SchemaId.value -> Encoder[Long].encodeUnsafe(2)
+            Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
+            Header.Code.value -> Encoder[Long].encodeUnsafe(0x8123),
+            Header.SchemaId.value -> Encoder[Long].encodeUnsafe(2)
           )
         )
         val result = MessagePackPacket.extractSchemaId(packet)

@@ -13,7 +13,13 @@ import zio.tarantool.mock.{RequestHandlerMock, TarantoolConnectionMock}
 import zio.tarantool.core.ResponseHandler.{Live, ResponseHandler, Service}
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 import zio.tarantool.msgpack.{MpFixString, MpPositiveFixInt}
-import zio.tarantool.protocol.{FieldKey, MessagePackPacket, ResponseCode}
+import zio.tarantool.protocol.{
+  Header,
+  MessagePackPacket,
+  RequestBodyKey,
+  ResponseBodyKey,
+  ResponseCode
+}
 import zio.tarantool.{BaseLayers, TarantoolConfig, TarantoolError}
 
 object ResponseHandlerSpec extends DefaultRunnableSpec with BaseLayers {
@@ -70,12 +76,12 @@ object ResponseHandlerSpec extends DefaultRunnableSpec with BaseLayers {
 
         val messagePackPacket = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> MpPositiveFixInt(1),
-            FieldKey.SchemaId.value -> MpPositiveFixInt(1),
-            FieldKey.Code.value -> MpPositiveFixInt(ResponseCode.Success.value)
+            Header.Sync.value -> MpPositiveFixInt(1),
+            Header.SchemaId.value -> MpPositiveFixInt(1),
+            Header.Code.value -> MpPositiveFixInt(ResponseCode.Success.value)
           ),
           Map(
-            FieldKey.Data.value -> MpPositiveFixInt(1)
+            ResponseBodyKey.Data.value -> MpPositiveFixInt(1)
           )
         )
 
@@ -95,12 +101,12 @@ object ResponseHandlerSpec extends DefaultRunnableSpec with BaseLayers {
 
         val messagePackPacket = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> MpPositiveFixInt(1),
-            FieldKey.SchemaId.value -> MpPositiveFixInt(1),
-            FieldKey.Code.value -> MpPositiveFixInt(0x8001)
+            Header.Sync.value -> MpPositiveFixInt(1),
+            Header.SchemaId.value -> MpPositiveFixInt(1),
+            Header.Code.value -> MpPositiveFixInt(0x8001)
           ),
           Map(
-            FieldKey.Error.value -> MpFixString("error")
+            ResponseBodyKey.Error.value -> MpFixString("error")
           )
         )
 

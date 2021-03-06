@@ -5,7 +5,7 @@ import zio.logging._
 import zio.macros.accessible
 import zio.tarantool.protocol._
 import zio.tarantool.msgpack.MessagePack
-import zio.tarantool.TarantoolError
+import zio.tarantool.{TarantoolError, core, protocol}
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.ResponseHandler.ResponseHandler
 import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
@@ -18,7 +18,7 @@ object CommunicationInterceptor {
 
   trait Service {
     def submitRequest(
-      op: OperationCode,
+      op: RequestCode,
       body: Map[Long, MessagePack]
     ): IO[TarantoolError, TarantoolOperation]
   }
@@ -80,12 +80,12 @@ object CommunicationInterceptor {
     syncIdProvider: SyncIdProvider.Service
   ) extends Service {
     override def submitRequest(
-      op: OperationCode,
+      op: RequestCode,
       body: Map[Long, MessagePack]
     ): IO[TarantoolError, TarantoolOperation] = for {
       schemaId <- schemaMetaManager.schemaId
       syncId <- syncIdProvider.syncId()
-      request = TarantoolRequest(op, syncId, Some(schemaId), body)
+      request = protocol.TarantoolRequest(op, syncId, Some(schemaId), body)
       operation <- requestHandler.submitRequest(request)
       packet <- TarantoolRequest.createPacket(request)
       _ <- queuedWriter.send(packet)

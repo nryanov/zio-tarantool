@@ -1,23 +1,23 @@
 package zio.tarantool.core
 
 import zio._
-import zio.tarantool.{BaseLayers, TarantoolError}
+import zio.tarantool.{BaseLayers, TarantoolError, core}
 import zio.test._
 import zio.test.Assertion._
 import zio.test.mock.Expectation._
 import zio.test.TestAspect.{sequential, timeout}
 import zio.duration._
 import zio.tarantool.msgpack.MpPositiveFixInt
-import zio.tarantool.protocol.{FieldKey, OperationCode, TarantoolRequest, TarantoolResponse}
+import zio.tarantool.protocol.{Header, RequestCode, TarantoolRequest, TarantoolResponse}
 
 object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
   val request: TarantoolRequest = TarantoolRequest(
-    OperationCode.Ping,
+    RequestCode.Ping,
     1L,
     Some(1L),
     Map(
-      FieldKey.Sync.value -> MpPositiveFixInt(1),
-      FieldKey.SchemaId.value -> MpPositiveFixInt(1)
+      Header.Sync.value -> MpPositiveFixInt(1),
+      Header.SchemaId.value -> MpPositiveFixInt(1)
     )
   )
 

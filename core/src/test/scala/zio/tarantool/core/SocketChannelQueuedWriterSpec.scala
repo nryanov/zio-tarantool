@@ -14,7 +14,7 @@ import zio.test.mock.Expectation._
 import zio.test.TestAspect.{sequential, timeout}
 import zio.tarantool.mock.TarantoolConnectionMock
 import zio.tarantool.msgpack.MpPositiveFixInt
-import zio.tarantool.protocol.{FieldKey, MessagePackPacket, ResponseCode}
+import zio.tarantool.protocol.{Header, MessagePackPacket, ResponseBodyKey, ResponseCode}
 import zio.tarantool.{BaseLayers, TarantoolConfig}
 
 object SocketChannelQueuedWriterSpec extends DefaultRunnableSpec with BaseLayers {
@@ -29,12 +29,12 @@ object SocketChannelQueuedWriterSpec extends DefaultRunnableSpec with BaseLayers
 
         val messagePackPacket = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> MpPositiveFixInt(1),
-            FieldKey.SchemaId.value -> MpPositiveFixInt(1),
-            FieldKey.Code.value -> MpPositiveFixInt(ResponseCode.Success.value)
+            Header.Sync.value -> MpPositiveFixInt(1),
+            Header.SchemaId.value -> MpPositiveFixInt(1),
+            Header.Code.value -> MpPositiveFixInt(ResponseCode.Success.value)
           ),
           Map(
-            FieldKey.Data.value -> MpPositiveFixInt(1)
+            ResponseBodyKey.Data.value -> MpPositiveFixInt(1)
           )
         )
 
@@ -54,12 +54,12 @@ object SocketChannelQueuedWriterSpec extends DefaultRunnableSpec with BaseLayers
 
         val messagePackPacket = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> MpPositiveFixInt(1),
-            FieldKey.SchemaId.value -> MpPositiveFixInt(1),
-            FieldKey.Code.value -> MpPositiveFixInt(ResponseCode.Success.value)
+            Header.Sync.value -> MpPositiveFixInt(1),
+            Header.SchemaId.value -> MpPositiveFixInt(1),
+            Header.Code.value -> MpPositiveFixInt(ResponseCode.Success.value)
           ),
           Map(
-            FieldKey.Data.value -> MpPositiveFixInt(1)
+            ResponseBodyKey.Data.value -> MpPositiveFixInt(1)
           )
         )
 
@@ -81,12 +81,12 @@ object SocketChannelQueuedWriterSpec extends DefaultRunnableSpec with BaseLayers
 
         val messagePackPacket = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> MpPositiveFixInt(1),
-            FieldKey.SchemaId.value -> MpPositiveFixInt(1),
-            FieldKey.Code.value -> MpPositiveFixInt(ResponseCode.Success.value)
+            Header.Sync.value -> MpPositiveFixInt(1),
+            Header.SchemaId.value -> MpPositiveFixInt(1),
+            Header.Code.value -> MpPositiveFixInt(ResponseCode.Success.value)
           ),
           Map(
-            FieldKey.Data.value -> MpPositiveFixInt(1)
+            ResponseBodyKey.Data.value -> MpPositiveFixInt(1)
           )
         )
 

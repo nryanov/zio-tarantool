@@ -1,7 +1,7 @@
 package zio.tarantool.protocol
 
+import zio._
 import scodec.{Attempt, Err}
-import zio.{Task, ZIO}
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.msgpack.{MessagePack, MpArray}
 

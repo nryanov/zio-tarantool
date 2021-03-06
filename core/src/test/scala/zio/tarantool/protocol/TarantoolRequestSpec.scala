@@ -11,11 +11,11 @@ object TarantoolRequestSpec extends DefaultRunnableSpec {
       testM("should create packet") {
         val expected = MessagePackPacket(
           Map(
-            FieldKey.Sync.value -> Encoder[Long].encodeUnsafe(1),
-            FieldKey.Code.value -> Encoder[Long].encodeUnsafe(OperationCode.Ping.value)
+            Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
+            Header.Code.value -> Encoder[Long].encodeUnsafe(RequestCode.Ping.value)
           )
         )
-        val request = TarantoolRequest(OperationCode.Ping, 1, None, Map.empty)
+        val request = TarantoolRequest(RequestCode.Ping, 1, None, Map.empty)
         val result = TarantoolRequest.createPacket(request)
         assertM(result)(equalTo(expected))
       }

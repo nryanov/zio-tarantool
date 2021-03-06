@@ -14,7 +14,7 @@ import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.ResponseHandler.ResponseHandler
 import zio.tarantool.core.SocketChannelQueuedWriter.SocketChannelQueuedWriter
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
-import zio.tarantool.{TarantoolConfig, TarantoolError}
+import zio.tarantool.{TarantoolConfig, TarantoolError, core, protocol}
 
 @accessible[SchemaMetaManager.Service]
 private[tarantool] object SchemaMetaManager {
@@ -194,7 +194,7 @@ private[tarantool] object SchemaMetaManager {
           )
           .mapError(TarantoolError.CodecError)
         // todo: schemaId
-        request = TarantoolRequest(OperationCode.Select, syncId, None, body)
+        request = protocol.TarantoolRequest(RequestCode.Select, syncId, None, body)
         response <- requestHandler.submitRequest(request)
         packet <- TarantoolRequest.createPacket(request)
         _ <- queuedWriter.send(packet)

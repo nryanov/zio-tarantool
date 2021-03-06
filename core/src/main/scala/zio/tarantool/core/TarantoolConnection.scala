@@ -5,7 +5,6 @@ import zio.logging._
 import zio.clock.Clock
 import zio.macros.accessible
 import zio.tarantool.{TarantoolConfig, TarantoolError}
-import zio.tarantool.protocol.Constants._
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -70,6 +69,16 @@ object TarantoolConnection {
         _ <- live.connect()
       } yield live
     )(_.close().orDie)
+
+  /*
+    When a client connects to the server instance,
+    the instance responds with a 128-byte text greeting message, not in MsgPack format:
+    64-byte Greeting text line 1
+    64-byte Greeting text line 2
+    44-byte base64-encoded salt
+    20-byte NULL
+   */
+  private val GreetingLength = 64
 
   private[tarantool] class Live(
     logger: Logger[String],

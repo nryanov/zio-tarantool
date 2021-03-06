@@ -98,6 +98,18 @@ object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
         } yield assert(initialValue)(equalTo(Vector(tuple))) && assert(replacedValue)(
           equalTo(Vector(tuple.copy(f2 = 12345)))
         )
+      },
+      testM("should execute sql statement") {
+        for {
+          query1 <- TarantoolClient.execute(
+            "CREATE TABLE table1 (column1 INTEGER PRIMARY KEY, column2 VARCHAR(100))"
+          )
+          query2 <- TarantoolClient.execute("INSERT INTO table1 VALUES (1, 'A')")
+          query3 <- TarantoolClient.execute("SELECT * FROM table1 WHERE column1 = 1")
+          _ <- awaitResponse(query1)
+          _ <- awaitResponse(query2)
+          _ <- awaitResponse(query3)
+        } yield assert(true)(isTrue)
       }
     ) @@ sequential @@ truncateAspect @@ before(createSpace().timeout(Duration.ofSeconds(5)).orDie))
       .provideCustomLayerShared(testEnv.orDie)
@@ -111,11 +123,14 @@ object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
     _ <- r2.response.await
   } yield ()
 
+  private def awaitResponse(operation: TarantoolOperation) =
+    operation.response.await
+
   private def awaitResponseValue[A: TupleEncoder](operation: TarantoolOperation) =
-    operation.response.await.flatMap(_.valueUnsafe[A])
+    awaitResponse(operation).flatMap(_.valueUnsafe[A])
 
   private def awaitResponseData[A: TupleEncoder](operation: TarantoolOperation) =
-    operation.response.await.flatMap(_.dataUnsafe[A])
+    awaitResponse(operation).flatMap(_.dataUnsafe[A])
 
   private def truncateSpace(): ZIO[Any with TarantoolClient, Throwable, Unit] =
     TarantoolClient.eval("box.space.test:truncate()").flatMap(_.response.await.unit)

@@ -6,8 +6,7 @@ import zio.macros.accessible
 import zio.internal.Executor
 import zio.tarantool._
 import zio.tarantool.TarantoolError.toIOError
-import zio.tarantool.protocol.{MessagePackPacket, ResponseCode, TarantoolResponse}
-import zio.tarantool.protocol.Constants.MessageSizeLength
+import zio.tarantool.protocol.{MessagePackPacket, ResponseCode, ResponseType, TarantoolResponse}
 import zio.tarantool.protocol.Implicits.{RichByteVector, RichMessagePack}
 import java.nio.ByteBuffer
 import java.nio.channels.spi.SelectorProvider
@@ -60,6 +59,9 @@ private[tarantool] object ResponseHandler {
       } yield live
     )(_.close().orDie)
 
+  /* message pack packet response size length in bytes */
+  private val MessageSizeLength = 5
+
   private[tarantool] class Live(
     logger: Logger[String],
     connection: TarantoolConnection.Service,
@@ -95,7 +97,9 @@ private[tarantool] object ResponseHandler {
       messageBuffer: ByteBuffer <- ZIO.effectTotal(ByteBuffer.allocate(size))
       _ <- readBuffer(messageBuffer, selector)
       packet <- decodeToMessagePackPacket(makeByteVector(messageBuffer))
-      _ <- complete(packet)
+      _ <- complete(packet).tapError(err =>
+        logger.error(s"Could not complete operation: ${err.getLocalizedMessage}")
+      )
     } yield ()
 
     private def decodeToMessagePackPacket(
@@ -139,19 +143,37 @@ private[tarantool] object ResponseHandler {
     override def complete(packet: MessagePackPacket): IO[TarantoolError, Unit] =
       for {
         syncId <- MessagePackPacket.extractSyncId(packet)
+        _ <- logger.debug(s"Complete operation with id: $syncId")
         schemaId <- MessagePackPacket.extractSchemaId(packet)
         code <- MessagePackPacket.extractCode(packet)
-        _ <- logger.debug(s"Complete operation with id: $syncId")
         // todo: check code Success, IncorrectSchema, Error, Sql
-        _ <- ZIO.ifM(ZIO.succeed(code == ResponseCode.Success.value))(
+        _ <- ZIO
+          .ifM(ZIO.succeed(code == ResponseCode.Success.value))(
+            completeSucceeded(schemaId, syncId, packet),
+            completeFailed(syncId, packet)
+          )
+          .tapError(err => requestHandler.fail(syncId, err.getLocalizedMessage))
+      } yield ()
+
+    private def completeSucceeded(schemaId: Long, syncId: Long, packet: MessagePackPacket) = for {
+      responseType <- MessagePackPacket.responseType(packet)
+      _ <- responseType match {
+        case ResponseType.DataResponse =>
           MessagePackPacket
             .extractData(packet)
-            .flatMap(data => requestHandler.complete(syncId, TarantoolResponse(schemaId, data))),
+            .flatMap(data => requestHandler.complete(syncId, TarantoolResponse(schemaId, data)))
+        case ResponseType.SqlResponse =>
           MessagePackPacket
-            .extractError(packet)
-            .flatMap(error => requestHandler.fail(syncId, error))
-        )
-      } yield ()
+            .extractSql(packet)
+            .flatMap(data => requestHandler.complete(syncId, TarantoolResponse(schemaId, data)))
+        case ResponseType.ErrorResponse =>
+          IO.fail(TarantoolError.OperationException("Unexpected error in packet with SUCCEED_CODE"))
+            .zipRight(completeFailed(syncId, packet))
+      }
+    } yield ()
+
+    private def completeFailed(syncId: Long, packet: MessagePackPacket) =
+      MessagePackPacket.extractError(packet).flatMap(error => requestHandler.fail(syncId, error))
   }
 
 }
