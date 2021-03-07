@@ -81,7 +81,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val zioTarantool =
-  project.in(file(".")).settings(skip in publish := true).aggregate(msgpack, core, auto)
+  project.in(file(".")).settings(skip in publish := true).aggregate(msgpack, core)
 
 lazy val msgpack = project
   .in(file("msgpack"))
@@ -113,14 +113,3 @@ lazy val core = project
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
   .dependsOn(msgpack % "compile->compile;test->test")
-
-lazy val auto = project
-  .in(file("auto"))
-  .settings(commonSettings)
-  .settings(
-    moduleName := "zio-tarantool-auto",
-    libraryDependencies ++= Seq(
-      "com.chuusai" %% "shapeless" % shapelessVersion
-    )
-  )
-  .dependsOn(core % "compile->compile;test->test")

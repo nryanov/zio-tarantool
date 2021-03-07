@@ -1,14 +1,7 @@
 package zio.tarantool.core.schema
 
-/*
-  - [372, 1, '_func_index', 'memtx', 0, {}, [{'name': 'space_id', 'type': 'unsigned'},
-      {'name': 'index_id', 'type': 'unsigned'}, {'name': 'func_id', 'type': 'unsigned'}]]
-  - [380, 1, '_session_settings', 'service', 2, {'temporary': true}, [{'name': 'name',
-        'type': 'string'}, {'name': 'value', 'type': 'any'}]]
-  - [512, 0, 'test', 'memtx', 0, {}, []]
- */
 private[tarantool] final case class SpaceMeta(
-  spaceId: Long,
+  spaceId: Int,
   spaceName: String,
   engine: String,
   spaceOptions: SpaceOptions,
@@ -20,7 +13,7 @@ private[tarantool] final case class SpaceMeta(
 
 private[tarantool] object SpaceMeta {
   def apply(
-    spaceId: Long,
+    spaceId: Int,
     spaceName: String,
     engine: String,
     spaceOptions: SpaceOptions,

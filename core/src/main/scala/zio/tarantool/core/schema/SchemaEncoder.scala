@@ -28,8 +28,8 @@ object SchemaEncoder {
     override def decode(v: MpArray, idx: Int): Attempt[IndexMeta] = {
       val vector = v.value
 
-      val spaceIdMp = Encoder[Long].decode(vector(idx))
-      val indexIdMp = Encoder[Long].decode(vector(idx + 1))
+      val spaceIdMp = Encoder[Int].decode(vector(idx))
+      val indexIdMp = Encoder[Int].decode(vector(idx + 1))
       val indexNameMp = Encoder[String].decode(vector(idx + 2))
       val indexTypeMp = Encoder[String].decode(vector(idx + 3))
       val indexOptionsMp = Encoder[Map[String, MessagePack]].decode(vector(idx + 4))
@@ -53,7 +53,7 @@ object SchemaEncoder {
     override def decode(v: MpArray, idx: Int): Attempt[SpaceMeta] = {
       val vector = v.value
 
-      val spaceIdMp = Encoder[Long].decode(vector(idx))
+      val spaceIdMp = Encoder[Int].decode(vector(idx))
       val spaceNameMp = Encoder[String].decode(vector(idx + 2))
       val engineMp = Encoder[String].decode(vector(idx + 3))
       val spaceOptionsMp = Encoder[Map[String, MessagePack]].decode(vector(idx + 5))

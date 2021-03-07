@@ -11,22 +11,27 @@ import zio.tarantool.core.ResponseHandler.ResponseHandler
 import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
 import zio.tarantool.core.SocketChannelQueuedWriter.SocketChannelQueuedWriter
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
+import zio.tarantool.core.schema.{IndexMeta, SpaceMeta}
 
-@accessible[CommunicationInterceptor.Service]
-object CommunicationInterceptor {
-  type CommunicationInterceptor = Has[Service]
+@accessible[CommunicationFacade.Service]
+object CommunicationFacade {
+  type CommunicationFacade = Has[Service]
 
   trait Service {
     def submitRequest(
       op: RequestCode,
       body: Map[Long, MessagePack]
     ): IO[TarantoolError, TarantoolOperation]
+
+    def getSpaceMeta(spaceName: String): IO[TarantoolError, SpaceMeta]
+
+    def getIndexMeta(spaceName: String, indexName: String): IO[TarantoolError, IndexMeta]
   }
 
   val live: ZLayer[
     Logging with SchemaMetaManager with RequestHandler with ResponseHandler with SocketChannelQueuedWriter with SyncIdProvider,
     TarantoolError,
-    CommunicationInterceptor
+    CommunicationFacade
   ] = ZLayer.fromServicesManaged[
     SchemaMetaManager.Service,
     RequestHandler.Service,
@@ -62,7 +67,6 @@ object CommunicationInterceptor {
   ): ZManaged[Logging, TarantoolError, Service] = ZManaged.fromEffect {
     for {
       logger <- ZIO.service[Logger[String]]
-      _ <- responseHandler.start()
     } yield new Live(
       logger,
       schemaMetaManager,
@@ -90,5 +94,11 @@ object CommunicationInterceptor {
       packet <- TarantoolRequest.createPacket(request)
       _ <- queuedWriter.send(packet)
     } yield operation
+
+    override def getSpaceMeta(spaceName: String): IO[TarantoolError, SpaceMeta] =
+      schemaMetaManager.getSpaceMeta(spaceName)
+
+    override def getIndexMeta(spaceName: String, indexName: String): IO[TarantoolError, IndexMeta] =
+      schemaMetaManager.getIndexMeta(spaceName, indexName)
   }
 }

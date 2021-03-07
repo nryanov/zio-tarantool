@@ -1,10 +1,10 @@
-package zio.tarantool.protocol.auto
+package zio.tarantool.codec.auto
 
 import org.scalatest.OptionValues
 import zio.tarantool.BaseSpec
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.msgpack.{MpFixArray, MpFixMap, MpFixString, MpPositiveFixInt, MpTrue}
-import zio.tarantool.protocol.auto.TupleEncoderAuto._
+import zio.tarantool.codec.auto.TupleEncoderAuto._
 
 class TupleEncoderAutoSpec extends BaseSpec with OptionValues {
   final case class A(f1: Int, f2: Long, f3: String)

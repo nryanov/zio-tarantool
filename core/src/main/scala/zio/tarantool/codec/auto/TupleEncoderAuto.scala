@@ -1,10 +1,10 @@
-package zio.tarantool.protocol.auto
+package zio.tarantool.codec.auto
 
 import scodec.Attempt
 import shapeless._
 import shapeless.labelled.{FieldType, field}
-import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.msgpack._
+import zio.tarantool.codec.TupleEncoder
 
 object TupleEncoderAuto extends LowPriorityInstances {
   def apply[A](implicit instance: TupleEncoder[A]): instance.type = instance

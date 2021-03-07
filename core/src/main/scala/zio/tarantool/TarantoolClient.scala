@@ -1,8 +1,8 @@
 package zio.tarantool
 
 import zio._
-import zio.clock.Clock
 import zio.logging._
+import zio.clock.Clock
 import zio.macros.accessible
 import zio.tarantool.core._
 import zio.tarantool.msgpack._
@@ -39,9 +39,31 @@ object TarantoolClient {
       key: A
     ): IO[TarantoolError, TarantoolOperation]
 
+    def select(
+      spaceName: String,
+      indexName: String,
+      limit: Int,
+      offset: Int,
+      iterator: IteratorCode,
+      key: MpArray
+    ): IO[TarantoolError, TarantoolOperation]
+
+    def select[A: TupleEncoder](
+      spaceName: String,
+      indexName: String,
+      limit: Int,
+      offset: Int,
+      iterator: IteratorCode,
+      key: A
+    ): IO[TarantoolError, TarantoolOperation]
+
     def insert(spaceId: Int, tuple: MpArray): IO[TarantoolError, TarantoolOperation]
 
     def insert[A: TupleEncoder](spaceId: Int, tuple: A): IO[TarantoolError, TarantoolOperation]
+
+    def insert(spaceName: String, tuple: MpArray): IO[TarantoolError, TarantoolOperation]
+
+    def insert[A: TupleEncoder](spaceName: String, tuple: A): IO[TarantoolError, TarantoolOperation]
 
     def update(
       spaceId: Int,
@@ -57,11 +79,37 @@ object TarantoolClient {
       tuple: B
     ): IO[TarantoolError, TarantoolOperation]
 
+    def update(
+      spaceName: String,
+      indexName: String,
+      key: MpArray,
+      tuple: MpArray
+    ): IO[TarantoolError, TarantoolOperation]
+
+    def update[A: TupleEncoder, B: TupleEncoder](
+      spaceName: String,
+      indexName: String,
+      key: A,
+      tuple: B
+    ): IO[TarantoolError, TarantoolOperation]
+
     def delete(spaceId: Int, indexId: Int, key: MpArray): IO[TarantoolError, TarantoolOperation]
 
     def delete[A: TupleEncoder](
       spaceId: Int,
       indexId: Int,
+      key: A
+    ): IO[TarantoolError, TarantoolOperation]
+
+    def delete(
+      spaceName: String,
+      indexName: String,
+      key: MpArray
+    ): IO[TarantoolError, TarantoolOperation]
+
+    def delete[A: TupleEncoder](
+      spaceName: String,
+      indexName: String,
       key: A
     ): IO[TarantoolError, TarantoolOperation]
 
@@ -79,9 +127,30 @@ object TarantoolClient {
       tuple: B
     ): IO[TarantoolError, TarantoolOperation]
 
+    def upsert(
+      spaceName: String,
+      indexName: String,
+      ops: MpArray,
+      tuple: MpArray
+    ): IO[TarantoolError, TarantoolOperation]
+
+    def upsert[A: TupleEncoder, B: TupleEncoder](
+      spaceName: String,
+      indexName: String,
+      ops: A,
+      tuple: B
+    ): IO[TarantoolError, TarantoolOperation]
+
     def replace(spaceId: Int, tuple: MpArray): IO[TarantoolError, TarantoolOperation]
 
     def replace[A: TupleEncoder](spaceId: Int, tuple: A): IO[TarantoolError, TarantoolOperation]
+
+    def replace(spaceName: String, tuple: MpArray): IO[TarantoolError, TarantoolOperation]
+
+    def replace[A: TupleEncoder](
+      spaceName: String,
+      tuple: A
+    ): IO[TarantoolError, TarantoolOperation]
 
     def call(functionName: String, args: MpArray): IO[TarantoolError, TarantoolOperation]
 
@@ -140,22 +209,21 @@ object TarantoolClient {
       schemaMetaManager <- SchemaMetaManager.make(
         config,
         requestHandler,
-        responseHandler,
         queuedWriter,
         syncIdProvider
       )
-      communicationInterceptor <- CommunicationInterceptor.make(
+      communicationFacade <- CommunicationFacade.make(
         schemaMetaManager,
         requestHandler,
         responseHandler,
         queuedWriter,
         syncIdProvider
       )
-    } yield new Live(logger, communicationInterceptor)
+    } yield new Live(logger, communicationFacade)
 
   private[this] final class Live(
     logger: Logger[String],
-    communicationInterceptor: CommunicationInterceptor.Service
+    communicationFacade: CommunicationFacade.Service
   ) extends TarantoolClient.Service {
     override def ping(): IO[TarantoolError, TarantoolOperation] = for {
       response <- send(RequestCode.Ping, Map.empty)
@@ -188,6 +256,30 @@ object TarantoolClient {
       response <- select(spaceId, indexId, limit, offset, iterator, encodedKey)
     } yield response
 
+    override def select(
+      spaceName: String,
+      indexName: String,
+      limit: Int,
+      offset: Int,
+      iterator: IteratorCode,
+      key: MpArray
+    ): IO[TarantoolError, TarantoolOperation] = for {
+      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      response <- select(meta.spaceId, meta.indexId, limit, offset, iterator, key)
+    } yield response
+
+    override def select[A: TupleEncoder](
+      spaceName: String,
+      indexName: String,
+      limit: Int,
+      offset: Int,
+      iterator: IteratorCode,
+      key: A
+    ): IO[TarantoolError, TarantoolOperation] = for {
+      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      response <- select(meta.spaceId, meta.indexId, limit, offset, iterator, key)
+    } yield response
+
     override def insert(spaceId: Int, tuple: MpArray): IO[TarantoolError, TarantoolOperation] =
       for {
         body <- ZIO.effect(insertBody(spaceId, tuple)).mapError(TarantoolError.CodecError)
@@ -203,6 +295,21 @@ object TarantoolClient {
         .mapError(TarantoolError.CodecError)
       response <- insert(spaceId, encodedTuple)
     } yield response
+
+    override def insert(spaceName: String, tuple: MpArray): IO[TarantoolError, TarantoolOperation] =
+      for {
+        meta <- communicationFacade.getSpaceMeta(spaceName)
+        response <- insert(meta.spaceId, tuple)
+      } yield response
+
+    override def insert[A: TupleEncoder](
+      spaceName: String,
+      tuple: A
+    ): IO[TarantoolError, TarantoolOperation] =
+      for {
+        meta <- communicationFacade.getSpaceMeta(spaceName)
+        response <- insert(meta.spaceId, tuple)
+      } yield response
 
     override def update(
       spaceId: Int,
@@ -225,6 +332,26 @@ object TarantoolClient {
       response <- update(spaceId, indexId, encodedKey, encodedTuple)
     } yield response
 
+    override def update(
+      spaceName: String,
+      indexName: String,
+      key: MpArray,
+      tuple: MpArray
+    ): IO[TarantoolError, TarantoolOperation] = for {
+      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      response <- update(meta.spaceId, meta.indexId, key, tuple)
+    } yield response
+
+    override def update[A: TupleEncoder, B: TupleEncoder](
+      spaceName: String,
+      indexName: String,
+      key: A,
+      tuple: B
+    ): IO[TarantoolError, TarantoolOperation] = for {
+      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      response <- update(meta.spaceId, meta.indexId, key, tuple)
+    } yield response
+
     override def delete(
       spaceId: Int,
       indexId: Int,
@@ -241,6 +368,24 @@ object TarantoolClient {
     ): IO[TarantoolError, TarantoolOperation] = for {
       encodedKey <- TupleEncoder[A].encodeM(key)
       response <- delete(spaceId, indexId, encodedKey)
+    } yield response
+
+    override def delete(
+      spaceName: String,
+      indexName: String,
+      key: MpArray
+    ): IO[TarantoolError, TarantoolOperation] = for {
+      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      response <- delete(meta.spaceId, meta.indexId, key)
+    } yield response
+
+    override def delete[A: TupleEncoder](
+      spaceName: String,
+      indexName: String,
+      key: A
+    ): IO[TarantoolError, TarantoolOperation] = for {
+      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      response <- delete(meta.spaceId, meta.indexId, key)
     } yield response
 
     override def upsert(
@@ -266,6 +411,26 @@ object TarantoolClient {
       response <- upsert(spaceId, indexId, encodedKey, encodedTuple)
     } yield response
 
+    override def upsert(
+      spaceName: String,
+      indexName: String,
+      ops: MpArray,
+      tuple: MpArray
+    ): IO[TarantoolError, TarantoolOperation] = for {
+      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      response <- upsert(meta.spaceId, meta.indexId, ops, tuple)
+    } yield response
+
+    override def upsert[A: TupleEncoder, B: TupleEncoder](
+      spaceName: String,
+      indexName: String,
+      ops: A,
+      tuple: B
+    ): IO[TarantoolError, TarantoolOperation] = for {
+      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      response <- upsert(meta.spaceId, meta.indexId, ops, tuple)
+    } yield response
+
     override def replace(spaceId: Int, tuple: MpArray): IO[TarantoolError, TarantoolOperation] =
       for {
         body <- ZIO.effect(replaceBody(spaceId, tuple)).mapError(TarantoolError.CodecError)
@@ -278,6 +443,22 @@ object TarantoolClient {
     ): IO[TarantoolError, TarantoolOperation] = for {
       encodedTuple <- TupleEncoder[A].encodeM(tuple)
       response <- replace(spaceId, encodedTuple)
+    } yield response
+
+    override def replace(
+      spaceName: String,
+      tuple: MpArray
+    ): IO[TarantoolError, TarantoolOperation] = for {
+      meta <- communicationFacade.getSpaceMeta(spaceName)
+      response <- replace(meta.spaceId, tuple)
+    } yield response
+
+    override def replace[A: TupleEncoder](
+      spaceName: String,
+      tuple: A
+    ): IO[TarantoolError, TarantoolOperation] = for {
+      meta <- communicationFacade.getSpaceMeta(spaceName)
+      response <- replace(meta.spaceId, tuple)
     } yield response
 
     override def call(
@@ -352,6 +533,6 @@ object TarantoolClient {
       op: RequestCode,
       body: Map[Long, MessagePack]
     ): IO[TarantoolError, TarantoolOperation] =
-      communicationInterceptor.submitRequest(op, body)
+      communicationFacade.submitRequest(op, body)
   }
 }
