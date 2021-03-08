@@ -63,7 +63,7 @@ object MessagePackPacket {
   def extractError(
     packet: MessagePackPacket
   ): IO[TarantoolError, String] =
-    extractByKey(packet, ResponseBodyKey.Error).flatMap(Encoder.stringEncoder.decodeM)
+    extractByKey(packet, ResponseBodyKey.Error24).flatMap(Encoder.stringEncoder.decodeM)
 
   def extractData(
     packet: MessagePackPacket

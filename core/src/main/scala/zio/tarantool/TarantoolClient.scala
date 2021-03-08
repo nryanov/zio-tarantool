@@ -193,18 +193,17 @@ object TarantoolClient {
     def prepare(sql: String): IO[TarantoolError, TarantoolOperation]
   }
 
-  val live: ZLayer[Has[TarantoolConfig] with Logging with Clock, Throwable, TarantoolClient] =
-    ZLayer.fromServiceManaged[TarantoolConfig, Logging with Clock, Throwable, Service] { cfg =>
+  val live: ZLayer[Has[TarantoolConfig] with Logging with Clock, TarantoolError, TarantoolClient] =
+    ZLayer.fromServiceManaged[TarantoolConfig, Logging with Clock, TarantoolError, Service] { cfg =>
       make(cfg)
     }
 
-  def make(config: TarantoolConfig): ZManaged[Clock with Logging, Throwable, Service] =
+  def make(config: TarantoolConfig): ZManaged[Clock with Logging, TarantoolError, Service] =
     for {
       logger <- ZIO.service[Logger[String]].toManaged_
       connection <- TarantoolConnection.make(config)
       syncIdProvider <- SyncIdProvider.make()
       requestHandler <- RequestHandler.make()
-      responseHandler <- ResponseHandler.make(connection, requestHandler)
       queuedWriter <- SocketChannelQueuedWriter.make(config, connection)
       schemaMetaManager <- SchemaMetaManager.make(
         config,
@@ -212,6 +211,8 @@ object TarantoolClient {
         queuedWriter,
         syncIdProvider
       )
+      delayedQueue <- DelayedQueue.make(schemaMetaManager, requestHandler)
+      responseHandler <- ResponseHandler.make(connection, requestHandler, delayedQueue)
       communicationFacade <- CommunicationFacade.make(
         schemaMetaManager,
         requestHandler,
@@ -219,6 +220,8 @@ object TarantoolClient {
         queuedWriter,
         syncIdProvider
       )
+      // fetch actual meta on start
+      _ <- schemaMetaManager.refresh.toManaged_
     } yield new Live(logger, communicationFacade)
 
   private[this] final class Live(

@@ -10,6 +10,9 @@ sealed abstract class TarantoolError(msg: String, cause: Throwable)
     with NoStackTrace
 
 object TarantoolError {
+  final case class InternalError(cause: Throwable)
+      extends TarantoolError(cause.getLocalizedMessage, cause)
+
   final case class ConfigurationError(message: String) extends TarantoolError(message, null)
 
   final case class SpaceNotFound(message: String) extends TarantoolError(message, null)
@@ -18,8 +21,10 @@ object TarantoolError {
   final case class NotEqualSchemaId(message: String) extends TarantoolError(message, null)
 
   final case class ProtocolError(message: String) extends TarantoolError(message, null)
-  final case class CodecError(exception: Throwable) extends TarantoolError(null, exception)
-  final case class IOError(exception: IOException) extends TarantoolError(null, exception)
+  final case class CodecError(exception: Throwable)
+      extends TarantoolError(exception.getLocalizedMessage, exception)
+  final case class IOError(exception: IOException)
+      extends TarantoolError(exception.getLocalizedMessage, exception)
   final case class Timeout(message: String) extends TarantoolError(message, null)
 
   final case class DirectWriteError(message: String) extends TarantoolError(message, null)

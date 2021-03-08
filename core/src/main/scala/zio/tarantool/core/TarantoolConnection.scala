@@ -19,9 +19,9 @@ object TarantoolConnection {
   type TarantoolConnection = Has[Service]
 
   trait Service extends Serializable {
-    def connect(): ZIO[Any, Throwable, Unit]
+    def connect(): ZIO[Any, TarantoolError, Unit]
 
-    def close(): IO[Throwable, Unit]
+    def close(): IO[TarantoolError, Unit]
 
     def isConnected: UIO[Boolean]
 
@@ -34,16 +34,16 @@ object TarantoolConnection {
     def read(buffer: ByteBuffer): IO[TarantoolError.IOError, Int]
   }
 
-  val live: ZLayer[Logging with Clock with Has[TarantoolConfig], Throwable, Has[Service]] =
-    ZLayer.fromServiceManaged[TarantoolConfig, Logging with Clock, Throwable, Service](cfg =>
+  val live: ZLayer[Logging with Clock with Has[TarantoolConfig], TarantoolError, Has[Service]] =
+    ZLayer.fromServiceManaged[TarantoolConfig, Logging with Clock, TarantoolError, Service](cfg =>
       make(cfg)
     )
 
   val test: ZLayer[Any, Nothing, Has[Service]] =
     ZLayer.succeed(new Service {
-      override def connect(): ZIO[Any, Throwable, Unit] = IO.unit
+      override def connect(): ZIO[Any, TarantoolError, Unit] = IO.unit
 
-      override def close(): IO[Throwable, Unit] = IO.unit
+      override def close(): IO[TarantoolError, Unit] = IO.unit
 
       override def isConnected: UIO[Boolean] = IO.succeed(false)
 
@@ -59,7 +59,7 @@ object TarantoolConnection {
       override def read(buffer: ByteBuffer): IO[TarantoolError.IOError, Int] = IO.succeed(0)
     })
 
-  def make(config: TarantoolConfig): ZManaged[Logging with Clock, Throwable, Service] =
+  def make(config: TarantoolConfig): ZManaged[Logging with Clock, TarantoolError, Service] =
     ZManaged.make(
       for {
         logger <- ZIO.service[Logger[String]]
@@ -87,24 +87,28 @@ object TarantoolConnection {
     connected: Ref[Boolean]
   ) extends TarantoolConnection.Service {
 
-    override def connect(): ZIO[Any, Throwable, Unit] =
-      ZIO.ifM(isConnected)(
-        logger.debug("Already connected").unit,
-        logger
-          .debug("Trying to crete new connection")
-          .zipRight(channel.connect())
-          .zipRight(connected.set(true))
-          .zipRight(logger.debug("Successfully connected"))
-      )
+    override def connect(): ZIO[Any, TarantoolError, Unit] =
+      ZIO
+        .ifM(isConnected)(
+          logger.debug("Already connected").unit,
+          logger
+            .debug("Trying to crete new connection")
+            .zipRight(channel.connect())
+            .zipRight(connected.set(true))
+            .zipRight(logger.debug("Successfully connected"))
+        )
+        .mapError(err => TarantoolError.InternalError(err))
 
-    override def close(): IO[Throwable, Unit] =
-      ZIO.ifM(isConnected)(
-        channel
-          .close()
-          .zipRight(connected.set(false))
-          .zipRight(logger.debug("Successfully closed connection")),
-        logger.debug("Connection is already closed")
-      )
+    override def close(): IO[TarantoolError, Unit] =
+      ZIO
+        .ifM(isConnected)(
+          channel
+            .close()
+            .zipRight(connected.set(false))
+            .zipRight(logger.debug("Successfully closed connection")),
+          logger.debug("Connection is already closed")
+        )
+        .mapError(err => TarantoolError.InternalError(err))
 
     override def isConnected: UIO[Boolean] = connected.get
 
@@ -204,11 +208,11 @@ object TarantoolConnection {
 
   private def makeSocketChannelProvider(
     config: TarantoolConfig
-  ): ZIO[Any with Clock with Has[Logger[String]], Throwable, SocketChannelProvider] =
+  ): ZIO[Any with Clock with Has[Logger[String]], TarantoolError, SocketChannelProvider] =
     for {
       logger <- ZIO.service[Logger[String]]
       clock <- ZIO.environment[Clock]
       semaphore <- Semaphore.make(1)
-      channel <- ZIO.effect(SocketChannel.open())
+      channel <- ZIO.effect(SocketChannel.open()).mapError(err => TarantoolError.InternalError(err))
     } yield SocketChannelProvider(logger, config, channel, semaphore, clock)
 }

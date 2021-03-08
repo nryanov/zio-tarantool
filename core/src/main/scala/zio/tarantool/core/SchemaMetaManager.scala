@@ -11,10 +11,9 @@ import zio.tarantool.msgpack.MpArray16
 import zio.tarantool.core.schema.{IndexMeta, SpaceMeta}
 import zio.tarantool.TarantoolError.{IndexNotFound, SpaceNotFound}
 import zio.tarantool.core.RequestHandler.RequestHandler
-import zio.tarantool.core.ResponseHandler.ResponseHandler
 import zio.tarantool.core.SocketChannelQueuedWriter.SocketChannelQueuedWriter
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
-import zio.tarantool.{TarantoolConfig, TarantoolError, core, protocol}
+import zio.tarantool.{TarantoolConfig, TarantoolError}
 
 @accessible[SchemaMetaManager.Service]
 private[tarantool] object SchemaMetaManager {
@@ -32,24 +31,40 @@ private[tarantool] object SchemaMetaManager {
 
   val live: ZLayer[Has[
     TarantoolConfig
-  ] with RequestHandler with ResponseHandler with SocketChannelQueuedWriter with SyncIdProvider with Clock with Logging, Nothing, SchemaMetaManager] =
+  ] with RequestHandler with SocketChannelQueuedWriter with SyncIdProvider with Clock with Logging, Nothing, SchemaMetaManager] =
     ZLayer.fromServicesManaged[
       TarantoolConfig,
       RequestHandler.Service,
-      ResponseHandler.Service,
       SocketChannelQueuedWriter.Service,
       SyncIdProvider.Service,
       Clock with Logging,
       Nothing,
       Service
-    ] { (cfg, requestHandler, responseHandler, socketChannelQueuedWriter, syncIdProvider) =>
-      make(cfg, requestHandler, responseHandler, socketChannelQueuedWriter, syncIdProvider)
+    ] { (cfg, requestHandler, socketChannelQueuedWriter, syncIdProvider) =>
+      make(cfg, requestHandler, socketChannelQueuedWriter, syncIdProvider)
     }
 
+  val test: ZLayer[Any, Nothing, SchemaMetaManager] =
+    ZLayer.succeed(new Service {
+      override def getSpaceMeta(spaceName: String): IO[TarantoolError, SpaceMeta] =
+        IO.fail(TarantoolError.InternalError(new NotImplementedError()))
+
+      override def getIndexMeta(
+        spaceName: String,
+        indexName: String
+      ): IO[TarantoolError, IndexMeta] =
+        IO.fail(TarantoolError.InternalError(new NotImplementedError()))
+
+      override def refresh: IO[TarantoolError, Unit] =
+        IO.fail(TarantoolError.InternalError(new NotImplementedError()))
+
+      override def schemaId: UIO[Long] = UIO.succeed(0)
+    })
+
+  // lazy start
   def make(
     cfg: TarantoolConfig,
     requestHandler: RequestHandler.Service,
-    responseHandler: ResponseHandler.Service,
     socketChannelQueuedWriter: SocketChannelQueuedWriter.Service,
     syncIdProvider: SyncIdProvider.Service
   ): ZManaged[Logging with Clock, Nothing, Service] =
@@ -73,9 +88,11 @@ private[tarantool] object SchemaMetaManager {
       )
     )
 
+  /* space id with list of spaces meta */
   private[this] val VSpaceId = 281
   private[this] val VSpaceIndexID = 0
 
+  /* space id with list of indexes meta */
   private[this] val VIndexId = 289
   private[this] val VIndexIdIndexId = 0
 
@@ -114,11 +131,17 @@ private[tarantool] object SchemaMetaManager {
     override def getIndexMeta(spaceName: String, indexName: String): IO[TarantoolError, IndexMeta] =
       for {
         space <- getSpaceMeta(spaceName)
-        index <- IO.ifM(IO.effectTotal(space.indexes.contains(indexName)))(
-          IO.effectTotal(space.indexes(indexName)),
-          IO.fail(IndexNotFound(s"Index $indexName not found in cache for space $spaceName"))
-        )
+        index <- getIndexMeta0(space, spaceName, indexName)
       } yield index
+
+    private def getIndexMeta0(
+      space: SpaceMeta,
+      spaceName: String,
+      indexName: String
+    ): IO[TarantoolError, IndexMeta] =
+      IO.when(!space.indexes.contains(indexName))(
+        IO.fail(IndexNotFound(s"Index $indexName not found in cache for space $spaceName"))
+      ).map(_ => space.indexes(indexName))
 
     override def refresh: IO[TarantoolError, Unit] =
       IO.when(cfg.clientConfig.useSchemaMetaCache)(
@@ -134,7 +157,7 @@ private[tarantool] object SchemaMetaManager {
         spacesOp <- selectMeta(VSpaceId, VSpaceIndexID)
         indexesOp <- selectMeta(VIndexId, VIndexIdIndexId)
         _ <- ZIO.when(spacesOp.schemaId != indexesOp.schemaId)(
-          ZIO.fail(
+          logger.debug("Not equal schema id of space and index meta responses") *> ZIO.fail(
             TarantoolError.NotEqualSchemaId(
               "Not equal schema id of space and index meta responses"
             )
@@ -164,12 +187,15 @@ private[tarantool] object SchemaMetaManager {
       _ <- currentSchemaId.set(schemaId)
     } yield ()
 
+    // implicit dependency on ResponseHandler
     private def selectMeta(
       spaceId: Int,
       indexId: Int
     ): IO[TarantoolError.Timeout, TarantoolResponse] = select(
       spaceId,
       indexId
+    ).tapError(err =>
+      logger.error(s"Error happened while fetching meta: ${err.getLocalizedMessage}")
     ).flatMap(
       _.response.await
         .timeout(cfg.clientConfig.schemaRequestTimeoutMillis.milliseconds)
@@ -193,8 +219,7 @@ private[tarantool] object SchemaMetaManager {
               .selectBody(spaceId, indexId, Int.MaxValue, Offset, IteratorCode.All, EmptyMpArray)
           )
           .mapError(TarantoolError.CodecError)
-        // todo: schemaId
-        request = protocol.TarantoolRequest(RequestCode.Select, syncId, None, body)
+        request = TarantoolRequest(RequestCode.Select, syncId, None, body)
         response <- requestHandler.submitRequest(request)
         packet <- TarantoolRequest.createPacket(request)
         _ <- queuedWriter.send(packet)

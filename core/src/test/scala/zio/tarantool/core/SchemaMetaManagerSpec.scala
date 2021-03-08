@@ -10,7 +10,8 @@ import zio.test.Assertion._
 import zio.test.TestAspect._
 
 object SchemaMetaManagerSpec extends DefaultRunnableSpec with BaseLayers {
-  val testEnv: ZLayer[Any, Throwable, SchemaMetaManager] = schemaMetaManagerLayer
+  val testEnv: ZLayer[Any, Throwable, ResponseHandler with SchemaMetaManager] =
+    responseHandlerLayer ++ schemaMetaManagerLayer
 
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     (suite("SchemaMetaManager spec")(

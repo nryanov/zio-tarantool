@@ -90,9 +90,9 @@ private[tarantool] object SocketChannelQueuedWriter {
 
     override def close(): ZIO[Any, TarantoolError.IOError, Unit] =
       for {
-        _ <- logger.debug("Shutdown background queue")
+        _ <- logger.debug("Shutdown SocketChannelQueuedWriter queue")
         _ <- queue.shutdown
-        _ <- logger.debug("Close BackgroundWriter")
+        _ <- logger.debug("Stop SocketChannelQueuedWriter thread pool")
         _ <- ec.shutdown().refineOrDie(toIOError)
       } yield ()
 

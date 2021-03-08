@@ -33,4 +33,14 @@ object TarantoolRequest {
         .ignore
     } yield MessagePackPacket(headerMp.toMap, request.body)
   }
+
+  def withSchemaId(
+    request: TarantoolRequest,
+    schemaId: Long
+  ): IO[TarantoolError.CodecError, TarantoolRequest] = for {
+    schemaIdMp <- Encoder.longEncoder.encodeM(schemaId)
+  } yield request.copy(
+    schemaId = Some(schemaId),
+    body = request.body.+(Header.SchemaId.value -> schemaIdMp)
+  )
 }

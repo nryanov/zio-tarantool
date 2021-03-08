@@ -14,6 +14,7 @@ import java.nio.channels.{SelectionKey, Selector}
 
 import scodec.bits.ByteVector
 import zio.tarantool.codec.MessagePackPacketCodec
+import zio.tarantool.core.DelayedQueue.DelayedQueue
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 
@@ -30,21 +31,23 @@ private[tarantool] object ResponseHandler {
   }
 
   val live: ZLayer[
-    TarantoolConnection with RequestHandler with Logging,
+    TarantoolConnection with RequestHandler with DelayedQueue with Logging,
     TarantoolError.IOError,
     ResponseHandler
   ] =
     ZLayer.fromServicesManaged[
       TarantoolConnection.Service,
       RequestHandler.Service,
+      DelayedQueue.Service,
       Logging,
       TarantoolError.IOError,
       Service
-    ]((connection, requestHandler) => make(connection, requestHandler))
+    ]((connection, requestHandler, delayedQueue) => make(connection, requestHandler, delayedQueue))
 
   def make(
     connection: TarantoolConnection.Service,
-    requestHandler: RequestHandler.Service
+    requestHandler: RequestHandler.Service,
+    delayedQueue: DelayedQueue.Service
   ): ZManaged[Logging, TarantoolError.IOError, Service] =
     ZManaged.make(
       for {
@@ -53,6 +56,7 @@ private[tarantool] object ResponseHandler {
           logger,
           connection,
           requestHandler,
+          delayedQueue,
           ExecutionContextManager.singleThreaded()
         )
         _ <- live.start()
@@ -66,6 +70,7 @@ private[tarantool] object ResponseHandler {
     logger: Logger[String],
     connection: TarantoolConnection.Service,
     requestHandler: RequestHandler.Service,
+    delayedQueue: DelayedQueue.Service,
     ec: ExecutionContextManager
   ) extends Service {
 
@@ -78,7 +83,7 @@ private[tarantool] object ResponseHandler {
         .refineOrDie(toIOError)
 
     override def close(): IO[TarantoolError.IOError, Unit] =
-      (logger.debug("Close BackgroundReader") *> ec.shutdown()).refineOrDie(toIOError)
+      (logger.debug("Close ResponseHandler") *> ec.shutdown()).refineOrDie(toIOError)
 
     private def start0(): ZIO[Any, TarantoolError.IOError, Fiber.Runtime[Throwable, Nothing]] = {
       val selector: Selector = SelectorProvider.provider.openSelector
@@ -146,14 +151,21 @@ private[tarantool] object ResponseHandler {
         _ <- logger.debug(s"Complete operation with id: $syncId")
         schemaId <- MessagePackPacket.extractSchemaId(packet)
         code <- MessagePackPacket.extractCode(packet)
-        // todo: check code Success, IncorrectSchema, Error, Sql
-        _ <- ZIO
-          .ifM(ZIO.succeed(code == ResponseCode.Success.value))(
-            completeSucceeded(schemaId, syncId, packet),
-            completeFailed(syncId, packet)
-          )
-          .tapError(err => requestHandler.fail(syncId, err.getLocalizedMessage))
+        _ <- completeByCode(code, syncId, schemaId, packet).tapError(err =>
+          requestHandler.fail(syncId, err.getLocalizedMessage)
+        )
       } yield ()
+
+    private def completeByCode(
+      code: Long,
+      syncId: Long,
+      schemaId: Long,
+      packet: MessagePackPacket
+    ) = code match {
+      case ResponseCode.Success.value            => completeSucceeded(schemaId, syncId, packet)
+      case ResponseCode.WrongSchemaVersion.value => delayedQueue.reschedule(syncId, schemaId)
+      case _                                     => completeFailed(syncId, packet)
+    }
 
     private def completeSucceeded(schemaId: Long, syncId: Long, packet: MessagePackPacket) = for {
       responseType <- MessagePackPacket.responseType(packet)
