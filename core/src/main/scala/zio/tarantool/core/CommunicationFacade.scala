@@ -5,12 +5,12 @@ import zio.logging._
 import zio.macros.accessible
 import zio.tarantool.protocol._
 import zio.tarantool.msgpack.MessagePack
-import zio.tarantool.{TarantoolError, core, protocol}
+import zio.tarantool.{TarantoolError, protocol}
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.ResponseHandler.ResponseHandler
 import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
-import zio.tarantool.core.SocketChannelQueuedWriter.SocketChannelQueuedWriter
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
+import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 import zio.tarantool.core.schema.{IndexMeta, SpaceMeta}
 
 @accessible[CommunicationFacade.Service]
@@ -29,14 +29,14 @@ object CommunicationFacade {
   }
 
   val live: ZLayer[
-    Logging with SchemaMetaManager with RequestHandler with ResponseHandler with SocketChannelQueuedWriter with SyncIdProvider,
+    Logging with SchemaMetaManager with RequestHandler with ResponseHandler with TarantoolConnection with SyncIdProvider,
     TarantoolError,
     CommunicationFacade
   ] = ZLayer.fromServicesManaged[
     SchemaMetaManager.Service,
     RequestHandler.Service,
     ResponseHandler.Service,
-    SocketChannelQueuedWriter.Service,
+    TarantoolConnection.Service,
     SyncIdProvider.Service,
     Logging,
     TarantoolError,
@@ -46,14 +46,14 @@ object CommunicationFacade {
       schemaMetaManager,
       requestHandler,
       responseHandler,
-      queuedWriter,
+      connection,
       syncIdProvider
     ) =>
       make(
         schemaMetaManager,
         requestHandler,
         responseHandler,
-        queuedWriter,
+        connection,
         syncIdProvider
       )
   }
@@ -62,7 +62,7 @@ object CommunicationFacade {
     schemaMetaManager: SchemaMetaManager.Service,
     requestHandler: RequestHandler.Service,
     responseHandler: ResponseHandler.Service,
-    queuedWriter: SocketChannelQueuedWriter.Service,
+    connection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service
   ): ZManaged[Logging, TarantoolError, Service] = ZManaged.fromEffect {
     for {
@@ -71,7 +71,7 @@ object CommunicationFacade {
       logger,
       schemaMetaManager,
       requestHandler,
-      queuedWriter,
+      connection,
       syncIdProvider
     )
   }
@@ -80,7 +80,7 @@ object CommunicationFacade {
     logger: Logger[String],
     schemaMetaManager: SchemaMetaManager.Service,
     requestHandler: RequestHandler.Service,
-    queuedWriter: SocketChannelQueuedWriter.Service,
+    connection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service
   ) extends Service {
     override def submitRequest(
@@ -92,7 +92,7 @@ object CommunicationFacade {
       request = protocol.TarantoolRequest(op, syncId, Some(schemaId), body)
       operation <- requestHandler.submitRequest(request)
       packet <- TarantoolRequest.createPacket(request)
-      _ <- queuedWriter.send(packet)
+      _ <- connection.sendRequest(packet)
     } yield operation
 
     override def getSpaceMeta(spaceName: String): IO[TarantoolError, SpaceMeta] =

@@ -9,11 +9,9 @@ import zio.tarantool.core._
 import zio.tarantool.TarantoolClient.TarantoolClient
 import zio.tarantool.TarantoolContainer.Tarantool
 import zio.tarantool.core.CommunicationFacade.CommunicationFacade
-import zio.tarantool.core.DelayedQueue.DelayedQueue
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.ResponseHandler.ResponseHandler
 import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
-import zio.tarantool.core.SocketChannelQueuedWriter.SocketChannelQueuedWriter
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 
@@ -49,23 +47,17 @@ trait BaseLayers {
   val tarantoolConnectionLayer: ZLayer[Any, Throwable, TarantoolConnection] =
     (Clock.live ++ configLayer ++ loggingLayer) >>> TarantoolConnection.live
 
-  val socketChannelQueuedWriterLayer: ZLayer[Any, Throwable, SocketChannelQueuedWriter] =
-    (configLayer ++ tarantoolConnectionLayer ++ Clock.live ++ loggingLayer) >>> SocketChannelQueuedWriter.live
-
   val requestHandlerLayer: ZLayer[Any, TarantoolError, RequestHandler] =
     loggingLayer >>> RequestHandler.live
 
   val schemaMetaManagerLayer: ZLayer[Any, Throwable, SchemaMetaManager] =
-    (configLayer ++ requestHandlerLayer ++ socketChannelQueuedWriterLayer ++ syncIdProviderLayer ++ Clock.live ++ loggingLayer) >>> SchemaMetaManager.live
-
-  val delayedQueueLayer: ZLayer[Any, Throwable, DelayedQueue] =
-    (loggingLayer ++ schemaMetaManagerLayer ++ requestHandlerLayer) >>> DelayedQueue.live
+    (configLayer ++ requestHandlerLayer ++ tarantoolConnectionLayer ++ syncIdProviderLayer ++ Clock.live ++ loggingLayer) >>> SchemaMetaManager.live
 
   val responseHandlerLayer: ZLayer[Any, Throwable, ResponseHandler] =
-    (tarantoolConnectionLayer ++ requestHandlerLayer ++ delayedQueueLayer ++ loggingLayer) >>> ResponseHandler.live
+    (tarantoolConnectionLayer ++ requestHandlerLayer ++ schemaMetaManagerLayer ++ loggingLayer) >>> ResponseHandler.live
 
   val communicationFacadeLayer: ZLayer[Any, Throwable, CommunicationFacade] =
-    (loggingLayer ++ schemaMetaManagerLayer ++ requestHandlerLayer ++ socketChannelQueuedWriterLayer ++ syncIdProviderLayer ++ responseHandlerLayer) >>> CommunicationFacade.live
+    (loggingLayer ++ schemaMetaManagerLayer ++ requestHandlerLayer ++ tarantoolConnectionLayer ++ syncIdProviderLayer ++ responseHandlerLayer) >>> CommunicationFacade.live
 
   val tarantoolClientLayer: ZLayer[Any, Throwable, TarantoolClient] =
     (loggingLayer ++ Clock.live ++ configLayer) >>> TarantoolClient.live

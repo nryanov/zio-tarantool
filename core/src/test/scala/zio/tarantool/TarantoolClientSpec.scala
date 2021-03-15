@@ -4,6 +4,7 @@ import java.time.Duration
 
 import zio._
 import zio.clock.Clock
+import zio.logging._
 import zio.test.{DefaultRunnableSpec, TestResult, ZSpec, assert, suite, testM}
 import zio.test.Assertion._
 import zio.test.TestAspect._
@@ -16,8 +17,8 @@ import zio.tarantool.protocol.{IteratorCode, TarantoolOperation}
 import zio.tarantool.codec.TupleEncoder._
 
 object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
-  val testEnv: ZLayer[Any, Throwable, Clock with TarantoolClient] =
-    Clock.live ++ tarantoolClientNotMetaCacheLayer
+  val testEnv: ZLayer[Any, Throwable, Logging with Clock with TarantoolClient] =
+    loggingLayer ++ Clock.live ++ tarantoolClientNotMetaCacheLayer
 
   val timeoutAspect = timeout(Duration.ofSeconds(5))
   val truncateAspect = after(truncateSpace()) >>> timeoutAspect
@@ -34,8 +35,10 @@ object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
     ) @@ sequential @@ truncateAspect @@ before(createSpace().timeout(Duration.ofSeconds(5)).orDie))
       .provideCustomLayerShared(testEnv.orDie)
 
-  private def createSpace(): ZIO[Any with TarantoolClient, Throwable, Unit] = for {
+  private def createSpace(): ZIO[Logging with TarantoolClient, Throwable, Unit] = for {
+    _ <- Logging.info("Create test space if not exist")
     r1 <- TarantoolClient.eval("box.schema.create_space('test', {if_not_exists = true})")
+    _ <- Logging.info("Create primary index for test space if not exist")
     r2 <- TarantoolClient.eval(
       "box.space.test:create_index('primary', {if_not_exists = true, unique = true, parts = {1, 'string'} })"
     )
@@ -132,8 +135,9 @@ object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
   private def awaitResponseData[A: TupleEncoder](operation: TarantoolOperation) =
     awaitResponse(operation).flatMap(_.dataUnsafe[A])
 
-  private def truncateSpace(): ZIO[Any with TarantoolClient, Throwable, Unit] =
-    TarantoolClient.eval("box.space.test:truncate()").flatMap(_.response.await.unit)
+  private def truncateSpace(): ZIO[Logging with TarantoolClient, Throwable, Unit] =
+    Logging.info("Truncate test space") *>
+      TarantoolClient.eval("box.space.test:truncate()").flatMap(_.response.await.unit)
 
   private def getSpaceId(): ZIO[Any with Clock with TarantoolClient, Throwable, Int] =
     TarantoolClient

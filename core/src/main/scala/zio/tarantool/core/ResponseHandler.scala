@@ -3,147 +3,78 @@ package zio.tarantool.core
 import zio._
 import zio.logging._
 import zio.macros.accessible
-import zio.internal.Executor
 import zio.tarantool._
-import zio.tarantool.TarantoolError.toIOError
-import zio.tarantool.protocol.{MessagePackPacket, ResponseCode, ResponseType, TarantoolResponse}
-import zio.tarantool.protocol.Implicits.{RichByteVector, RichMessagePack}
-import java.nio.ByteBuffer
-import java.nio.channels.spi.SelectorProvider
-import java.nio.channels.{SelectionKey, Selector}
-
-import scodec.bits.ByteVector
-import zio.tarantool.codec.MessagePackPacketCodec
-import zio.tarantool.core.DelayedQueue.DelayedQueue
 import zio.tarantool.core.RequestHandler.RequestHandler
+import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
+import zio.tarantool.protocol.{
+  MessagePackPacket,
+  ResponseCode,
+  ResponseType,
+  TarantoolRequest,
+  TarantoolResponse
+}
 
 @accessible[ResponseHandler.Service]
 private[tarantool] object ResponseHandler {
   type ResponseHandler = Has[Service]
 
   trait Service extends Serializable {
-    def start(): IO[TarantoolError.IOError, Fiber.Runtime[Throwable, Nothing]]
+    def start(): ZIO[Any, TarantoolError, Unit]
 
     def complete(packet: MessagePackPacket): IO[TarantoolError, Unit]
-
-    def close(): IO[TarantoolError.IOError, Unit]
   }
 
   val live: ZLayer[
-    TarantoolConnection with RequestHandler with DelayedQueue with Logging,
+    TarantoolConnection with SchemaMetaManager with RequestHandler with Logging,
     TarantoolError.IOError,
     ResponseHandler
   ] =
     ZLayer.fromServicesManaged[
       TarantoolConnection.Service,
+      SchemaMetaManager.Service,
       RequestHandler.Service,
-      DelayedQueue.Service,
       Logging,
       TarantoolError.IOError,
       Service
-    ]((connection, requestHandler, delayedQueue) => make(connection, requestHandler, delayedQueue))
+    ]((connection, schemaMetaManager, requestHandler) =>
+      make(connection, schemaMetaManager, requestHandler)
+    )
 
   def make(
     connection: TarantoolConnection.Service,
-    requestHandler: RequestHandler.Service,
-    delayedQueue: DelayedQueue.Service
+    schemaMetaManager: SchemaMetaManager.Service,
+    requestHandler: RequestHandler.Service
   ): ZManaged[Logging, TarantoolError.IOError, Service] =
-    ZManaged.make(
-      for {
-        logger <- ZIO.service[Logger[String]]
-        live = new Live(
-          logger,
-          connection,
-          requestHandler,
-          delayedQueue,
-          ExecutionContextManager.singleThreaded()
-        )
-        _ <- live.start()
-      } yield live
-    )(_.close().orDie)
-
-  /* message pack packet response size length in bytes */
-  private val MessageSizeLength = 5
+    for {
+      logger <- ZIO.service[Logger[String]].toManaged_
+      live = new Live(
+        logger,
+        connection,
+        schemaMetaManager,
+        requestHandler
+      )
+      _ <- live.start().forkManaged
+    } yield live
 
   private[tarantool] class Live(
     logger: Logger[String],
     connection: TarantoolConnection.Service,
-    requestHandler: RequestHandler.Service,
-    delayedQueue: DelayedQueue.Service,
-    ec: ExecutionContextManager
+    schemaMetaManager: SchemaMetaManager.Service,
+    requestHandler: RequestHandler.Service
   ) extends Service {
 
-    override def start(): IO[TarantoolError.IOError, Fiber.Runtime[Throwable, Nothing]] =
-      ZIO
-        .ifM(connection.isBlocking)(
-          ZIO.fail(new IllegalArgumentException("Channel should be in non-blocking mode")),
-          start0()
+    override def start(): ZIO[Any, TarantoolError, Unit] =
+      connection
+        .receive()
+        .foreach(mp =>
+          //todo: remove (or debug?)
+          logger.info(s"Read packet: $mp") *>
+            complete(mp).onError(err =>
+              logger.error("Error happened while trying to complete operation", err)
+            )
         )
-        .refineOrDie(toIOError)
-
-    override def close(): IO[TarantoolError.IOError, Unit] =
-      (logger.debug("Close ResponseHandler") *> ec.shutdown()).refineOrDie(toIOError)
-
-    private def start0(): ZIO[Any, TarantoolError.IOError, Fiber.Runtime[Throwable, Nothing]] = {
-      val selector: Selector = SelectorProvider.provider.openSelector
-
-      connection.registerSelector(selector, SelectionKey.OP_READ) *>
-        read(selector).forever.lock(Executor.fromExecutionContext(1000)(ec.executionContext)).fork
-    }
-
-    private def read(
-      selector: Selector
-    ): ZIO[Any, Throwable, Unit] = for {
-      buffer <- ZIO.effectTotal(ByteBuffer.allocate(MessageSizeLength))
-      _ <- readBuffer(buffer, selector)
-      vector = makeByteVector(buffer)
-      size <- vector.decodeM().map(_.toNumber.toInt)
-      messageBuffer: ByteBuffer <- ZIO.effectTotal(ByteBuffer.allocate(size))
-      _ <- readBuffer(messageBuffer, selector)
-      packet <- decodeToMessagePackPacket(makeByteVector(messageBuffer))
-      _ <- complete(packet).tapError(err =>
-        logger.error(s"Could not complete operation: ${err.getLocalizedMessage}")
-      )
-    } yield ()
-
-    private def decodeToMessagePackPacket(
-      vector: ByteVector
-    ): IO[TarantoolError.CodecError, MessagePackPacket] = IO
-      .effect(
-        MessagePackPacketCodec.decodeValue(vector.toBitVector).require
-      )
-      .mapError(TarantoolError.CodecError)
-
-    private def readBuffer(buffer: ByteBuffer, selector: Selector): ZIO[Any, Throwable, Int] = {
-      var total: Int = 0
-
-      for {
-        read <- connection.read(buffer).tap(r => ZIO.effectTotal(total += r))
-        _ <- ZIO
-          .fail(
-            TarantoolError.MessagePackPacketReadError("Error while reading message pack packet")
-          )
-          .when(read < 0)
-        _ <- readViaSelector(buffer, selector)
-          .tap(r => ZIO.effectTotal(total += r))
-          .when(buffer.remaining() > 0)
-      } yield total
-    }
-
-    private def readViaSelector(buffer: ByteBuffer, selector: Selector): ZIO[Any, Throwable, Int] =
-      for {
-        _ <- ZIO.effect(selector.select())
-        read <- connection.read(buffer)
-        total <-
-          if (buffer.remaining() > 0) readViaSelector(buffer, selector).map(_ + read)
-          else ZIO.succeed(read)
-      } yield total
-
-    private def makeByteVector(buffer: ByteBuffer): ByteVector = {
-      buffer.flip()
-      ByteVector.view(buffer)
-    }
+        .retryWhile(_ => true)
 
     override def complete(packet: MessagePackPacket): IO[TarantoolError, Unit] =
       for {
@@ -163,7 +94,7 @@ private[tarantool] object ResponseHandler {
       packet: MessagePackPacket
     ) = code match {
       case ResponseCode.Success.value            => completeSucceeded(schemaId, syncId, packet)
-      case ResponseCode.WrongSchemaVersion.value => delayedQueue.reschedule(syncId, schemaId)
+      case ResponseCode.WrongSchemaVersion.value => reschedule(syncId, schemaId)
       case _                                     => completeFailed(syncId, packet)
     }
 
@@ -186,6 +117,14 @@ private[tarantool] object ResponseHandler {
 
     private def completeFailed(syncId: Long, packet: MessagePackPacket) =
       MessagePackPacket.extractError(packet).flatMap(error => requestHandler.fail(syncId, error))
+
+    private def reschedule(syncId: Long, newSchemaId: Long): ZIO[Any, TarantoolError, Unit] = for {
+      cachedSchemaId <- schemaMetaManager.schemaId
+      _ <- ZIO.when(newSchemaId > cachedSchemaId)(schemaMetaManager.refresh)
+      op <- requestHandler.rescheduleRequest(syncId, newSchemaId)
+      packet <- TarantoolRequest.createPacket(op.request)
+      _ <- connection.sendRequest(packet)
+    } yield ()
   }
 
 }

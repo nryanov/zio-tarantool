@@ -204,20 +204,18 @@ object TarantoolClient {
       connection <- TarantoolConnection.make(config)
       syncIdProvider <- SyncIdProvider.make()
       requestHandler <- RequestHandler.make()
-      queuedWriter <- SocketChannelQueuedWriter.make(config, connection)
       schemaMetaManager <- SchemaMetaManager.make(
         config,
         requestHandler,
-        queuedWriter,
+        connection,
         syncIdProvider
       )
-      delayedQueue <- DelayedQueue.make(schemaMetaManager, requestHandler)
-      responseHandler <- ResponseHandler.make(connection, requestHandler, delayedQueue)
+      responseHandler <- ResponseHandler.make(connection, schemaMetaManager, requestHandler)
       communicationFacade <- CommunicationFacade.make(
         schemaMetaManager,
         requestHandler,
         responseHandler,
-        queuedWriter,
+        connection,
         syncIdProvider
       )
       // fetch actual meta on start

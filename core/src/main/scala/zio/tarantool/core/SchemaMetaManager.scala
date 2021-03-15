@@ -11,8 +11,8 @@ import zio.tarantool.msgpack.MpArray16
 import zio.tarantool.core.schema.{IndexMeta, SpaceMeta}
 import zio.tarantool.TarantoolError.{IndexNotFound, SpaceNotFound}
 import zio.tarantool.core.RequestHandler.RequestHandler
-import zio.tarantool.core.SocketChannelQueuedWriter.SocketChannelQueuedWriter
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
+import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 
 @accessible[SchemaMetaManager.Service]
@@ -31,17 +31,17 @@ private[tarantool] object SchemaMetaManager {
 
   val live: ZLayer[Has[
     TarantoolConfig
-  ] with RequestHandler with SocketChannelQueuedWriter with SyncIdProvider with Clock with Logging, Nothing, SchemaMetaManager] =
+  ] with RequestHandler with TarantoolConnection with SyncIdProvider with Clock with Logging, Nothing, SchemaMetaManager] =
     ZLayer.fromServicesManaged[
       TarantoolConfig,
       RequestHandler.Service,
-      SocketChannelQueuedWriter.Service,
+      TarantoolConnection.Service,
       SyncIdProvider.Service,
       Clock with Logging,
       Nothing,
       Service
-    ] { (cfg, requestHandler, socketChannelQueuedWriter, syncIdProvider) =>
-      make(cfg, requestHandler, socketChannelQueuedWriter, syncIdProvider)
+    ] { (cfg, requestHandler, connection, syncIdProvider) =>
+      make(cfg, requestHandler, connection, syncIdProvider)
     }
 
   val test: ZLayer[Any, Nothing, SchemaMetaManager] =
@@ -65,7 +65,7 @@ private[tarantool] object SchemaMetaManager {
   def make(
     cfg: TarantoolConfig,
     requestHandler: RequestHandler.Service,
-    socketChannelQueuedWriter: SocketChannelQueuedWriter.Service,
+    connection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service
   ): ZManaged[Logging with Clock, Nothing, Service] =
     ZManaged.fromEffect(
@@ -78,7 +78,7 @@ private[tarantool] object SchemaMetaManager {
       } yield new Live(
         cfg,
         requestHandler,
-        socketChannelQueuedWriter,
+        connection,
         syncIdProvider,
         spaceMetaMap,
         currentSchemaId,
@@ -102,7 +102,7 @@ private[tarantool] object SchemaMetaManager {
   private[tarantool] class Live(
     cfg: TarantoolConfig,
     requestHandler: RequestHandler.Service,
-    queuedWriter: SocketChannelQueuedWriter.Service,
+    connection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service,
     spaceMetaMap: Ref[Map[String, SpaceMeta]],
     currentSchemaId: Ref[Long],
@@ -222,7 +222,7 @@ private[tarantool] object SchemaMetaManager {
         request = TarantoolRequest(RequestCode.Select, syncId, None, body)
         response <- requestHandler.submitRequest(request)
         packet <- TarantoolRequest.createPacket(request)
-        _ <- queuedWriter.send(packet)
+        _ <- connection.sendRequest(packet)
       } yield response
 
   }

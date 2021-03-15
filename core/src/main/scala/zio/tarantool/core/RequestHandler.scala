@@ -86,13 +86,16 @@ object RequestHandler {
           .fromOption(awaitingRequestMap.remove(syncId))
           .orElseFail(TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
         _ <- operation.response.succeed(response)
+        _ <- logger.info(s"Response $syncId completed")
       } yield ()
 
     override def fail(syncId: Long, reason: String): IO[TarantoolError, Unit] = for {
+      _ <- logger.info(s"Fail response $syncId due to: $reason")
       operation <- ZIO
         .fromOption(awaitingRequestMap.remove(syncId))
         .orElseFail(TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
       _ <- operation.response.fail(TarantoolError.OperationException(reason))
+      _ <- logger.info(s"Response $syncId failed")
     } yield ()
 
     override def close(): UIO[Unit] = ZIO

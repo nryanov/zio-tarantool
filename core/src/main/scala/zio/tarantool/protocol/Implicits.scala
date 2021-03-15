@@ -27,6 +27,7 @@ object Implicits {
   private[tarantool] implicit class RichMessagePack(v: MessagePack) {
 
     /** Used for getting message size */
+    // todo: return int
     final def toNumber: Long = v match {
       case MpPositiveFixInt(value) => value
       case MpUint8(value)          => value
@@ -51,6 +52,9 @@ object Implicits {
     def decodeM(): IO[TarantoolError.CodecError, MessagePack] =
       IO.effect(MessagePackCodec.decodeValue(v.toBitVector).require)
         .mapError(TarantoolError.CodecError)
+
+    def decodeUnsafe(): MessagePack =
+      MessagePackCodec.decodeValue(v.toBitVector).require
   }
 
   private[tarantool] implicit class RichBitVector(v: BitVector) {
