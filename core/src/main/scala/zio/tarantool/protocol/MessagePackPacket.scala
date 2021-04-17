@@ -46,6 +46,7 @@ object MessagePackPacket {
       case mp if mp.contains(ResponseBodyKey.Error24.value) =>
         IO.succeed(ResponseType.ErrorResponse)
       case mp if mp.contains(ResponseBodyKey.Error.value) => IO.succeed(ResponseType.ErrorResponse)
+      case mp if mp.isEmpty                               => IO.succeed(ResponseType.PingResponse)
       case _                                              => IO.fail(TarantoolError.OperationException("Unknown response type"))
     }
 

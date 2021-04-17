@@ -75,6 +75,7 @@ private[tarantool] object SchemaMetaManager {
         spaceMetaMap <- Ref.make(Map.empty[String, SpaceMeta])
         currentSchemaId <- Ref.make(0L)
         semaphore <- Semaphore.make(1)
+        isRefreshing <- Ref.make(false)
       } yield new Live(
         cfg,
         requestHandler,
@@ -83,6 +84,7 @@ private[tarantool] object SchemaMetaManager {
         spaceMetaMap,
         currentSchemaId,
         semaphore,
+        isRefreshing,
         logger,
         clock
       )
@@ -107,6 +109,7 @@ private[tarantool] object SchemaMetaManager {
     spaceMetaMap: Ref[Map[String, SpaceMeta]],
     currentSchemaId: Ref[Long],
     fetchSemaphore: Semaphore,
+    isRefreshing: Ref[Boolean],
     logger: Logger[String],
     clock: Clock
   ) extends Service {
@@ -145,17 +148,28 @@ private[tarantool] object SchemaMetaManager {
 
     override def refresh: IO[TarantoolError, Unit] =
       IO.when(cfg.clientConfig.useSchemaMetaCache)(
-        fetchSemaphore.withPermit {
-          fetchMeta0.retry(schedule).provide(clock)
-        }
+        IO.ifM(isRefreshing.get)(
+          logger.debug("Schema meta is already refreshing"),
+          fetchSemaphore.withPermit {
+            IO.ifM(isRefreshing.get)(
+              logger.debug("Schema meta is already refreshing"),
+              isRefreshing
+                .set(true)
+                .zipRight(fetchMeta0.retry(schedule).provide(clock))
+                .zipRight(isRefreshing.set(false))
+            )
+          }
+        )
       )
 
     override def schemaId: UIO[Long] = currentSchemaId.get
 
     private def fetchMeta0: ZIO[Any, TarantoolError, Unit] =
       for {
-        spacesOp <- selectMeta(VSpaceId, VSpaceIndexID)
-        indexesOp <- selectMeta(VIndexId, VIndexIdIndexId)
+        spacesOpFiber <- selectMeta(VSpaceId, VSpaceIndexID).fork
+        indexesOpFiber <- selectMeta(VIndexId, VIndexIdIndexId).fork
+        spacesOp <- spacesOpFiber.join
+        indexesOp <- indexesOpFiber.join
         _ <- ZIO.when(spacesOp.schemaId != indexesOp.schemaId)(
           logger.debug("Not equal schema id of space and index meta responses") *> ZIO.fail(
             TarantoolError.NotEqualSchemaId(

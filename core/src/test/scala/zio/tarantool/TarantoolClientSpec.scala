@@ -17,34 +17,36 @@ import zio.tarantool.protocol.{IteratorCode, TarantoolOperation}
 import zio.tarantool.codec.TupleEncoder._
 
 object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
-  val testEnv: ZLayer[Any, Throwable, Logging with Clock with TarantoolClient] =
+  val testEnvNoSchemaMetaCache: ZLayer[Any, Throwable, Logging with Clock with TarantoolClient] =
     loggingLayer ++ Clock.live ++ tarantoolClientNotMetaCacheLayer
 
+  val testEnvSchemaMetaCache: ZLayer[Any, Throwable, Logging with Clock with TarantoolClient] =
+    loggingLayer ++ Clock.live ++ tarantoolClientLayer
+
   val timeoutAspect = timeout(Duration.ofSeconds(5))
-  val truncateAspect = after(truncateSpace()) >>> timeoutAspect
+  val truncateAspect = after(truncateSpace())
 
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
-    (suite("TarantoolClient spec")(
-      testM("should return space id using eval")(returnSpaceIdUsingEval()),
-      testM("should return and decode inserted tuple")(returnAndDecodeInsertedTuple()),
-      testM("should decode deleted tuples as empty vector")(deleteTupleBySpaceId()),
-      testM("should correctly upsert data")(upsertDataBySpaceId()),
-      testM("should correctly update update data")(updateDataBySpaceId()),
-      testM("should replace existing tuple")(replaceDataBySpaceId()),
-      testM("should execute sql statement")(executeSqlStatement())
-    ) @@ sequential @@ truncateAspect @@ before(createSpace().timeout(Duration.ofSeconds(5)).orDie))
-      .provideCustomLayerShared(testEnv.orDie)
+    suite("TarantoolClient spec")(
+      tarantoolClientSpecNoMetaCache.provideCustomLayerShared(testEnvNoSchemaMetaCache.orDie),
+      tarantoolClientSpec.provideCustomLayerShared(testEnvSchemaMetaCache.orDie)
+    ) @@ sequential @@ timeoutAspect
 
-  private def createSpace(): ZIO[Logging with TarantoolClient, Throwable, Unit] = for {
-    _ <- Logging.info("Create test space if not exist")
-    r1 <- TarantoolClient.eval("box.schema.create_space('test', {if_not_exists = true})")
-    _ <- Logging.info("Create primary index for test space if not exist")
-    r2 <- TarantoolClient.eval(
-      "box.space.test:create_index('primary', {if_not_exists = true, unique = true, parts = {1, 'string'} })"
+  val tarantoolClientSpecNoMetaCache = suite("without schema meta cache")(
+    testM("should return space id using eval")(returnSpaceIdUsingEval()),
+    testM("should return and decode inserted tuple")(returnAndDecodeInsertedTuple()),
+    testM("should decode deleted tuples as empty vector")(deleteTupleBySpaceId()),
+    testM("should correctly upsert data")(upsertDataBySpaceId()),
+    testM("should correctly update update data")(updateDataBySpaceId()),
+    testM("should replace existing tuple")(replaceDataBySpaceId()),
+    testM("should execute sql statement")(executeSqlStatement())
+  ) @@ truncateAspect @@ before(createSpace().timeout(Duration.ofSeconds(5)).orDie)
+
+  val tarantoolClientSpec = suite("with schema meta cache")(
+    testM("should return and decode inserted tuple using space meta cache")(
+      returnAndDecodeInsertedTupleUsingSpaceName()
     )
-    _ <- r1.response.await
-    _ <- r2.response.await
-  } yield ()
+  ) @@ truncateAspect @@ before(createSpace().timeout(Duration.ofSeconds(5)).orDie)
 
   private def returnSpaceIdUsingEval(): ZIO[TarantoolClient, Throwable, TestResult] = for {
     operation <- TarantoolClient.eval("return box.space.test.id")
@@ -57,6 +59,17 @@ object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
     _ <- TarantoolClient.insert(spaceId, tuple)
     key <- ZIO.effect(TupleBuilder().put("key1").build().require)
     operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
+    result <- awaitResponseData[TestTuple](operation)
+  } yield assert(result)(equalTo(Vector(tuple)))
+
+  private def returnAndDecodeInsertedTupleUsingSpaceName() = for {
+    tuple <- ZIO.succeed(TestTuple("key1", 1, 1))
+    // force schema meta cache refresh
+    ping <- TarantoolClient.ping()
+    _ <- awaitResponse(ping)
+    _ <- TarantoolClient.insert("test", tuple)
+    key <- ZIO.effect(TupleBuilder().put("key1").build().require)
+    operation <- TarantoolClient.select("test", "primary", 1, 0, IteratorCode.Eq, key)
     result <- awaitResponseData[TestTuple](operation)
   } yield assert(result)(equalTo(Vector(tuple)))
 
@@ -115,6 +128,11 @@ object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
     equalTo(Vector(tuple.copy(f2 = 12345)))
   )
 
+  private def getSpaceId(): ZIO[Any with Clock with TarantoolClient, Throwable, Int] =
+    TarantoolClient
+      .eval("return box.space.test.id")
+      .flatMap(_.response.await.flatMap(_.valueUnsafe[Int]))
+
   private def executeSqlStatement() = for {
     query1 <- TarantoolClient.execute(
       "CREATE TABLE table1 (column1 INTEGER PRIMARY KEY, column2 VARCHAR(100))"
@@ -135,12 +153,18 @@ object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
   private def awaitResponseData[A: TupleEncoder](operation: TarantoolOperation) =
     awaitResponse(operation).flatMap(_.dataUnsafe[A])
 
+  private def createSpace(): ZIO[Logging with TarantoolClient, Throwable, Unit] = for {
+    _ <- Logging.info("Create test space if not exist")
+    r1 <- TarantoolClient.eval("box.schema.create_space('test', {if_not_exists = true})")
+    _ <- Logging.info("Create primary index for test space if not exist")
+    r2 <- TarantoolClient.eval(
+      "box.space.test:create_index('primary', {if_not_exists = true, unique = true, parts = {1, 'string'} })"
+    )
+    _ <- r1.response.await
+    _ <- r2.response.await
+  } yield ()
+
   private def truncateSpace(): ZIO[Logging with TarantoolClient, Throwable, Unit] =
     Logging.info("Truncate test space") *>
       TarantoolClient.eval("box.space.test:truncate()").flatMap(_.response.await.unit)
-
-  private def getSpaceId(): ZIO[Any with Clock with TarantoolClient, Throwable, Int] =
-    TarantoolClient
-      .eval("return box.space.test.id")
-      .flatMap(_.response.await.flatMap(_.valueUnsafe[Int]))
 }

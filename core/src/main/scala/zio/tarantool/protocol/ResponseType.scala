@@ -7,5 +7,7 @@ object ResponseType {
 
   case object SqlResponse extends ResponseType
 
+  case object PingResponse extends ResponseType
+
   case object ErrorResponse extends ResponseType
 }

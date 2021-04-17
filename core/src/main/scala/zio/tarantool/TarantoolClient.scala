@@ -10,7 +10,7 @@ import zio.tarantool.msgpack.MpArray
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.protocol.TarantoolRequestBody._
-import zio.tarantool.protocol.{IteratorCode, RequestCode, TarantoolOperation}
+import zio.tarantool.protocol.{IteratorCode, RequestCode, TarantoolOperation, TarantoolRequest}
 
 @accessible[TarantoolClient.Service]
 object TarantoolClient {
@@ -211,20 +211,16 @@ object TarantoolClient {
         syncIdProvider
       )
       responseHandler <- ResponseHandler.make(connection, schemaMetaManager, requestHandler)
-      communicationFacade <- CommunicationFacade.make(
-        schemaMetaManager,
-        requestHandler,
-        responseHandler,
-        connection,
-        syncIdProvider
-      )
       // fetch actual meta on start
       _ <- schemaMetaManager.refresh.toManaged_
-    } yield new Live(logger, communicationFacade)
+    } yield new Live(logger, schemaMetaManager, requestHandler, connection, syncIdProvider)
 
   private[this] final class Live(
     logger: Logger[String],
-    communicationFacade: CommunicationFacade.Service
+    schemaMetaManager: SchemaMetaManager.Service,
+    requestHandler: RequestHandler.Service,
+    connection: TarantoolConnection.Service,
+    syncIdProvider: SyncIdProvider.Service
   ) extends TarantoolClient.Service {
     override def ping(): IO[TarantoolError, TarantoolOperation] = for {
       response <- send(RequestCode.Ping, Map.empty)
@@ -265,7 +261,7 @@ object TarantoolClient {
       iterator: IteratorCode,
       key: MpArray
     ): IO[TarantoolError, TarantoolOperation] = for {
-      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- select(meta.spaceId, meta.indexId, limit, offset, iterator, key)
     } yield response
 
@@ -277,7 +273,7 @@ object TarantoolClient {
       iterator: IteratorCode,
       key: A
     ): IO[TarantoolError, TarantoolOperation] = for {
-      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- select(meta.spaceId, meta.indexId, limit, offset, iterator, key)
     } yield response
 
@@ -299,7 +295,7 @@ object TarantoolClient {
 
     override def insert(spaceName: String, tuple: MpArray): IO[TarantoolError, TarantoolOperation] =
       for {
-        meta <- communicationFacade.getSpaceMeta(spaceName)
+        meta <- schemaMetaManager.getSpaceMeta(spaceName)
         response <- insert(meta.spaceId, tuple)
       } yield response
 
@@ -308,7 +304,7 @@ object TarantoolClient {
       tuple: A
     ): IO[TarantoolError, TarantoolOperation] =
       for {
-        meta <- communicationFacade.getSpaceMeta(spaceName)
+        meta <- schemaMetaManager.getSpaceMeta(spaceName)
         response <- insert(meta.spaceId, tuple)
       } yield response
 
@@ -339,7 +335,7 @@ object TarantoolClient {
       key: MpArray,
       tuple: MpArray
     ): IO[TarantoolError, TarantoolOperation] = for {
-      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- update(meta.spaceId, meta.indexId, key, tuple)
     } yield response
 
@@ -349,7 +345,7 @@ object TarantoolClient {
       key: A,
       tuple: B
     ): IO[TarantoolError, TarantoolOperation] = for {
-      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- update(meta.spaceId, meta.indexId, key, tuple)
     } yield response
 
@@ -376,7 +372,7 @@ object TarantoolClient {
       indexName: String,
       key: MpArray
     ): IO[TarantoolError, TarantoolOperation] = for {
-      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- delete(meta.spaceId, meta.indexId, key)
     } yield response
 
@@ -385,7 +381,7 @@ object TarantoolClient {
       indexName: String,
       key: A
     ): IO[TarantoolError, TarantoolOperation] = for {
-      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- delete(meta.spaceId, meta.indexId, key)
     } yield response
 
@@ -418,7 +414,7 @@ object TarantoolClient {
       ops: MpArray,
       tuple: MpArray
     ): IO[TarantoolError, TarantoolOperation] = for {
-      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- upsert(meta.spaceId, meta.indexId, ops, tuple)
     } yield response
 
@@ -428,7 +424,7 @@ object TarantoolClient {
       ops: A,
       tuple: B
     ): IO[TarantoolError, TarantoolOperation] = for {
-      meta <- communicationFacade.getIndexMeta(spaceName, indexName)
+      meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- upsert(meta.spaceId, meta.indexId, ops, tuple)
     } yield response
 
@@ -450,7 +446,7 @@ object TarantoolClient {
       spaceName: String,
       tuple: MpArray
     ): IO[TarantoolError, TarantoolOperation] = for {
-      meta <- communicationFacade.getSpaceMeta(spaceName)
+      meta <- schemaMetaManager.getSpaceMeta(spaceName)
       response <- replace(meta.spaceId, tuple)
     } yield response
 
@@ -458,7 +454,7 @@ object TarantoolClient {
       spaceName: String,
       tuple: A
     ): IO[TarantoolError, TarantoolOperation] = for {
-      meta <- communicationFacade.getSpaceMeta(spaceName)
+      meta <- schemaMetaManager.getSpaceMeta(spaceName)
       response <- replace(meta.spaceId, tuple)
     } yield response
 
@@ -534,6 +530,18 @@ object TarantoolClient {
       op: RequestCode,
       body: Map[Long, MessagePack]
     ): IO[TarantoolError, TarantoolOperation] =
-      communicationFacade.submitRequest(op, body)
+      for {
+        schemaId <- op match {
+          // do not refresh schema meta cache on `eval` and `call` requests
+          case RequestCode.Eval | RequestCode.Call => ZIO.none
+          case _                                   => schemaMetaManager.schemaId.map(Some(_))
+        }
+        syncId <- syncIdProvider.syncId()
+        request = TarantoolRequest(op, syncId, schemaId, body)
+        _ <- logger.debug(s"Submit operation: $syncId")
+        operation <- requestHandler.submitRequest(request)
+        packet <- TarantoolRequest.createPacket(request)
+        _ <- connection.sendRequest(packet)
+      } yield operation
   }
 }

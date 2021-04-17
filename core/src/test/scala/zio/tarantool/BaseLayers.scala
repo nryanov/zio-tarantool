@@ -8,7 +8,6 @@ import zio.logging.{LogLevel, Logging}
 import zio.tarantool.core._
 import zio.tarantool.TarantoolClient.TarantoolClient
 import zio.tarantool.TarantoolContainer.Tarantool
-import zio.tarantool.core.CommunicationFacade.CommunicationFacade
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.ResponseHandler.ResponseHandler
 import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
@@ -55,9 +54,6 @@ trait BaseLayers {
 
   val responseHandlerLayer: ZLayer[Any, Throwable, ResponseHandler] =
     (tarantoolConnectionLayer ++ requestHandlerLayer ++ schemaMetaManagerLayer ++ loggingLayer) >>> ResponseHandler.live
-
-  val communicationFacadeLayer: ZLayer[Any, Throwable, CommunicationFacade] =
-    (loggingLayer ++ schemaMetaManagerLayer ++ requestHandlerLayer ++ tarantoolConnectionLayer ++ syncIdProviderLayer ++ responseHandlerLayer) >>> CommunicationFacade.live
 
   val tarantoolClientLayer: ZLayer[Any, Throwable, TarantoolClient] =
     (loggingLayer ++ Clock.live ++ configLayer) >>> TarantoolClient.live

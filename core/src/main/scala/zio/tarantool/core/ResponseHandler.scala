@@ -7,6 +7,7 @@ import zio.tarantool._
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
+import zio.tarantool.msgpack.MpFixArray
 import zio.tarantool.protocol.{
   MessagePackPacket,
   ResponseCode,
@@ -18,6 +19,8 @@ import zio.tarantool.protocol.{
 @accessible[ResponseHandler.Service]
 private[tarantool] object ResponseHandler {
   type ResponseHandler = Has[Service]
+
+  private val PingData = MpFixArray(Vector.empty)
 
   trait Service extends Serializable {
     def start(): ZIO[Any, TarantoolError, Unit]
@@ -94,7 +97,7 @@ private[tarantool] object ResponseHandler {
       packet: MessagePackPacket
     ) = code match {
       case ResponseCode.Success.value            => completeSucceeded(schemaId, syncId, packet)
-      case ResponseCode.WrongSchemaVersion.value => reschedule(syncId, schemaId)
+      case ResponseCode.WrongSchemaVersion.value => reschedule(syncId, schemaId).fork.unit
       case _                                     => completeFailed(syncId, packet)
     }
 
@@ -109,6 +112,8 @@ private[tarantool] object ResponseHandler {
           MessagePackPacket
             .extractSql(packet)
             .flatMap(data => requestHandler.complete(syncId, TarantoolResponse(schemaId, data)))
+        case ResponseType.PingResponse =>
+          requestHandler.complete(syncId, TarantoolResponse(schemaId, PingData))
         case ResponseType.ErrorResponse =>
           IO.fail(TarantoolError.OperationException("Unexpected error in packet with SUCCEED_CODE"))
             .zipRight(completeFailed(syncId, packet))
@@ -119,6 +124,7 @@ private[tarantool] object ResponseHandler {
       MessagePackPacket.extractError(packet).flatMap(error => requestHandler.fail(syncId, error))
 
     private def reschedule(syncId: Long, newSchemaId: Long): ZIO[Any, TarantoolError, Unit] = for {
+      _ <- logger.info(s"Reschedule $syncId operation")
       cachedSchemaId <- schemaMetaManager.schemaId
       _ <- ZIO.when(newSchemaId > cachedSchemaId)(schemaMetaManager.refresh)
       op <- requestHandler.rescheduleRequest(syncId, newSchemaId)
