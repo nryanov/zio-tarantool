@@ -11,6 +11,11 @@ val testContainersVersion = "0.39.1"
 val logbackVersion = "1.2.3"
 val paradiseVersion = "2.1.1"
 
+val scala2_12 = "2.12.13"
+val scala2_13 = "2.13.5"
+
+val compileAndTest = "compile->compile;test->test"
+
 def priorTo2_13(scalaVersion: String): Boolean =
   CrossVersion.partialVersion(scalaVersion) match {
     case Some((2, minor)) if minor < 13 => true
@@ -65,6 +70,23 @@ lazy val macroSettings: Seq[Setting[_]] = Seq(
   )
 )
 
+lazy val buildSettings = Seq(
+  sonatypeProfileName := "com.nryanov",
+  organization := "com.nryanov.tarantool",
+  homepage := Some(url("https://github.com/nryanov/zio-tarantool")),
+  licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+  developers := List(
+    Developer(
+      "nryanov",
+      "Nikita Ryanov",
+      "ryanov.nikita@gmail.com",
+      url("https://nryanov.com")
+    )
+  ),
+  scalaVersion := scala2_13,
+  crossScalaVersions := Seq(scala2_12, scala2_13)
+)
+
 lazy val commonSettings = Seq(
   libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % scalatestVersion % Test,
@@ -75,8 +97,8 @@ lazy val commonSettings = Seq(
   ),
   scalacOptions ++= compilerOptions(scalaVersion.value),
   organization := "",
-  scalaVersion := "2.13.4",
-  crossScalaVersions := Seq("2.12.13", "2.13.4"),
+  scalaVersion := scala2_13,
+  crossScalaVersions := Seq(scala2_12, scala2_13),
   Test / parallelExecution := false
 )
 
@@ -112,4 +134,4 @@ lazy val core = project
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
-  .dependsOn(msgpack % "compile->compile;test->test")
+  .dependsOn(msgpack % compileAndTest)
