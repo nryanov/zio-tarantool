@@ -103,18 +103,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val zioTarantool =
-  project.in(file(".")).settings(skip in publish := true).aggregate(msgpack, core)
-
-lazy val msgpack = project
-  .in(file("msgpack"))
-  .settings(commonSettings)
-  .settings(
-    moduleName := "zio-tarantool-msgpack",
-    libraryDependencies ++= Seq(
-      "org.scodec" %% "scodec-core" % scodecVersion,
-      "org.scodec" %% "scodec-bits" % scodecBitsVersion
-    )
-  )
+  project.in(file(".")).settings(skip in publish := true).aggregate(core)
 
 lazy val core = project
   .in(file("core"))
@@ -123,15 +112,16 @@ lazy val core = project
   .settings(
     moduleName := "zio-tarantool-core",
     libraryDependencies ++= Seq(
+      "org.scodec" %% "scodec-core" % scodecVersion,
+      "org.scodec" %% "scodec-bits" % scodecBitsVersion,
       "dev.zio" %% "zio" % zioVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
-      "dev.zio" %% "zio-macros" % zioVersion,
+      "dev.zio" %% "zio-macros" % zioVersion, // todo: remove
       "dev.zio" %% "zio-logging" % zioLoggingVersion,
-      "dev.zio" %% "zio-logging-slf4j" % zioLoggingVersion,
+      "dev.zio" %% "zio-logging-slf4j" % zioLoggingVersion, // todo: only for test
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
       "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
-  .dependsOn(msgpack % compileAndTest)
