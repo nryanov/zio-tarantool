@@ -26,6 +26,18 @@ trait BaseLayers {
       )
     )
 
+  val tarantoolSecuredLayer: ZLayer[Any, Nothing, Tarantool] =
+    Blocking.live >>> TarantoolSecuredContainer.tarantool()
+
+  val configSecuredLayer: ZLayer[Any, Nothing, Has[TarantoolConfig]] =
+    tarantoolSecuredLayer >>> ZLayer.fromService(container =>
+      TarantoolConfig(
+        host = container.container.getHost,
+        port = container.container.getMappedPort(3301),
+        authInfo = AuthInfo("username", "password")
+      )
+    )
+
   val configNoMetaCacheLayer: ZLayer[Any, Nothing, Has[TarantoolConfig]] =
     tarantoolLayer >>> ZLayer.fromService(container =>
       TarantoolConfig(
@@ -44,7 +56,7 @@ trait BaseLayers {
   val syncIdProviderLayer: ZLayer[Any, Nothing, SyncIdProvider] = SyncIdProvider.live
 
   val tarantoolConnectionLayer: ZLayer[Any, Throwable, TarantoolConnection] =
-    (Clock.live ++ configLayer ++ loggingLayer) >>> TarantoolConnection.live
+    (Clock.live ++ configLayer ++ loggingLayer ++ syncIdProviderLayer) >>> TarantoolConnection.live
 
   val requestHandlerLayer: ZLayer[Any, TarantoolError, RequestHandler] =
     loggingLayer >>> RequestHandler.live

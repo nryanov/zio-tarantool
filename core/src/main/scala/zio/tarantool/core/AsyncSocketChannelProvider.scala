@@ -9,7 +9,6 @@ import zio.logging.{Logger, Logging}
 import zio.{Chunk, IO, Managed, UIO, ZIO, ZManaged}
 import zio.stream.{Transducer, ZStream}
 import zio.tarantool.{TarantoolConfig, TarantoolError}
-
 import AsyncSocketChannelProvider._
 
 private[tarantool] class AsyncSocketChannelProvider(
@@ -60,16 +59,22 @@ private[tarantool] object AsyncSocketChannelProvider {
   the instance responds with a 128-byte text greeting message, not in MsgPack format:
   64-byte Greeting text line 1
   64-byte Greeting text line 2
+
   44-byte base64-encoded salt
   20-byte NULL
    */
-  private val GreetingLength = 64
+  private val GreetingLength = 128
+  private val ProtocolVersionLength = 64
+  private val SaltLength = 44
+
+  final case class OpenChannel(version: String, salt: String, channel: AsyncSocketChannelProvider)
+
+  // todo: auth support
 
   def connect(
     cfg: TarantoolConfig
-  ): ZManaged[Logging, TarantoolError.IOError, AsyncSocketChannelProvider] =
+  ): ZManaged[Logging, TarantoolError.IOError, OpenChannel] =
     (for {
-      logger <- ZIO.service[Logger[String]].toManaged_
       address <- UIO(
         new InetSocketAddress(cfg.connectionConfig.host, cfg.connectionConfig.port)
       ).toManaged_
@@ -79,13 +84,12 @@ private[tarantool] object AsyncSocketChannelProvider {
       channel <- openChannel(address)
 
       provider = new AsyncSocketChannelProvider(readBuffer, writeBuffer, channel)
-      _ <- provider.read
-        .transduce(Transducer.utf8Decode >>> Transducer.splitLines)
-        .take(2)
-        .runCollect
-        .flatMap(rows => logger.info(s"${rows.toList}"))
-        .toManaged_
-    } yield provider).mapError(TarantoolError.IOError)
+      greeting <- provider.read.take(GreetingLength).runCollect.toManaged_
+
+      (version, salt) = greeting.toArray.splitAt(ProtocolVersionLength)
+
+    } yield OpenChannel(new String(version), new String(salt.take(SaltLength)), provider))
+      .mapError(TarantoolError.IOError)
 
   def openChannel(
     address: SocketAddress

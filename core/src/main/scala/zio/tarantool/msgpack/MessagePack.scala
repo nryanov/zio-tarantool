@@ -18,6 +18,10 @@ final case class MpPositiveFixInt(value: Int) extends MessagePack {
   override def typeName(): String = "MpPositiveFixInt"
 }
 
+final case class MpNegativeFixInt(value: Int) extends MessagePack {
+  override def typeName(): String = "MpNegativeFixInt"
+}
+
 final case class MpFixMap(value: Map[MessagePack, MessagePack]) extends MpMap {
   override def typeName(): String = "MpFixMap"
 }
@@ -41,7 +45,7 @@ case object MpFalse extends MpBoolean(false) {
 }
 
 final case class MpBinary8(value: ByteVector) extends MessagePack {
-  override def typeName(): String = ???
+  override def typeName(): String = "MpBinary8"
 }
 final case class MpBinary16(value: ByteVector) extends MessagePack {
   override def typeName(): String = "MpBinary16"
@@ -131,8 +135,4 @@ final case class MpMap16(value: Map[MessagePack, MessagePack]) extends MpMap {
 }
 final case class MpMap32(value: Map[MessagePack, MessagePack]) extends MpMap {
   override def typeName(): String = "MpMap32"
-}
-
-final case class MpNegativeFixInt(value: Int) extends MessagePack {
-  override def typeName(): String = "MpNegativeFixInt"
 }

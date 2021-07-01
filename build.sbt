@@ -51,7 +51,6 @@ lazy val scala213CompilerOptions = Seq(
   "-Wunused:imports"
 )
 
-// src: https://github.com/circe/circe/blob/master/build.sbt#L263
 lazy val macroSettings: Seq[Setting[_]] = Seq(
   libraryDependencies ++= (Seq(
     scalaOrganization.value % "scala-compiler" % scalaVersion.value % Provided,
@@ -89,6 +88,7 @@ lazy val buildSettings = Seq(
 
 lazy val commonSettings = Seq(
   libraryDependencies ++= Seq(
+    // todo: remove unused dependencies
     "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     "org.scalatestplus" %% "scalacheck-1-14" % scalacheckPlusVersion % Test,
     "org.scalamock" %% "scalamock" % scalamockVersion % Test,
@@ -118,7 +118,7 @@ lazy val core = project
       "dev.zio" %% "zio-streams" % zioVersion,
       "dev.zio" %% "zio-macros" % zioVersion, // todo: remove
       "dev.zio" %% "zio-logging" % zioLoggingVersion,
-      "dev.zio" %% "zio-logging-slf4j" % zioLoggingVersion, // todo: only for test
+      "dev.zio" %% "zio-logging-slf4j" % zioLoggingVersion % Test,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
       "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test

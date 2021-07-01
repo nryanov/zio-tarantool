@@ -7,15 +7,17 @@ import zio.tarantool.protocol.MessagePackPacket
 import zio.tarantool.codec.MessagePackPacketCodec
 import zio.tarantool.protocol.Implicits.{RichByteVector, RichMessagePack}
 
-object ByteStream {
+private[tarantool] object ByteStream {
   private val MessageSizeLength = 5
 
   val decoder: ZTransducer[Any, Nothing, Byte, MessagePackPacket] =
     ZTransducer {
       ZRef.makeManaged[State](State.empty).map { stateRef =>
         {
+          // no new data was read
           case None =>
             stateRef.modify {
+              // length part was read and is ready to be decoded
               case State(length, data) if length != 0 && data.length == length =>
                 val vector = ByteVector.view(data.toArray)
                 (
@@ -24,6 +26,7 @@ object ByteStream {
                 )
               case state => (Chunk.empty, state)
             }
+          // read new data and try to decode it
           case Some(bytes) =>
             stateRef.modify { oldState =>
               decodeByteStream(oldState.copy(dataChunk = oldState.dataChunk ++ bytes))
@@ -69,12 +72,17 @@ object ByteStream {
     (data.result(), newState)
   }
 
+  /**
+   * @param length -- already read data length
+   * @param dataChunk -- actual read data
+   */
   final case class State(
     length: Int,
     dataChunk: Chunk[Byte]
   )
 
   object State {
+    // Initial state for the new connection
     def empty = new State(0, Chunk.empty)
   }
 }

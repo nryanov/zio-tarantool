@@ -9,7 +9,10 @@ object Codecs {
   implicit val mpPositiveFixIntCodec: Codec[MpPositiveFixInt] =
     (constant(bin"0") :: uint(7)).dropUnits.as[MpPositiveFixInt]
   implicit val mpNegativeFixIntCodec: Codec[MpNegativeFixInt] =
-    (constant(bin"111") :: int(5)).dropUnits.as[MpNegativeFixInt]
+    (constant(bin"111") :: bits(5).xmap[Int](
+      bits => -bits.toInt(signed = false), // last 5 bits are negative value
+      value => BitVector.fromInt(value & 0xfffff, 5) // just write 5-bits vector
+    )).dropUnits.as[MpNegativeFixInt]
   implicit val mpFixMapCodec: Codec[MpFixMap] =
     (constant(bin"1000") :: multiMapCodec(uint(4))).dropUnits.as[MpFixMap]
   implicit val mpFixArrayCodec: Codec[MpFixArray] =

@@ -1,5 +1,6 @@
 package zio.tarantool.msgpack
 
+import org.scalacheck.Gen
 import org.scalatest.OptionValues
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import scodec.bits.ByteVector
@@ -168,6 +169,17 @@ class EncoderSpec extends BaseSpec with ScalaCheckPropertyChecks with OptionValu
       forAll(listOf(32, int())) { value =>
         val encoded = Encoder[Vector[Int]].encode(value.toVector).toOption.value
         val decoded = Encoder[Vector[Int]].decode(encoded).toOption.value
+
+        if (value.length <= 15) encoded shouldBe a[MpFixArray]
+        else encoded shouldBe a[MpArray16]
+        decoded shouldBe value.toVector
+      }
+    }
+
+    "encode/decode vector of string" in {
+      forAll(listOf(32, Gen.alphaStr)) { value =>
+        val encoded = Encoder[Vector[String]].encode(value.toVector).toOption.value
+        val decoded = Encoder[Vector[String]].decode(encoded).toOption.value
 
         if (value.length <= 15) encoded shouldBe a[MpFixArray]
         else encoded shouldBe a[MpArray16]

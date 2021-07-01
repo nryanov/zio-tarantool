@@ -3,8 +3,12 @@ package zio.tarantool.core
 import zio._
 import zio.macros.accessible
 
+/**
+ * Each request should has a unique SyncId number.
+ * This class is responsible to generate unique sequence of SyncId for each request per connection.
+ */
 @accessible[SyncIdProvider.Service]
-object SyncIdProvider {
+private[tarantool] object SyncIdProvider {
   type SyncIdProvider = Has[Service]
 
   trait Service {

@@ -15,6 +15,8 @@ object TarantoolError {
 
   final case class ConfigurationError(message: String) extends TarantoolError(message, null)
 
+  final case class AuthError(message: String) extends TarantoolError(message, null)
+
   final case class SpaceNotFound(message: String) extends TarantoolError(message, null)
   final case class IndexNotFound(message: String) extends TarantoolError(message, null)
 

@@ -9,7 +9,7 @@ import zio.tarantool.protocol.{TarantoolOperation, TarantoolRequest, TarantoolRe
 import scala.collection.concurrent.TrieMap
 
 @accessible[RequestHandler.Service]
-object RequestHandler {
+private[tarantool] object RequestHandler {
   type RequestHandler = Has[Service]
 
   trait Service {

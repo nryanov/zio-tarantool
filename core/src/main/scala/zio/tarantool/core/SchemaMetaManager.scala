@@ -26,7 +26,7 @@ private[tarantool] object SchemaMetaManager {
 
     def refresh: IO[TarantoolError, Unit]
 
-    def schemaId: UIO[Long]
+    def schemaId: UIO[Option[Long]]
   }
 
   val live: ZLayer[Has[
@@ -58,7 +58,7 @@ private[tarantool] object SchemaMetaManager {
       override def refresh: IO[TarantoolError, Unit] =
         IO.fail(TarantoolError.InternalError(new NotImplementedError()))
 
-      override def schemaId: UIO[Long] = UIO.succeed(0)
+      override def schemaId: UIO[Option[Long]] = UIO.some(0)
     })
 
   // lazy start
@@ -73,7 +73,7 @@ private[tarantool] object SchemaMetaManager {
         clock <- ZIO.environment[Clock]
         logger <- ZIO.service[Logger[String]]
         spaceMetaMap <- Ref.make(Map.empty[String, SpaceMeta])
-        currentSchemaId <- Ref.make(0L)
+        currentSchemaId <- Ref.make[Option[Long]](None)
         semaphore <- Semaphore.make(1)
         isRefreshing <- Ref.make(false)
       } yield new Live(
@@ -107,7 +107,7 @@ private[tarantool] object SchemaMetaManager {
     connection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service,
     spaceMetaMap: Ref[Map[String, SpaceMeta]],
-    currentSchemaId: Ref[Long],
+    currentSchemaId: Ref[Option[Long]],
     fetchSemaphore: Semaphore,
     isRefreshing: Ref[Boolean],
     logger: Logger[String],
@@ -144,7 +144,7 @@ private[tarantool] object SchemaMetaManager {
     ): IO[TarantoolError, IndexMeta] =
       IO.when(!space.indexes.contains(indexName))(
         IO.fail(IndexNotFound(s"Index $indexName not found in cache for space $spaceName"))
-      ).map(_ => space.indexes(indexName))
+      ).as(space.indexes(indexName))
 
     override def refresh: IO[TarantoolError, Unit] =
       IO.when(cfg.clientConfig.useSchemaMetaCache)(
@@ -162,7 +162,7 @@ private[tarantool] object SchemaMetaManager {
         )
       )
 
-    override def schemaId: UIO[Long] = currentSchemaId.get
+    override def schemaId: UIO[Option[Long]] = currentSchemaId.get
 
     private def fetchMeta0: ZIO[Any, TarantoolError, Unit] =
       for {
@@ -198,7 +198,7 @@ private[tarantool] object SchemaMetaManager {
           )
       }
       _ <- spaceMetaMap.set(mappedSpaceMeta)
-      _ <- currentSchemaId.set(schemaId)
+      _ <- currentSchemaId.set(Some(schemaId))
     } yield ()
 
     // implicit dependency on ResponseHandler

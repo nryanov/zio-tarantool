@@ -201,8 +201,8 @@ object TarantoolClient {
   def make(config: TarantoolConfig): ZManaged[Clock with Logging, TarantoolError, Service] =
     for {
       logger <- ZIO.service[Logger[String]].toManaged_
-      connection <- TarantoolConnection.make(config)
       syncIdProvider <- SyncIdProvider.make()
+      connection <- TarantoolConnection.make(config, syncIdProvider)
       requestHandler <- RequestHandler.make()
       schemaMetaManager <- SchemaMetaManager.make(
         config,
@@ -210,6 +210,7 @@ object TarantoolClient {
         connection,
         syncIdProvider
       )
+      // todo: unused ???
       responseHandler <- ResponseHandler.make(connection, schemaMetaManager, requestHandler)
       // fetch actual meta on start
       _ <- schemaMetaManager.refresh.toManaged_
@@ -534,7 +535,7 @@ object TarantoolClient {
         schemaId <- op match {
           // do not refresh schema meta cache on `eval` and `call` requests
           case RequestCode.Eval | RequestCode.Call => ZIO.none
-          case _                                   => schemaMetaManager.schemaId.map(Some(_))
+          case _                                   => schemaMetaManager.schemaId
         }
         syncId <- syncIdProvider.syncId()
         request = TarantoolRequest(op, syncId, schemaId, body)

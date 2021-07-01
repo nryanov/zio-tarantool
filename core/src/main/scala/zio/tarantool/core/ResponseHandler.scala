@@ -24,8 +24,6 @@ private[tarantool] object ResponseHandler {
 
   trait Service extends Serializable {
     def start(): ZIO[Any, TarantoolError, Unit]
-
-    def complete(packet: MessagePackPacket): IO[TarantoolError, Unit]
   }
 
   val live: ZLayer[
@@ -77,9 +75,9 @@ private[tarantool] object ResponseHandler {
               logger.error("Error happened while trying to complete operation", err)
             )
         )
-        .retryWhile(_ => true)
+        .forever
 
-    override def complete(packet: MessagePackPacket): IO[TarantoolError, Unit] =
+    private def complete(packet: MessagePackPacket): IO[TarantoolError, Unit] =
       for {
         syncId <- MessagePackPacket.extractSyncId(packet)
         _ <- logger.debug(s"Complete operation with id: $syncId")
@@ -126,7 +124,7 @@ private[tarantool] object ResponseHandler {
     private def reschedule(syncId: Long, newSchemaId: Long): ZIO[Any, TarantoolError, Unit] = for {
       _ <- logger.info(s"Reschedule $syncId operation")
       cachedSchemaId <- schemaMetaManager.schemaId
-      _ <- ZIO.when(newSchemaId > cachedSchemaId)(schemaMetaManager.refresh)
+      _ <- ZIO.when(cachedSchemaId.exists(_ < newSchemaId))(schemaMetaManager.refresh)
       op <- requestHandler.rescheduleRequest(syncId, newSchemaId)
       packet <- TarantoolRequest.createPacket(op.request)
       _ <- connection.sendRequest(packet)

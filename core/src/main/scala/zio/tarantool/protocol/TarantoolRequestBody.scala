@@ -1,5 +1,6 @@
 package zio.tarantool.protocol
 
+import scodec.bits.ByteVector
 import zio.tarantool.msgpack.{Encoder, MessagePack, MpArray}
 
 object TarantoolRequestBody {
@@ -109,5 +110,10 @@ object TarantoolRequestBody {
     sqlText: String
   ): Map[Long, MessagePack] = Map(
     RequestSqlBodyKey.SqlText.value -> Encoder[String].encodeUnsafe(sqlText)
+  )
+
+  def authBody(username: String, body: Vector[ByteVector]): Map[Long, MessagePack] = Map(
+    RequestBodyKey.Username.value -> Encoder[String].encodeUnsafe(username),
+    RequestBodyKey.Tuple.value -> Encoder[Vector[ByteVector]].encodeUnsafe(body)
   )
 }
