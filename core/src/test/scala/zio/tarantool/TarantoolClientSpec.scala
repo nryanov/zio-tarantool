@@ -65,8 +65,7 @@ object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
   private def returnAndDecodeInsertedTupleUsingSpaceName() = for {
     tuple <- ZIO.succeed(TestTuple("key1", 1, 1))
     // force schema meta cache refresh
-    ping <- TarantoolClient.ping()
-    _ <- awaitResponse(ping)
+    _ <- TarantoolClient.refreshMeta()
     _ <- TarantoolClient.insert("test", tuple)
     key <- ZIO.effect(TupleBuilder().put("key1").build().require)
     operation <- TarantoolClient.select("test", "primary", 1, 0, IteratorCode.Eq, key)

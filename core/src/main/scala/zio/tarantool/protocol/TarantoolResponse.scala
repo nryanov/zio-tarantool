@@ -6,10 +6,9 @@ import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.msgpack.{MessagePack, MpArray}
 
 /**
- * @param schemaId - schema id returned in response
  * @param messagePack - data returned in response
  */
-final case class TarantoolResponse(schemaId: Long, messagePack: MessagePack) {
+final case class TarantoolResponse(messagePack: MessagePack) {
 
   /** use this method to get actual value after `eval` */
   def value[A](implicit encoder: TupleEncoder[A]): Task[Attempt[A]] =

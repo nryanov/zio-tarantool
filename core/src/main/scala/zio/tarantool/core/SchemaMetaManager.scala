@@ -75,7 +75,6 @@ private[tarantool] object SchemaMetaManager {
         spaceMetaMap <- Ref.make(Map.empty[String, SpaceMeta])
         currentSchemaId <- Ref.make[Option[Long]](None)
         semaphore <- Semaphore.make(1)
-        isRefreshing <- Ref.make(false)
       } yield new Live(
         cfg,
         requestHandler,
@@ -84,7 +83,6 @@ private[tarantool] object SchemaMetaManager {
         spaceMetaMap,
         currentSchemaId,
         semaphore,
-        isRefreshing,
         logger,
         clock
       )
@@ -109,18 +107,9 @@ private[tarantool] object SchemaMetaManager {
     spaceMetaMap: Ref[Map[String, SpaceMeta]],
     currentSchemaId: Ref[Option[Long]],
     fetchSemaphore: Semaphore,
-    isRefreshing: Ref[Boolean],
     logger: Logger[String],
     clock: Clock
   ) extends Service {
-
-    private val schedule: Schedule[Any, TarantoolError, Unit] =
-      (Schedule.recurs(cfg.clientConfig.schemaRequestRetries) && Schedule.spaced(
-        cfg.clientConfig.schemaRequestRetryTimeoutMillis.milliseconds
-      ) && Schedule.recurWhile[TarantoolError] {
-        case _: TarantoolError.NotEqualSchemaId => true
-        case _                                  => false
-      }).unit
 
     override def getSpaceMeta(spaceName: String): IO[TarantoolError, SpaceMeta] =
       for {
@@ -147,20 +136,7 @@ private[tarantool] object SchemaMetaManager {
       ).as(space.indexes(indexName))
 
     override def refresh: IO[TarantoolError, Unit] =
-      IO.when(cfg.clientConfig.useSchemaMetaCache)(
-        IO.ifM(isRefreshing.get)(
-          logger.debug("Schema meta is already refreshing"),
-          fetchSemaphore.withPermit {
-            IO.ifM(isRefreshing.get)(
-              logger.debug("Schema meta is already refreshing"),
-              isRefreshing
-                .set(true)
-                .zipRight(fetchMeta0.retry(schedule).provide(clock))
-                .zipRight(isRefreshing.set(false))
-            )
-          }
-        )
-      )
+      fetchSemaphore.withPermit(fetchMeta0)
 
     override def schemaId: UIO[Option[Long]] = currentSchemaId.get
 
@@ -170,18 +146,10 @@ private[tarantool] object SchemaMetaManager {
         indexesOpFiber <- selectMeta(VIndexId, VIndexIdIndexId).fork
         spacesOp <- spacesOpFiber.join
         indexesOp <- indexesOpFiber.join
-        _ <- ZIO.when(spacesOp.schemaId != indexesOp.schemaId)(
-          logger.debug("Not equal schema id of space and index meta responses") *> ZIO.fail(
-            TarantoolError.NotEqualSchemaId(
-              "Not equal schema id of space and index meta responses"
-            )
-          )
-        )
-        _ <- updateMetaCache(spacesOp.schemaId, spacesOp, indexesOp)
+        _ <- updateMetaCache(spacesOp, indexesOp)
       } yield ()
 
     private def updateMetaCache(
-      schemaId: Long,
       spacesOp: TarantoolResponse,
       indexesOp: TarantoolResponse
     ) = for {
@@ -198,7 +166,6 @@ private[tarantool] object SchemaMetaManager {
           )
       }
       _ <- spaceMetaMap.set(mappedSpaceMeta)
-      _ <- currentSchemaId.set(Some(schemaId))
     } yield ()
 
     // implicit dependency on ResponseHandler
@@ -233,7 +200,7 @@ private[tarantool] object SchemaMetaManager {
               .selectBody(spaceId, indexId, Int.MaxValue, Offset, IteratorCode.All, EmptyMpArray)
           )
           .mapError(TarantoolError.CodecError)
-        request = TarantoolRequest(RequestCode.Select, syncId, None, body)
+        request = TarantoolRequest(RequestCode.Select, syncId, body)
         response <- requestHandler.submitRequest(request)
         packet <- TarantoolRequest.createPacket(request)
         _ <- connection.sendRequest(packet)

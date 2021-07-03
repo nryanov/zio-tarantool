@@ -18,7 +18,7 @@ object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
     testM("Create new connection then send and receive message") {
       for {
         pingRequest <- TarantoolRequest.createPacket(
-          TarantoolRequest(RequestCode.Ping, 1, None, Map.empty)
+          TarantoolRequest(RequestCode.Ping, 1, Map.empty)
         )
         _ <- TarantoolConnection.sendRequest(pingRequest)
         responseOpt <- TarantoolConnection.receive().take(1).runHead

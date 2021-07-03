@@ -7,7 +7,7 @@ import java.nio.channels.{AsynchronousSocketChannel, Channel, CompletionHandler}
 
 import zio.logging.{Logger, Logging}
 import zio.{Chunk, IO, Managed, UIO, ZIO, ZManaged}
-import zio.stream.{Transducer, ZStream}
+import zio.stream.ZStream
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 import AsyncSocketChannelProvider._
 
@@ -68,8 +68,6 @@ private[tarantool] object AsyncSocketChannelProvider {
   private val SaltLength = 44
 
   final case class OpenChannel(version: String, salt: String, channel: AsyncSocketChannelProvider)
-
-  // todo: auth support
 
   def connect(
     cfg: TarantoolConfig

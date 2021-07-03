@@ -49,8 +49,7 @@ private[tarantool] object TarantoolConnection {
     for {
       logger <- ZIO.service[Logger[String]].toManaged_
       openChannel <- AsyncSocketChannelProvider.connect(config)
-      //todo: configured queue size
-      requestQueue <- Queue.bounded[ByteBuffer](64).toManaged_
+      requestQueue <- Queue.bounded[ByteBuffer](config.clientConfig.requestQueueSize).toManaged_
       _ <- logger.info(s"Protocol version: ${openChannel.version}").toManaged_
       live = new Live(logger, openChannel.channel, requestQueue)
 
@@ -142,6 +141,6 @@ private[tarantool] object TarantoolConnection {
         Vector(ByteVector.view("chap-sha1".getBytes), ByteVector.view(auth1))
       )
 
-      TarantoolRequest(RequestCode.Auth, syncId, None, body)
+      TarantoolRequest(RequestCode.Auth, syncId, body)
     }
 }

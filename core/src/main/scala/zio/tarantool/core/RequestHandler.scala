@@ -17,11 +17,6 @@ private[tarantool] object RequestHandler {
 
     def submitRequest(request: TarantoolRequest): IO[TarantoolError, TarantoolOperation]
 
-    def rescheduleRequest(
-      syncId: Long,
-      schemaId: Long
-    ): IO[TarantoolError, TarantoolOperation]
-
     def complete(syncId: Long, response: TarantoolResponse): IO[TarantoolError, Unit]
 
     def fail(syncId: Long, reason: String): IO[TarantoolError, Unit]
@@ -59,25 +54,6 @@ private[tarantool] object RequestHandler {
           )
         )
       } yield operation
-
-    override def rescheduleRequest(
-      syncId: Long,
-      schemaId: Long
-    ): IO[TarantoolError, TarantoolOperation] = for {
-      operation <- ZIO
-        .fromOption(awaitingRequestMap.get(syncId))
-        .orElseFail(TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
-      newRequest <- TarantoolRequest.withSchemaId(operation.request, schemaId)
-      newOperation = operation.copy(request = newRequest)
-      empty <- ZIO.effectTotal(awaitingRequestMap.put(syncId, operation).isEmpty)
-      _ <- ZIO.when(empty)(
-        ZIO.fail(
-          TarantoolError.OperationException(
-            s"Operation with id $syncId was unexpectedly removed"
-          )
-        )
-      )
-    } yield newOperation
 
     override def complete(syncId: Long, response: TarantoolResponse): IO[TarantoolError, Unit] =
       for {

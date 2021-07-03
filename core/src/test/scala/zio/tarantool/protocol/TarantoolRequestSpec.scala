@@ -15,7 +15,7 @@ object TarantoolRequestSpec extends DefaultRunnableSpec {
             Header.Code.value -> Encoder[Long].encodeUnsafe(RequestCode.Ping.value)
           )
         )
-        val request = TarantoolRequest(RequestCode.Ping, 1, None, Map.empty)
+        val request = TarantoolRequest(RequestCode.Ping, 1, Map.empty)
         val result = TarantoolRequest.createPacket(request)
         assertM(result)(equalTo(expected))
       }

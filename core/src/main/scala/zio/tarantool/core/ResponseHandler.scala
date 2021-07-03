@@ -5,16 +5,9 @@ import zio.logging._
 import zio.macros.accessible
 import zio.tarantool._
 import zio.tarantool.core.RequestHandler.RequestHandler
-import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 import zio.tarantool.msgpack.MpFixArray
-import zio.tarantool.protocol.{
-  MessagePackPacket,
-  ResponseCode,
-  ResponseType,
-  TarantoolRequest,
-  TarantoolResponse
-}
+import zio.tarantool.protocol.{MessagePackPacket, ResponseCode, ResponseType, TarantoolResponse}
 
 @accessible[ResponseHandler.Service]
 private[tarantool] object ResponseHandler {
@@ -27,24 +20,20 @@ private[tarantool] object ResponseHandler {
   }
 
   val live: ZLayer[
-    TarantoolConnection with SchemaMetaManager with RequestHandler with Logging,
+    TarantoolConnection with RequestHandler with Logging,
     TarantoolError.IOError,
     ResponseHandler
   ] =
     ZLayer.fromServicesManaged[
       TarantoolConnection.Service,
-      SchemaMetaManager.Service,
       RequestHandler.Service,
       Logging,
       TarantoolError.IOError,
       Service
-    ]((connection, schemaMetaManager, requestHandler) =>
-      make(connection, schemaMetaManager, requestHandler)
-    )
+    ]((connection, requestHandler) => make(connection, requestHandler))
 
   def make(
     connection: TarantoolConnection.Service,
-    schemaMetaManager: SchemaMetaManager.Service,
     requestHandler: RequestHandler.Service
   ): ZManaged[Logging, TarantoolError.IOError, Service] =
     for {
@@ -52,7 +41,6 @@ private[tarantool] object ResponseHandler {
       live = new Live(
         logger,
         connection,
-        schemaMetaManager,
         requestHandler
       )
       _ <- live.start().forkManaged
@@ -61,7 +49,6 @@ private[tarantool] object ResponseHandler {
   private[tarantool] class Live(
     logger: Logger[String],
     connection: TarantoolConnection.Service,
-    schemaMetaManager: SchemaMetaManager.Service,
     requestHandler: RequestHandler.Service
   ) extends Service {
 
@@ -69,11 +56,9 @@ private[tarantool] object ResponseHandler {
       connection
         .receive()
         .foreach(mp =>
-          //todo: remove (or debug?)
-          logger.info(s"Read packet: $mp") *>
-            complete(mp).onError(err =>
-              logger.error("Error happened while trying to complete operation", err)
-            )
+          complete(mp).onError(err =>
+            logger.error(s"Error happened while trying to complete operation. Packet: $mp", err)
+          )
         )
         .forever
 
@@ -81,9 +66,8 @@ private[tarantool] object ResponseHandler {
       for {
         syncId <- MessagePackPacket.extractSyncId(packet)
         _ <- logger.debug(s"Complete operation with id: $syncId")
-        schemaId <- MessagePackPacket.extractSchemaId(packet)
         code <- MessagePackPacket.extractCode(packet)
-        _ <- completeByCode(code, syncId, schemaId, packet).tapError(err =>
+        _ <- completeByCode(code, syncId, packet).tapError(err =>
           requestHandler.fail(syncId, err.getLocalizedMessage)
         )
       } yield ()
@@ -91,27 +75,25 @@ private[tarantool] object ResponseHandler {
     private def completeByCode(
       code: Long,
       syncId: Long,
-      schemaId: Long,
       packet: MessagePackPacket
     ) = code match {
-      case ResponseCode.Success.value            => completeSucceeded(schemaId, syncId, packet)
-      case ResponseCode.WrongSchemaVersion.value => reschedule(syncId, schemaId).fork.unit
-      case _                                     => completeFailed(syncId, packet)
+      case ResponseCode.Success.value => completeSucceeded(syncId, packet)
+      case _                          => completeFailed(syncId, packet)
     }
 
-    private def completeSucceeded(schemaId: Long, syncId: Long, packet: MessagePackPacket) = for {
+    private def completeSucceeded(syncId: Long, packet: MessagePackPacket) = for {
       responseType <- MessagePackPacket.responseType(packet)
       _ <- responseType match {
         case ResponseType.DataResponse =>
           MessagePackPacket
             .extractData(packet)
-            .flatMap(data => requestHandler.complete(syncId, TarantoolResponse(schemaId, data)))
+            .flatMap(data => requestHandler.complete(syncId, TarantoolResponse(data)))
         case ResponseType.SqlResponse =>
           MessagePackPacket
             .extractSql(packet)
-            .flatMap(data => requestHandler.complete(syncId, TarantoolResponse(schemaId, data)))
+            .flatMap(data => requestHandler.complete(syncId, TarantoolResponse(data)))
         case ResponseType.PingResponse =>
-          requestHandler.complete(syncId, TarantoolResponse(schemaId, PingData))
+          requestHandler.complete(syncId, TarantoolResponse(PingData))
         case ResponseType.ErrorResponse =>
           IO.fail(TarantoolError.OperationException("Unexpected error in packet with SUCCEED_CODE"))
             .zipRight(completeFailed(syncId, packet))
@@ -120,15 +102,6 @@ private[tarantool] object ResponseHandler {
 
     private def completeFailed(syncId: Long, packet: MessagePackPacket) =
       MessagePackPacket.extractError(packet).flatMap(error => requestHandler.fail(syncId, error))
-
-    private def reschedule(syncId: Long, newSchemaId: Long): ZIO[Any, TarantoolError, Unit] = for {
-      _ <- logger.info(s"Reschedule $syncId operation")
-      cachedSchemaId <- schemaMetaManager.schemaId
-      _ <- ZIO.when(cachedSchemaId.exists(_ < newSchemaId))(schemaMetaManager.refresh)
-      op <- requestHandler.rescheduleRequest(syncId, newSchemaId)
-      packet <- TarantoolRequest.createPacket(op.request)
-      _ <- connection.sendRequest(packet)
-    } yield ()
   }
 
 }

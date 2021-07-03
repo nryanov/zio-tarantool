@@ -17,7 +17,7 @@ final case class ClientConfig(
   schemaRequestTimeoutMillis: Int = 10000,
   schemaRequestRetries: Int = 5,
   schemaRequestRetryTimeoutMillis: Int = 1000,
-  backgroundQueueSize: Int = 1024,
+  requestQueueSize: Int = 64,
   useSchemaMetaCache: Boolean = true
 )
 

@@ -65,7 +65,7 @@ trait BaseLayers {
     (configLayer ++ requestHandlerLayer ++ tarantoolConnectionLayer ++ syncIdProviderLayer ++ Clock.live ++ loggingLayer) >>> SchemaMetaManager.live
 
   val responseHandlerLayer: ZLayer[Any, Throwable, ResponseHandler] =
-    (tarantoolConnectionLayer ++ requestHandlerLayer ++ schemaMetaManagerLayer ++ loggingLayer) >>> ResponseHandler.live
+    (tarantoolConnectionLayer ++ requestHandlerLayer ++ loggingLayer) >>> ResponseHandler.live
 
   val tarantoolClientLayer: ZLayer[Any, Throwable, TarantoolClient] =
     (loggingLayer ++ Clock.live ++ configLayer) >>> TarantoolClient.live

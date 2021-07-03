@@ -21,6 +21,8 @@ object TarantoolClient {
   trait Service extends Serializable {
     def ping(): IO[TarantoolError, TarantoolOperation]
 
+    def refreshMeta(): IO[TarantoolError, Unit]
+
     def select(
       spaceId: Int,
       indexId: Int,
@@ -210,8 +212,7 @@ object TarantoolClient {
         connection,
         syncIdProvider
       )
-      // todo: unused ???
-      responseHandler <- ResponseHandler.make(connection, schemaMetaManager, requestHandler)
+      _ <- ResponseHandler.make(connection, requestHandler)
       // fetch actual meta on start
       _ <- schemaMetaManager.refresh.toManaged_
     } yield new Live(logger, schemaMetaManager, requestHandler, connection, syncIdProvider)
@@ -226,6 +227,8 @@ object TarantoolClient {
     override def ping(): IO[TarantoolError, TarantoolOperation] = for {
       response <- send(RequestCode.Ping, Map.empty)
     } yield response
+
+    override def refreshMeta(): IO[TarantoolError, Unit] = schemaMetaManager.refresh
 
     override def select(
       spaceId: Int,
@@ -532,13 +535,8 @@ object TarantoolClient {
       body: Map[Long, MessagePack]
     ): IO[TarantoolError, TarantoolOperation] =
       for {
-        schemaId <- op match {
-          // do not refresh schema meta cache on `eval` and `call` requests
-          case RequestCode.Eval | RequestCode.Call => ZIO.none
-          case _                                   => schemaMetaManager.schemaId
-        }
         syncId <- syncIdProvider.syncId()
-        request = TarantoolRequest(op, syncId, schemaId, body)
+        request = TarantoolRequest(op, syncId, body)
         _ <- logger.debug(s"Submit operation: $syncId")
         operation <- requestHandler.submitRequest(request)
         packet <- TarantoolRequest.createPacket(request)
