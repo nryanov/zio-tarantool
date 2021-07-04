@@ -5,12 +5,10 @@ import zio.test.Assertion._
 import zio.tarantool.ScalacheckInterop._
 import zio.tarantool.Generators._
 import zio.tarantool.TarantoolError
-import zio.tarantool.protocol.Implicits._
-import zio.tarantool.msgpack.{Encoder, MessagePack, MessagePackCodec, MpPositiveFixInt}
+import zio.tarantool.msgpack.{Encoder, MessagePack, MpPositiveFixInt}
 import java.nio.ByteBuffer
 
-import scodec.bits.{BitVector, ByteVector}
-import zio.IO
+import scodec.bits.ByteVector
 import zio.test.TestAspect.sequential
 
 object MessagePackPacketSpec extends DefaultRunnableSpec {
@@ -38,7 +36,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
         )
       )
       val result = MessagePackPacket.extractCode(packet)
-      assertM(result)(equalTo(ResponseCode.Success.value.toLong))
+      assertM(result)(equalTo(ResponseCode.Success))
     },
     testM("should fail with ProtocolError when trying to extract not existing code") {
       val packet =
@@ -60,7 +58,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
         )
       )
       val result = MessagePackPacket.extractCode(packet)
-      assertM(result)(equalTo(0x0123.toLong))
+      assertM(result)(equalTo(ResponseCode.Error(0x0123)))
     },
     testM("should fail with ProtocolError when trying to extract incorrect error code") {
       val packet = MessagePackPacket(

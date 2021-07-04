@@ -47,18 +47,17 @@ object MessagePackPacket {
         IO.succeed(ResponseType.ErrorResponse)
       case mp if mp.contains(ResponseBodyKey.Error.value) => IO.succeed(ResponseType.ErrorResponse)
       case mp if mp.isEmpty                               => IO.succeed(ResponseType.PingResponse)
-      case _                                              => IO.fail(TarantoolError.OperationException("Unknown response type"))
+      case _                                              => IO.fail(TarantoolError.UnknownResponseCode(packet))
     }
 
-  // todo: return ResponseCode instead of long. Throw error if code is unknown
-  def extractCode(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
+  def extractCode(packet: MessagePackPacket): IO[TarantoolError, ResponseCode] = for {
     codeMp <- ZIO
       .fromOption(packet.header.get(Header.Code.value))
       .orElseFail(
         TarantoolError.ProtocolError(s"Packet has no Code in header (${packet.header})")
       )
-    codeValue <- Encoder.longEncoder.decodeM(codeMp)
-    code <- if (codeValue == 0) ZIO.succeed(codeValue) else extractErrorCode(codeValue)
+    codeValue <- Encoder.intEncoder.decodeM(codeMp)
+    code <- if (codeValue == 0) ZIO.succeed(ResponseCode.Success) else extractErrorCode(codeValue)
   } yield code
 
   def extractError(
@@ -107,11 +106,11 @@ object MessagePackPacket {
         )
     } yield value
 
-  private def extractErrorCode(code: Long): ZIO[Any, TarantoolError.ProtocolError, Long] =
-    if ((code & ResponseCode.ErrorTypeMarker.value) == 0) {
+  private def extractErrorCode(code: Int): ZIO[Any, TarantoolError.ProtocolError, ResponseCode] =
+    if ((code & ResponseCode.errorTypeMarker) == 0) {
       ZIO.fail(TarantoolError.ProtocolError(s"Code $code does not follow 0x8XXX format"))
     } else {
-      ZIO.succeed(~ResponseCode.ErrorTypeMarker.value & code)
+      ZIO.succeed(ResponseCode.Error(~ResponseCode.errorTypeMarker & code))
     }
 
   private def encodePacket(packet: MessagePackPacket): IO[TarantoolError.CodecError, BitVector] =

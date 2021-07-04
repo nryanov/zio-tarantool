@@ -35,13 +35,7 @@ object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
         } yield ()
 
         assertM(result.provideLayer(requestHandlerLayer).run)(
-          fails(
-            equalTo(
-              TarantoolError.OperationException(
-                "Operation with id 1 was already sent"
-              )
-            )
-          )
+          fails(equalTo(TarantoolError.DuplicateOperation(1)))
         )
       },
       testM("should complete request") {
@@ -58,7 +52,7 @@ object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
       testM("should fail request") {
         val result = for {
           operation <- RequestHandler.submitRequest(request)
-          _ <- RequestHandler.fail(1L, "some error")
+          _ <- RequestHandler.fail(1L, "some error", 0)
           doneStatus <- operation.response.await.run
         } yield assert(doneStatus.succeeded)(isFalse)
 
@@ -80,7 +74,7 @@ object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
       },
       testM("should throw error on failing request if request does not exist") {
         val result = for {
-          _ <- RequestHandler.fail(1L, "some error")
+          _ <- RequestHandler.fail(1L, "some error", 0)
         } yield ()
 
         assertM(result.provideLayer(requestHandlerLayer).run)(

@@ -68,17 +68,17 @@ private[tarantool] object ResponseHandler {
         _ <- logger.debug(s"Complete operation with id: $syncId")
         code <- MessagePackPacket.extractCode(packet)
         _ <- completeByCode(code, syncId, packet).tapError(err =>
-          requestHandler.fail(syncId, err.getLocalizedMessage)
+          requestHandler.fail(syncId, err.getLocalizedMessage, 0)
         )
       } yield ()
 
     private def completeByCode(
-      code: Long,
+      code: ResponseCode,
       syncId: Long,
       packet: MessagePackPacket
     ) = code match {
-      case ResponseCode.Success.value => completeSucceeded(syncId, packet)
-      case _                          => completeFailed(syncId, packet)
+      case ResponseCode.Success     => completeSucceeded(syncId, packet)
+      case ResponseCode.Error(code) => completeFailed(syncId, packet, code)
     }
 
     private def completeSucceeded(syncId: Long, packet: MessagePackPacket) = for {
@@ -95,13 +95,15 @@ private[tarantool] object ResponseHandler {
         case ResponseType.PingResponse =>
           requestHandler.complete(syncId, TarantoolResponse(PingData))
         case ResponseType.ErrorResponse =>
-          IO.fail(TarantoolError.OperationException("Unexpected error in packet with SUCCEED_CODE"))
-            .zipRight(completeFailed(syncId, packet))
+          // Unexpected error in packet with SUCCEED_CODE
+          completeFailed(syncId, packet, 0)
       }
     } yield ()
 
-    private def completeFailed(syncId: Long, packet: MessagePackPacket) =
-      MessagePackPacket.extractError(packet).flatMap(error => requestHandler.fail(syncId, error))
+    private def completeFailed(syncId: Long, packet: MessagePackPacket, errorCode: Int) =
+      MessagePackPacket
+        .extractError(packet)
+        .flatMap(error => requestHandler.fail(syncId, error, errorCode))
   }
 
 }

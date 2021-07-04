@@ -19,7 +19,7 @@ private[tarantool] object RequestHandler {
 
     def complete(syncId: Long, response: TarantoolResponse): IO[TarantoolError, Unit]
 
-    def fail(syncId: Long, reason: String): IO[TarantoolError, Unit]
+    def fail(syncId: Long, reason: String, errorCode: Int): IO[TarantoolError, Unit]
 
     def close(): UIO[Unit]
   }
@@ -46,13 +46,7 @@ private[tarantool] object RequestHandler {
         response <- Promise.make[TarantoolError, TarantoolResponse]
         operation = TarantoolOperation(request, response)
         notEmpty <- ZIO.effectTotal(awaitingRequestMap.put(request.syncId, operation).isDefined)
-        _ <- ZIO.when(notEmpty)(
-          ZIO.fail(
-            TarantoolError.OperationException(
-              s"Operation with id ${request.syncId} was already sent"
-            )
-          )
-        )
+        _ <- ZIO.when(notEmpty)(ZIO.fail(TarantoolError.DuplicateOperation(request.syncId)))
       } yield operation
 
     override def complete(syncId: Long, response: TarantoolResponse): IO[TarantoolError, Unit] =
@@ -63,20 +57,18 @@ private[tarantool] object RequestHandler {
         _ <- operation.response.succeed(response)
       } yield ()
 
-    override def fail(syncId: Long, reason: String): IO[TarantoolError, Unit] = for {
-      operation <- ZIO
-        .fromOption(awaitingRequestMap.remove(syncId))
-        .orElseFail(TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
-      _ <- operation.response.fail(TarantoolError.OperationException(reason))
-    } yield ()
+    override def fail(syncId: Long, reason: String, errorCode: Int): IO[TarantoolError, Unit] =
+      for {
+        operation <- ZIO
+          .fromOption(awaitingRequestMap.remove(syncId))
+          .orElseFail(TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
+        _ <- operation.response.fail(TarantoolError.OperationException(reason, errorCode))
+      } yield ()
 
     override def close(): UIO[Unit] = ZIO
       .foreach_(awaitingRequestMap.values)(op =>
-        op.response.fail(
-          TarantoolError.OperationException(
-            s"Operation ${op.request.syncId}:${op.request.operationCode} was declined"
-          )
-        )
+        op.response
+          .fail(TarantoolError.DeclinedOperation(op.request.syncId, op.request.operationCode))
       )
       .zipLeft(IO.effectTotal(awaitingRequestMap.clear()))
   }
