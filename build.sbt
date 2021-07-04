@@ -69,6 +69,12 @@ lazy val macroSettings: Seq[Setting[_]] = Seq(
   )
 )
 
+lazy val noPublish = Seq(
+  publish := {},
+  publishLocal := {},
+  publishArtifact := false
+)
+
 lazy val buildSettings = Seq(
   sonatypeProfileName := "com.nryanov",
   organization := "com.nryanov.tarantool",
@@ -83,7 +89,9 @@ lazy val buildSettings = Seq(
     )
   ),
   scalaVersion := scala2_13,
-  crossScalaVersions := Seq(scala2_12, scala2_13)
+  crossScalaVersions := Seq(scala2_12, scala2_13),
+  scalacOptions ++= compilerOptions(scalaVersion.value),
+  Test / parallelExecution := false
 )
 
 lazy val commonSettings = Seq(
@@ -91,30 +99,24 @@ lazy val commonSettings = Seq(
     // todo: remove unused dependencies
     "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     "org.scalatestplus" %% "scalacheck-1-14" % scalacheckPlusVersion % Test,
-    "org.scalamock" %% "scalamock" % scalamockVersion % Test,
     "org.scalacheck" %% "scalacheck" % scalacheckVersion % Test,
     "ch.qos.logback" % "logback-classic" % logbackVersion % Test
-  ),
-  scalacOptions ++= compilerOptions(scalaVersion.value),
-  organization := "",
-  scalaVersion := scala2_13,
-  crossScalaVersions := Seq(scala2_12, scala2_13),
-  Test / parallelExecution := false
+  )
 )
 
+lazy val allSettings = commonSettings ++ buildSettings ++ macroSettings
+
 lazy val zioTarantool =
-  project.in(file(".")).settings(skip in publish := true).aggregate(core)
+  project.in(file(".")).settings(noPublish).aggregate(core)
 
 lazy val core = project
   .in(file("core"))
-  .settings(commonSettings)
-  .settings(macroSettings)
+  .settings(allSettings)
   .settings(
     moduleName := "zio-tarantool-core",
     libraryDependencies ++= Seq(
       "org.scodec" %% "scodec-core" % scodecVersion,
       "org.scodec" %% "scodec-bits" % scodecBitsVersion,
-      "dev.zio" %% "zio" % zioVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
       "dev.zio" %% "zio-macros" % zioVersion, // todo: remove
       "dev.zio" %% "zio-logging" % zioLoggingVersion,

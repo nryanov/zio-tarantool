@@ -5,7 +5,7 @@ import zio.{Chunk, ChunkBuilder, ZRef}
 import zio.stream.ZTransducer
 import zio.tarantool.protocol.MessagePackPacket
 import zio.tarantool.codec.MessagePackPacketCodec
-import zio.tarantool.protocol.Implicits.{RichByteVector, RichMessagePack}
+import zio.tarantool.protocol.Implicits.RichByteVector
 
 private[tarantool] object ByteStream {
   private val MessageSizeLength = 5
@@ -46,7 +46,7 @@ private[tarantool] object ByteStream {
           // dataChunk length is enough to decode length part
           val (lengthChunk, dataRemainderChunk) = state.dataChunk.splitAt(MessageSizeLength)
           val vector = ByteVector.view(lengthChunk.toArray)
-          val length = vector.decodeUnsafe().toNumber.toInt
+          val length = vector.decodeUnsafe().toNumber()
           go(State(length, dataRemainderChunk), acc)
         } else {
           // dataChunk length is not enough to decode length part

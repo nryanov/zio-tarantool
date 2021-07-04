@@ -8,6 +8,7 @@ import zio.macros.accessible
 import zio.tarantool.protocol.{
   MessagePackPacket,
   RequestCode,
+  ResponseCode,
   TarantoolRequest,
   TarantoolRequestBody
 }
@@ -111,7 +112,7 @@ private[tarantool] object TarantoolConnection {
       .fromOption(responseOpt)
       .orElseFail(TarantoolError.ProtocolError("Something went wrong during auth"))
     code <- MessagePackPacket.extractCode(response)
-    _ <- ZIO.when(code != 0)(
+    _ <- ZIO.when(code != ResponseCode.Success)(
       MessagePackPacket
         .extractError(response)
         .flatMap(error => ZIO.fail(TarantoolError.AuthError(error)))
