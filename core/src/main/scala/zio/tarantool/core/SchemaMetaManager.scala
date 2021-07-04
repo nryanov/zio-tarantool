@@ -4,7 +4,6 @@ import zio._
 import zio.logging._
 import zio.duration._
 import zio.clock.Clock
-import zio.macros.accessible
 import zio.tarantool.protocol._
 import zio.tarantool.core.schema.SchemaEncoder._
 import zio.tarantool.msgpack.MpArray16
@@ -15,7 +14,6 @@ import zio.tarantool.core.SyncIdProvider.SyncIdProvider
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 
-@accessible[SchemaMetaManager.Service]
 private[tarantool] object SchemaMetaManager {
   type SchemaMetaManager = Has[Service]
 
@@ -28,6 +26,21 @@ private[tarantool] object SchemaMetaManager {
 
     def schemaId: UIO[Option[Long]]
   }
+
+  def getSpaceMeta(spaceName: String): ZIO[SchemaMetaManager, TarantoolError, SpaceMeta] =
+    ZIO.accessM[SchemaMetaManager](_.get.getSpaceMeta(spaceName))
+
+  def getIndexMeta(
+    spaceName: String,
+    indexName: String
+  ): ZIO[SchemaMetaManager, TarantoolError, IndexMeta] =
+    ZIO.accessM[SchemaMetaManager](_.get.getIndexMeta(spaceName, indexName))
+
+  def refresh(): ZIO[SchemaMetaManager, TarantoolError, Unit] =
+    ZIO.accessM[SchemaMetaManager](_.get.refresh)
+
+  def schemaId(): ZIO[SchemaMetaManager, Nothing, Option[Long]] =
+    ZIO.accessM[SchemaMetaManager](_.get.schemaId)
 
   val live: ZLayer[Has[
     TarantoolConfig

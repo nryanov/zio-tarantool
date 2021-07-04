@@ -4,7 +4,6 @@ import zio._
 import zio.stream._
 import zio.logging._
 import zio.clock.Clock
-import zio.macros.accessible
 import zio.tarantool.protocol.{
   MessagePackPacket,
   RequestCode,
@@ -20,7 +19,6 @@ import java.util.Base64
 import scodec.bits.ByteVector
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
 
-@accessible[TarantoolConnection.Service]
 private[tarantool] object TarantoolConnection {
 
   type TarantoolConnection = Has[Service]
@@ -32,6 +30,17 @@ private[tarantool] object TarantoolConnection {
 
     def receive(): Stream[TarantoolError, MessagePackPacket]
   }
+
+  def sendRequest(packet: MessagePackPacket): ZIO[TarantoolConnection, TarantoolError, Boolean] =
+    ZIO.accessM[TarantoolConnection](_.get.sendRequest(packet))
+
+  private[tarantool] def forceSendRequest(
+    packet: MessagePackPacket
+  ): ZIO[TarantoolConnection, TarantoolError, Unit] =
+    ZIO.accessM[TarantoolConnection](_.get.forceSendRequest(packet))
+
+  def receive(): ZStream[TarantoolConnection, TarantoolError, MessagePackPacket] =
+    ZStream.access[TarantoolConnection](_.get.receive()).flatten
 
   val live: ZLayer[Logging with Clock with SyncIdProvider with Has[
     TarantoolConfig

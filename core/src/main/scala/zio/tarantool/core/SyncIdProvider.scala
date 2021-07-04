@@ -1,19 +1,19 @@
 package zio.tarantool.core
 
 import zio._
-import zio.macros.accessible
 
 /**
  * Each request should has a unique SyncId number.
  * This class is responsible to generate unique sequence of SyncId for each request per connection.
  */
-@accessible[SyncIdProvider.Service]
 private[tarantool] object SyncIdProvider {
   type SyncIdProvider = Has[Service]
 
   trait Service {
     def syncId(): UIO[Long]
   }
+
+  def syncId(): ZIO[SyncIdProvider, Nothing, Long] = ZIO.accessM[SyncIdProvider](_.get.syncId())
 
   val live: ZLayer[Any, Nothing, SyncIdProvider] = ZLayer.fromManaged(make())
 

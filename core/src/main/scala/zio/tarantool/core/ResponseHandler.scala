@@ -2,14 +2,12 @@ package zio.tarantool.core
 
 import zio._
 import zio.logging._
-import zio.macros.accessible
 import zio.tarantool._
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 import zio.tarantool.msgpack.MpFixArray
 import zio.tarantool.protocol.{MessagePackPacket, ResponseCode, ResponseType, TarantoolResponse}
 
-@accessible[ResponseHandler.Service]
 private[tarantool] object ResponseHandler {
   type ResponseHandler = Has[Service]
 
@@ -18,6 +16,9 @@ private[tarantool] object ResponseHandler {
   trait Service extends Serializable {
     def start(): ZIO[Any, TarantoolError, Unit]
   }
+
+  def start(): ZIO[ResponseHandler, TarantoolError, Unit] =
+    ZIO.accessM[ResponseHandler](_.get.start())
 
   val live: ZLayer[
     TarantoolConnection with RequestHandler with Logging,

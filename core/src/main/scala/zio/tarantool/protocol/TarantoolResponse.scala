@@ -8,8 +8,10 @@ import zio.tarantool.msgpack.{MessagePack, MpArray}
 /**
  * @param messagePack - data returned in response
  */
+// todo: separate class for eval and sql?
 final case class TarantoolResponse(messagePack: MessagePack) {
 
+  // todo: return IO[???, A]
   /** use this method to get actual value after `eval` */
   def value[A](implicit encoder: TupleEncoder[A]): Task[Attempt[A]] =
     ZIO.effect(messagePack match {
@@ -21,6 +23,7 @@ final case class TarantoolResponse(messagePack: MessagePack) {
   def valueUnsafe[A](implicit encoder: TupleEncoder[A]): ZIO[Any, Throwable, A] =
     value.map(_.require)
 
+  // todo: return IO[???, A]
   /** use this method to get actual data after CRUD operations */
   def data[A](implicit
     encoder: TupleEncoder[A]

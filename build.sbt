@@ -118,7 +118,6 @@ lazy val core = project
       "org.scodec" %% "scodec-core" % scodecVersion,
       "org.scodec" %% "scodec-bits" % scodecBitsVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
-      "dev.zio" %% "zio-macros" % zioVersion, // todo: remove
       "dev.zio" %% "zio-logging" % zioLoggingVersion,
       "dev.zio" %% "zio-logging-slf4j" % zioLoggingVersion % Test,
       "dev.zio" %% "zio-test" % zioVersion % Test,

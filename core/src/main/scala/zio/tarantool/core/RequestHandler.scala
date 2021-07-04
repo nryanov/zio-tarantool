@@ -2,13 +2,11 @@ package zio.tarantool.core
 
 import zio._
 import zio.logging._
-import zio.macros.accessible
 import zio.tarantool.TarantoolError
 import zio.tarantool.protocol.{TarantoolOperation, TarantoolRequest, TarantoolResponse}
 
 import scala.collection.concurrent.TrieMap
 
-@accessible[RequestHandler.Service]
 private[tarantool] object RequestHandler {
   type RequestHandler = Has[Service]
 
@@ -23,6 +21,28 @@ private[tarantool] object RequestHandler {
 
     def close(): UIO[Unit]
   }
+
+  def submitRequest(
+    request: TarantoolRequest
+  ): ZIO[RequestHandler, TarantoolError, TarantoolOperation] =
+    ZIO.accessM[RequestHandler](_.get.submitRequest(request))
+
+  def complete(
+    syncId: Long,
+    response: TarantoolResponse
+  ): ZIO[RequestHandler, TarantoolError, Unit] =
+    ZIO.accessM[RequestHandler](_.get.complete(syncId, response))
+
+  def fail(
+    syncId: Long,
+    reason: String,
+    errorCode: Int
+  ): ZIO[RequestHandler, TarantoolError, Unit] =
+    ZIO.accessM[RequestHandler](_.get.fail(syncId, reason, errorCode))
+
+  def close(
+  ): ZIO[RequestHandler, Nothing, Unit] =
+    ZIO.accessM[RequestHandler](_.get.close())
 
   val live: ZLayer[Logging, TarantoolError, RequestHandler] = make().toLayer
 
