@@ -187,6 +187,7 @@ object Encoder {
 
   implicit val stringEncoder: Encoder[String] = new Encoder[String] {
     override def encode(v: String): Attempt[MessagePack] = {
+      // todo: v.getBytes.length
       val len = v.length
       if (len < (1 << 5)) {
         Attempt.successful(MpFixString(v))

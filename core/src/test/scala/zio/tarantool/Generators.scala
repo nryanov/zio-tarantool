@@ -1,30 +1,36 @@
 package zio.tarantool
 
-import org.scalacheck.Gen
+import zio.test._
+import zio.random.Random
 
 object Generators {
-  def nonEmptyString(maxLen: Int): Gen[String] =
-    Gen.alphaStr.suchThat(str => str.nonEmpty && str.length <= maxLen)
+  def nonEmptyString(maxLen: Int): Gen[Random, String] =
+    Gen.stringBounded(0, maxLen)(Gen.alphaNumericChar)
 
-  def bool(): Gen[Boolean] = Gen.oneOf(true, false)
+  def bool(): Gen[Random, Boolean] = Gen.boolean
 
-  def listOf[A](maxSize: Int, gen: Gen[A]): Gen[List[A]] = Gen.listOfN(maxSize, gen)
+  def listOf[A](maxSize: Int, gen: Gen[Random, A]): Gen[Random, List[A]] =
+    Gen.listOfBounded(0, maxSize)(gen)
 
-  def nonEmptyListOf[A](maxSize: Int, gen: Gen[A]): Gen[List[A]] =
-    listOf(maxSize, gen).suchThat(_.nonEmpty)
+  def nonEmptyListOf[A](maxSize: Int, gen: Gen[Random, A]): Gen[Random, List[A]] =
+    Gen.listOfBounded(1, maxSize)(gen)
 
-  def mapOf[A, B](maxSize: Int, key: Gen[A], value: Gen[B]): Gen[Map[A, B]] =
-    Gen.mapOfN(maxSize, key.flatMap(k => value.map(v => (k, v))))
+  def mapOf[A, B](
+    maxSize: Int,
+    key: Gen[Random, A],
+    value: Gen[Random, B]
+  ): Gen[Random, Map[A, B]] =
+    Gen.mapOfBounded(0, maxSize)(key, value)
 
-  def byte(): Gen[Byte] = Gen.chooseNum(Byte.MinValue, Byte.MaxValue)
+  def byte(): Gen[Random, Byte] = Gen.anyByte
 
-  def short(): Gen[Short] = Gen.chooseNum(Short.MinValue, Short.MaxValue)
+  def short(): Gen[Random, Short] = Gen.anyShort
 
-  def int(): Gen[Int] = Gen.chooseNum(Int.MinValue, Int.MaxValue)
+  def int(): Gen[Random, Int] = Gen.anyInt
 
-  def long(): Gen[Long] = Gen.chooseNum(Long.MinValue, Long.MaxValue)
+  def long(): Gen[Random, Long] = Gen.anyLong
 
-  def float(): Gen[Float] = Gen.chooseNum(Float.MinValue, Float.MaxValue)
+  def float(): Gen[Random, Float] = Gen.anyFloat
 
-  def double(): Gen[Double] = Gen.chooseNum(Double.MinValue, Double.MaxValue)
+  def double(): Gen[Random, Double] = Gen.anyDouble
 }

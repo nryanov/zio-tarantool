@@ -1,100 +1,100 @@
 package zio.tarantool.codec
 
-import org.scalatest.OptionValues
-import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import scodec.bits.ByteVector
-import zio.tarantool.BaseSpec
+import zio.ZIO
+import zio.test._
+import zio.test.Assertion._
 import zio.tarantool.Generators._
+import zio.tarantool.TarantoolError
 import zio.tarantool.msgpack.MpFixArray
+import zio.test.DefaultRunnableSpec
+import zio.tarantool.protocol.Implicits._
 
-class TupleEncoderSpec extends BaseSpec with ScalaCheckPropertyChecks with OptionValues {
-  "TupleEncoder for primitive types" should {
-    "encode/decode unit" in {
-      val tupleEncoder: TupleEncoder[Unit] = TupleEncoder[Unit]
+object TupleEncoderSpec extends DefaultRunnableSpec {
+  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+    suite("TupleEncoder for primitive types")(
+      testM("encode/decode unit") {
+        val tupleEncoder: TupleEncoder[Unit] = TupleEncoder[Unit]
 
-      val encoded = tupleEncoder.encode(()).toOption.value
-      val decoded: Unit = tupleEncoder.decode(encoded, 0).toOption.value
-
-      encoded shouldBe MpFixArray(Vector.empty)
-      decoded shouldBe (())
-    }
-
-    "encode/decode byte" in {
-      forAll(byte()) { value =>
-        val tupleEncoder: TupleEncoder[Byte] = TupleEncoder[Byte]
-        checkTupleEncoder(value, tupleEncoder)
+        for {
+          encoded <- tupleEncoder.encodeM(())
+          decoded <- tupleEncoder.decodeM(encoded, 0)
+        } yield assert(encoded)(equalTo(MpFixArray(Vector.empty))) && assert(decoded)(isUnit)
+      },
+      testM("encode/decode byte") {
+        checkM(byte()) { value =>
+          val tupleEncoder: TupleEncoder[Byte] = TupleEncoder[Byte]
+          checkTupleEncoder(value, tupleEncoder)
+        }
+      },
+      testM("encode/decode short") {
+        checkM(short()) { value =>
+          val tupleEncoder: TupleEncoder[Short] = TupleEncoder[Short]
+          checkTupleEncoder(value, tupleEncoder)
+        }
+      },
+      testM("encode/decode int") {
+        checkM(int()) { value =>
+          val tupleEncoder: TupleEncoder[Int] = TupleEncoder[Int]
+          checkTupleEncoder(value, tupleEncoder)
+        }
+      },
+      testM("encode/decode long") {
+        checkM(long()) { value =>
+          val tupleEncoder: TupleEncoder[Long] = TupleEncoder[Long]
+          checkTupleEncoder(value, tupleEncoder)
+        }
+      },
+      testM("encode/decode float") {
+        checkM(float()) { value =>
+          val tupleEncoder: TupleEncoder[Float] = TupleEncoder[Float]
+          checkTupleEncoder(value, tupleEncoder)
+        }
+      },
+      testM("encode/decode double") {
+        checkM(double()) { value =>
+          val tupleEncoder: TupleEncoder[Double] = TupleEncoder[Double]
+          checkTupleEncoder(value, tupleEncoder)
+        }
+      },
+      testM("encode/decode boolean") {
+        checkM(bool()) { value =>
+          val tupleEncoder: TupleEncoder[Boolean] = TupleEncoder[Boolean]
+          checkTupleEncoder(value, tupleEncoder)
+        }
+      },
+      testM("encode/decode string") {
+        checkM(nonEmptyString(64)) { value =>
+          val tupleEncoder: TupleEncoder[String] = TupleEncoder[String]
+          checkTupleEncoder(value, tupleEncoder)
+        }
+      },
+      testM("encode/decode map") {
+        checkM(mapOf(32, long(), int())) { value =>
+          val tupleEncoder: TupleEncoder[Map[Long, Int]] = TupleEncoder[Map[Long, Int]]
+          checkTupleEncoder(value, tupleEncoder)
+        }
+      },
+      testM("encode/decode byte array") {
+        checkM(nonEmptyListOf(32, byte())) { value =>
+          val tupleEncoder: TupleEncoder[ByteVector] = TupleEncoder[ByteVector]
+          checkTupleEncoder(ByteVector(value), tupleEncoder)
+        }
+      },
+      testM("encode/decode vector") {
+        checkM(nonEmptyListOf(32, int())) { value =>
+          val tupleEncoder: TupleEncoder[Vector[Int]] = TupleEncoder[Vector[Int]]
+          checkTupleEncoder(value.toVector, tupleEncoder)
+        }
       }
-    }
+    )
 
-    "encode/decode short" in {
-      forAll(short()) { value =>
-        val tupleEncoder: TupleEncoder[Short] = TupleEncoder[Short]
-        checkTupleEncoder(value, tupleEncoder)
-      }
-    }
-
-    "encode/decode int" in {
-      forAll(int()) { value =>
-        val tupleEncoder: TupleEncoder[Int] = TupleEncoder[Int]
-        checkTupleEncoder(value, tupleEncoder)
-      }
-    }
-
-    "encode/decode long" in {
-      forAll(long()) { value =>
-        val tupleEncoder: TupleEncoder[Long] = TupleEncoder[Long]
-        checkTupleEncoder(value, tupleEncoder)
-      }
-    }
-
-    "encode/decode float" in {
-      forAll(float()) { value =>
-        val tupleEncoder: TupleEncoder[Float] = TupleEncoder[Float]
-        checkTupleEncoder(value, tupleEncoder)
-      }
-    }
-
-    "encode/decode double" in {
-      forAll(double()) { value =>
-        val tupleEncoder: TupleEncoder[Double] = TupleEncoder[Double]
-        checkTupleEncoder(value, tupleEncoder)
-      }
-    }
-
-    "encode/decode string" in {
-      forAll(nonEmptyString(256)) { value =>
-        val tupleEncoder: TupleEncoder[String] = TupleEncoder[String]
-        checkTupleEncoder(value, tupleEncoder)
-      }
-    }
-
-    "encode/decode map" in {
-      forAll(mapOf(32, long(), int())) { value =>
-        val tupleEncoder: TupleEncoder[Map[Long, Int]] = TupleEncoder[Map[Long, Int]]
-        checkTupleEncoder(value, tupleEncoder)
-      }
-    }
-
-    "encode/decode byte array" in {
-      forAll(nonEmptyListOf(32, byte())) { value =>
-        val tupleEncoder: TupleEncoder[ByteVector] = TupleEncoder[ByteVector]
-        checkTupleEncoder(ByteVector(value), tupleEncoder)
-      }
-    }
-
-    "encode/decode vector" in {
-      forAll(nonEmptyListOf(32, int())) { value =>
-        val tupleEncoder: TupleEncoder[Vector[Int]] = TupleEncoder[Vector[Int]]
-        checkTupleEncoder(value.toVector, tupleEncoder)
-      }
-    }
-  }
-
-  private def checkTupleEncoder[A](value: A, tupleEncoder: TupleEncoder[A]) = {
-    val encoded = tupleEncoder.encode(value).toOption.value
-    val decoded = tupleEncoder.decode(encoded, 0).toOption.value
-
-    encoded.value.size shouldBe 1
-    decoded shouldBe value
-  }
+  private def checkTupleEncoder[A](
+    value: A,
+    tupleEncoder: TupleEncoder[A]
+  ): ZIO[Any, TarantoolError.CodecError, BoolAlgebra[FailureDetails]] =
+    for {
+      encoded <- tupleEncoder.encodeM(value)
+      decoded <- tupleEncoder.decodeM(encoded, 0)
+    } yield assert(encoded.value)(hasSize(equalTo(1))) && assert(decoded)(equalTo(value))
 }

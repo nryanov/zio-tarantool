@@ -3,12 +3,7 @@ val zioLoggingVersion = "0.5.4"
 val scodecVersion = "1.11.7"
 val scodecBitsVersion = "1.1.17"
 val shapelessVersion = "2.3.3"
-val scalatestVersion = "3.2.0"
-val scalacheckPlusVersion = "3.2.0.0"
-val scalamockVersion = "5.0.0"
-val scalacheckVersion = "1.14.3"
 val testContainersVersion = "0.39.1"
-val logbackVersion = "1.2.3"
 val paradiseVersion = "2.1.1"
 
 val scala2_12 = "2.12.13"
@@ -94,17 +89,7 @@ lazy val buildSettings = Seq(
   Test / parallelExecution := false
 )
 
-lazy val commonSettings = Seq(
-  libraryDependencies ++= Seq(
-    // todo: remove unused dependencies
-    "org.scalatest" %% "scalatest" % scalatestVersion % Test,
-    "org.scalatestplus" %% "scalacheck-1-14" % scalacheckPlusVersion % Test,
-    "org.scalacheck" %% "scalacheck" % scalacheckVersion % Test,
-    "ch.qos.logback" % "logback-classic" % logbackVersion % Test
-  )
-)
-
-lazy val allSettings = commonSettings ++ buildSettings ++ macroSettings
+lazy val allSettings = buildSettings ++ macroSettings
 
 lazy val zioTarantool =
   project.in(file(".")).settings(noPublish).aggregate(core)
@@ -119,7 +104,6 @@ lazy val core = project
       "org.scodec" %% "scodec-bits" % scodecBitsVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
       "dev.zio" %% "zio-logging" % zioLoggingVersion,
-      "dev.zio" %% "zio-logging-slf4j" % zioLoggingVersion % Test,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
       "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test

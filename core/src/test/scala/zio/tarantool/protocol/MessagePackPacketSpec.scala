@@ -2,7 +2,6 @@ package zio.tarantool.protocol
 
 import zio.test._
 import zio.test.Assertion._
-import zio.tarantool.ScalacheckInterop._
 import zio.tarantool.Generators._
 import zio.tarantool.TarantoolError
 import zio.tarantool.msgpack.{Encoder, MessagePack, MpPositiveFixInt}
@@ -155,7 +154,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
 
   private val messagePAckPacketEncodingSuite = suite("encode packet")(
     testM("encode/decode byte") {
-      checkM(byte().toGenZIO) { value =>
+      checkM(byte()) { value =>
         val encoded =
           Encoder[Byte].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
 
@@ -165,7 +164,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       }
     },
     testM("encode/decode short") {
-      checkM(short().toGenZIO) { value =>
+      checkM(short()) { value =>
         val encoded =
           Encoder[Short].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
 
@@ -175,7 +174,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       }
     },
     testM("encode/decode int") {
-      checkM(int().toGenZIO) { value =>
+      checkM(int()) { value =>
         val encoded =
           Encoder[Int].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
 
@@ -185,7 +184,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       }
     },
     testM("encode/decode long") {
-      checkM(long().toGenZIO) { value =>
+      checkM(long()) { value =>
         val encoded =
           Encoder[Long].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
 
@@ -195,7 +194,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       }
     },
     testM("encode/decode float") {
-      checkM(float().toGenZIO) { value =>
+      checkM(float()) { value =>
         val encoded =
           Encoder[Float].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
 
@@ -205,7 +204,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       }
     },
     testM("encode/decode double") {
-      checkM(double().toGenZIO) { value =>
+      checkM(double()) { value =>
         val encoded =
           Encoder[Double].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
 
@@ -215,7 +214,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       }
     },
     testM("encode/decode string") {
-      checkM(nonEmptyString(64).toGenZIO) { value =>
+      checkM(nonEmptyString(64)) { value =>
         val encoded =
           Encoder[String].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
 
@@ -225,7 +224,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       }
     },
     testM("encode/decode boolean") {
-      checkM(bool().toGenZIO) { value =>
+      checkM(bool()) { value =>
         val encoded =
           Encoder[Boolean].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
 
@@ -235,7 +234,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       }
     },
     testM("encode/decode binary") {
-      checkM(listOf(10, byte()).toGenZIO) { value =>
+      checkM(listOf(10, byte())) { value =>
         val encoded =
           Encoder[ByteVector]
             .encode(ByteVector(value))
@@ -247,7 +246,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       }
     },
     testM("encode/decode vector") {
-      checkM(listOf(32, org.scalacheck.Gen.alphaStr).toGenZIO) { value =>
+      checkM(listOf(32, nonEmptyString(64))) { value =>
         val encoded =
           Encoder[Vector[String]]
             .encode(value.toVector)
@@ -259,7 +258,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       }
     },
     testM("encode/decode map") {
-      checkM(mapOf(32, int(), int()).toGenZIO) { value =>
+      checkM(mapOf(32, int(), int())) { value =>
         val encoded =
           Encoder[Map[Int, Int]]
             .encode(value)
