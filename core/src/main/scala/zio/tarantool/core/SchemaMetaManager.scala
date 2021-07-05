@@ -166,8 +166,8 @@ private[tarantool] object SchemaMetaManager {
       spacesOp: TarantoolResponse,
       indexesOp: TarantoolResponse
     ) = for {
-      spaces <- spacesOp.dataUnsafe[SpaceMeta].mapError(TarantoolError.CodecError)
-      indexes <- indexesOp.dataUnsafe[IndexMeta].mapError(TarantoolError.CodecError)
+      spaces <- spacesOp.resultSet[SpaceMeta]
+      indexes <- indexesOp.resultSet[IndexMeta]
       groupedIndexes = indexes.groupBy(_.spaceId)
       mappedSpaceMeta = spaces.map(meta => meta.spaceId -> meta).toMap.map {
         case (spaceId, spaceMeta) =>

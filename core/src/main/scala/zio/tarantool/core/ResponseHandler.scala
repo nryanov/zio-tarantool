@@ -6,7 +6,7 @@ import zio.tarantool._
 import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 import zio.tarantool.msgpack.MpFixArray
-import zio.tarantool.protocol.{MessagePackPacket, ResponseCode, ResponseType, TarantoolResponse}
+import zio.tarantool.protocol.{MessagePackPacket, ResponseCode, ResponseType}
 
 private[tarantool] object ResponseHandler {
   type ResponseHandler = Has[Service]
@@ -77,31 +77,38 @@ private[tarantool] object ResponseHandler {
       code: ResponseCode,
       syncId: Long,
       packet: MessagePackPacket
-    ) = code match {
+    ): IO[TarantoolError, Unit] = code match {
       case ResponseCode.Success     => completeSucceeded(syncId, packet)
       case ResponseCode.Error(code) => completeFailed(syncId, packet, code)
     }
 
-    private def completeSucceeded(syncId: Long, packet: MessagePackPacket) = for {
+    private def completeSucceeded(
+      syncId: Long,
+      packet: MessagePackPacket
+    ): IO[TarantoolError, Unit] = for {
       responseType <- MessagePackPacket.responseType(packet)
       _ <- responseType match {
         case ResponseType.DataResponse =>
           MessagePackPacket
             .extractData(packet)
-            .flatMap(data => requestHandler.complete(syncId, TarantoolResponse(data)))
+            .flatMap(data => requestHandler.complete(syncId, data))
         case ResponseType.SqlResponse =>
           MessagePackPacket
             .extractSql(packet)
-            .flatMap(data => requestHandler.complete(syncId, TarantoolResponse(data)))
+            .flatMap(data => requestHandler.complete(syncId, data))
         case ResponseType.PingResponse =>
-          requestHandler.complete(syncId, TarantoolResponse(PingData))
+          requestHandler.complete(syncId, PingData)
         case ResponseType.ErrorResponse =>
           // Unexpected error in packet with SUCCEED_CODE
           completeFailed(syncId, packet, 0)
       }
     } yield ()
 
-    private def completeFailed(syncId: Long, packet: MessagePackPacket, errorCode: Int) =
+    private def completeFailed(
+      syncId: Long,
+      packet: MessagePackPacket,
+      errorCode: Int
+    ): IO[TarantoolError, Unit] =
       MessagePackPacket
         .extractError(packet)
         .flatMap(error => requestHandler.fail(syncId, error, errorCode))

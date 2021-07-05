@@ -6,7 +6,7 @@ import zio.test.Assertion._
 import zio.tarantool.msgpack.MpPositiveFixInt
 import zio.test.TestAspect.{sequential, timeout}
 import zio.tarantool.{BaseLayers, TarantoolError}
-import zio.tarantool.protocol.{Header, RequestCode, TarantoolRequest, TarantoolResponse}
+import zio.tarantool.protocol.{Header, RequestCode, TarantoolRequest}
 
 object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
   val request: TarantoolRequest = TarantoolRequest(
@@ -39,11 +39,9 @@ object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
         )
       },
       testM("should complete request") {
-        val response = TarantoolResponse(MpPositiveFixInt(1))
-
         val result = for {
           operation <- RequestHandler.submitRequest(request)
-          _ <- RequestHandler.complete(1L, response)
+          _ <- RequestHandler.complete(1L, MpPositiveFixInt(1))
           isDone <- operation.isDone
         } yield assert(isDone)(isTrue)
 
@@ -59,9 +57,8 @@ object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
         result.provideLayer(requestHandlerLayer)
       },
       testM("should throw error on completing request if request does not exist") {
-        val response = TarantoolResponse(MpPositiveFixInt(1))
         val result = for {
-          _ <- RequestHandler.complete(1L, response)
+          _ <- RequestHandler.complete(1L, MpPositiveFixInt(1))
         } yield ()
 
         assertM(result.provideLayer(requestHandlerLayer).run)(

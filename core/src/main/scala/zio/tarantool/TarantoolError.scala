@@ -26,6 +26,7 @@ object TarantoolError {
   final case class ProtocolError(message: String) extends TarantoolError(message, null)
   final case class CodecError(exception: Throwable)
       extends TarantoolError(exception.getLocalizedMessage, exception)
+  case object EmptyResultSet extends TarantoolError("Empty result set", null)
   final case class IOError(exception: IOException)
       extends TarantoolError(exception.getLocalizedMessage, exception)
   final case class Timeout(message: String) extends TarantoolError(message, null)

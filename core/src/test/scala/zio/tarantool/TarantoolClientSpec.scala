@@ -128,9 +128,7 @@ object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
   )
 
   private def getSpaceId(): ZIO[Any with Clock with TarantoolClient, Throwable, Int] =
-    TarantoolClient
-      .eval("return box.space.test.id")
-      .flatMap(_.response.await.flatMap(_.valueUnsafe[Int]))
+    TarantoolClient.eval("return box.space.test.id").flatMap(_.response.await.flatMap(_.head[Int]))
 
   private def executeSqlStatement() = for {
     query1 <- TarantoolClient.execute(
@@ -147,10 +145,10 @@ object TarantoolClientSpec extends DefaultRunnableSpec with BaseLayers {
     operation.response.await
 
   private def awaitResponseValue[A: TupleEncoder](operation: TarantoolOperation) =
-    awaitResponse(operation).flatMap(_.valueUnsafe[A])
+    awaitResponse(operation).flatMap(_.head[A])
 
   private def awaitResponseData[A: TupleEncoder](operation: TarantoolOperation) =
-    awaitResponse(operation).flatMap(_.dataUnsafe[A])
+    awaitResponse(operation).flatMap(_.resultSet[A])
 
   private def createSpace(): ZIO[Logging with TarantoolClient, Throwable, Unit] = for {
     _ <- Logging.info("Create test space if not exist")

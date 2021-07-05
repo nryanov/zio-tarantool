@@ -3,7 +3,9 @@ package zio.tarantool.core
 import zio._
 import zio.logging._
 import zio.tarantool.TarantoolError
-import zio.tarantool.protocol.{TarantoolOperation, TarantoolRequest, TarantoolResponse}
+import zio.tarantool.msgpack.MessagePack
+import zio.tarantool.protocol.TarantoolResponse.{TarantoolDataResponse, TarantoolEvalResponse}
+import zio.tarantool.protocol.{RequestCode, TarantoolOperation, TarantoolRequest, TarantoolResponse}
 
 import scala.collection.concurrent.TrieMap
 
@@ -15,7 +17,7 @@ private[tarantool] object RequestHandler {
 
     def submitRequest(request: TarantoolRequest): IO[TarantoolError, TarantoolOperation]
 
-    def complete(syncId: Long, response: TarantoolResponse): IO[TarantoolError, Unit]
+    def complete(syncId: Long, response: MessagePack): IO[TarantoolError, Unit]
 
     def fail(syncId: Long, reason: String, errorCode: Int): IO[TarantoolError, Unit]
 
@@ -29,7 +31,7 @@ private[tarantool] object RequestHandler {
 
   def complete(
     syncId: Long,
-    response: TarantoolResponse
+    response: MessagePack
   ): ZIO[RequestHandler, TarantoolError, Unit] =
     ZIO.accessM[RequestHandler](_.get.complete(syncId, response))
 
@@ -69,12 +71,16 @@ private[tarantool] object RequestHandler {
         _ <- ZIO.when(notEmpty)(ZIO.fail(TarantoolError.DuplicateOperation(request.syncId)))
       } yield operation
 
-    override def complete(syncId: Long, response: TarantoolResponse): IO[TarantoolError, Unit] =
+    override def complete(syncId: Long, response: MessagePack): IO[TarantoolError, Unit] =
       for {
         operation <- ZIO
           .fromOption(awaitingRequestMap.remove(syncId))
           .orElseFail(TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
-        _ <- operation.response.succeed(response)
+        _ <- operation.request.operationCode match {
+          case RequestCode.Eval => // todo: Call ?
+            operation.response.succeed(TarantoolEvalResponse(response))
+          case _ => operation.response.succeed(TarantoolDataResponse(response))
+        }
       } yield ()
 
     override def fail(syncId: Long, reason: String, errorCode: Int): IO[TarantoolError, Unit] =
