@@ -7,7 +7,6 @@ import zio.tarantool.Generators._
 import zio.test.{DefaultRunnableSpec, ZSpec}
 import zio.tarantool.protocol.Implicits._
 
-// todo: test encoding like MpUint8, MpUint16, etc
 object EncoderSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] = suite("Encoder")(
     testM("encode/decode byte") {

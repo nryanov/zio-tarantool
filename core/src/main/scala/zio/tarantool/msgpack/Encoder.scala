@@ -1,5 +1,7 @@
 package zio.tarantool.msgpack
 
+import java.nio.charset.StandardCharsets
+
 import scodec.{Attempt, Codec, Err}
 import scodec.bits.ByteVector
 
@@ -187,8 +189,7 @@ object Encoder {
 
   implicit val stringEncoder: Encoder[String] = new Encoder[String] {
     override def encode(v: String): Attempt[MessagePack] = {
-      // todo: v.getBytes.length
-      val len = v.length
+      val len = v.getBytes(StandardCharsets.UTF_8).length
       if (len < (1 << 5)) {
         Attempt.successful(MpFixString(v))
       } else if (len < (1 << 8)) {
