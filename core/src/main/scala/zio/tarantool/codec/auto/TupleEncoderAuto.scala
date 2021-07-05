@@ -28,7 +28,6 @@ trait LowPriorityInstances extends LowestPriorityInstances {
   }
 
   implicit def hlistEncoder[K <: Symbol, H, T <: HList](implicit
-    witness: Witness.Aux[K],
     hEncoder: Lazy[TupleEncoder[H]],
     tEncoder: Lazy[TupleEncoder[T]]
   ): TupleEncoder[FieldType[K, H] :: T] = new TupleEncoder[FieldType[K, H] :: T] {
@@ -64,11 +63,12 @@ trait LowestPriorityInstances {
       case None            => Attempt.successful(MpFixArray(Vector.empty))
     }
 
-    override def decode(v: MpArray, idx: Int): Attempt[Option[A]] = v match {
-      case msg: MpArray if msg.value.nonEmpty =>
-        hEncoder.value.decode(msg, idx).map(_.map(gen.from))
-      case msg: MpArray if msg.value.isEmpty => Attempt.successful(None)
-    }
+    override def decode(v: MpArray, idx: Int): Attempt[Option[A]] =
+      if (v.value.nonEmpty) {
+        hEncoder.value.decode(v, idx).map(_.map(gen.from))
+      } else {
+        Attempt.successful(None)
+      }
   }
 
   implicit val hnilOptionEncoder: TupleEncoder[Option[HNil]] = new TupleEncoder[Option[HNil]] {
@@ -80,7 +80,6 @@ trait LowestPriorityInstances {
   }
 
   implicit def hlistOptionEncoder1[K <: Symbol, H, T <: HList](implicit
-    witness: Witness.Aux[K],
     hEncoder: Lazy[TupleEncoder[Option[H]]],
     tEncoder: Lazy[TupleEncoder[Option[T]]],
     notOption: H <:!< Option[Z] forSome { type Z }
@@ -114,7 +113,6 @@ trait LowestPriorityInstances {
   }
 
   implicit def hlistOptionEncoder2[K <: Symbol, H, T <: HList](implicit
-    witness: Witness.Aux[K],
     hEncoder: Lazy[TupleEncoder[Option[H]]],
     tEncoder: Lazy[TupleEncoder[Option[T]]]
   ): TupleEncoder[Option[FieldType[K, Option[H]] :: T]] =

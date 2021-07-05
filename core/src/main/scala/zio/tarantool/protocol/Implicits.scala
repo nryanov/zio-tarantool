@@ -1,11 +1,10 @@
 package zio.tarantool.protocol
 
-import scodec.bits.{BitVector, ByteVector}
 import zio.{IO, ZIO}
+import scodec.bits.ByteVector
+import zio.tarantool.msgpack._
 import zio.tarantool.TarantoolError
 import zio.tarantool.codec.TupleEncoder
-import zio.tarantool.msgpack._
-import zio.tarantool.msgpack.MessagePackException.UnexpectedMessagePackType
 
 object Implicits {
   private[tarantool] implicit class RichEncoder[A](encoder: Encoder[A]) {

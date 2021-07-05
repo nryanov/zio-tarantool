@@ -29,7 +29,8 @@ def compilerOptions(scalaVersion: String): Seq[String] = Seq(
   "-Ywarn-dead-code",
   "-Xlint",
   "-language:existentials",
-  "-language:postfixOps"
+  "-language:postfixOps",
+  "-Xlint:_,-byname-implicit"
 //  "-Xlog-implicits"
 ) ++ (CrossVersion.partialVersion(scalaVersion) match {
   case Some((2, scalaMajor)) if scalaMajor == 12 => scala212CompilerOptions

@@ -34,10 +34,7 @@ object TupleEncoder {
     override def encode(v: A): Attempt[MpArray] =
       encoder.encode(v).map(res => MpFixArray(Vector(res)))
 
-    override def decode(v: MpArray, idx: Int): Attempt[A] = v match {
-      case array: MpArray => encoder.decode(array.value(idx))
-      case _              => Attempt.failure(Err(s"Error while unpacking tuple: $v"))
-    }
+    override def decode(v: MpArray, idx: Int): Attempt[A] = encoder.decode(v.value(idx))
   }
 
   implicit def fromEncoderOption[A](implicit encoder: Encoder[A]): TupleEncoder[Option[A]] =
