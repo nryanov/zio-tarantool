@@ -17,11 +17,7 @@ object SchemaMetaManagerSpec extends DefaultRunnableSpec with BaseLayers {
     (suite("SchemaMetaManager spec")(
       testM("should fail if space not found in cache") {
         assertM(SchemaMetaManager.getSpaceMeta("some space").run)(
-          fails(
-            equalTo(
-              TarantoolError.SpaceNotFound(s"Space some space not found in cache")
-            )
-          )
+          fails(equalTo(TarantoolError.SpaceNotFound("some space")))
         )
       },
       testM("should fetch spaces and indexes") {
@@ -40,13 +36,7 @@ object SchemaMetaManagerSpec extends DefaultRunnableSpec with BaseLayers {
         } yield ()
 
         assertM(result.run)(
-          fails(
-            equalTo(
-              TarantoolError.IndexNotFound(
-                "Index notExistingIndex not found in cache for space _vspace"
-              )
-            )
-          )
+          fails(equalTo(TarantoolError.IndexNotFound("_vspace", "notExistingIndex")))
         )
       }
     ) @@ sequential @@ timeout(30 seconds)).provideCustomLayerShared(testEnv.orDie)

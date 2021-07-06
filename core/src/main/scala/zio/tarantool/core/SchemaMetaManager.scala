@@ -129,7 +129,7 @@ private[tarantool] object SchemaMetaManager {
         cache <- spaceMetaMap.get
         meta <- IO.ifM(IO.effectTotal(cache.contains(spaceName)))(
           IO.effectTotal(cache(spaceName)),
-          IO.fail(SpaceNotFound(s"Space $spaceName not found in cache"))
+          IO.fail(SpaceNotFound(spaceName))
         )
       } yield meta
 
@@ -144,9 +144,8 @@ private[tarantool] object SchemaMetaManager {
       spaceName: String,
       indexName: String
     ): IO[TarantoolError, IndexMeta] =
-      IO.when(!space.indexes.contains(indexName))(
-        IO.fail(IndexNotFound(s"Index $indexName not found in cache for space $spaceName"))
-      ).as(space.indexes(indexName))
+      IO.when(!space.indexes.contains(indexName))(IO.fail(IndexNotFound(spaceName, indexName)))
+        .as(space.indexes(indexName))
 
     override def refresh: IO[TarantoolError, Unit] =
       fetchSemaphore.withPermit(fetchMeta0)

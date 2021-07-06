@@ -75,7 +75,7 @@ private[tarantool] object RequestHandler {
       for {
         operation <- ZIO
           .fromOption(awaitingRequestMap.remove(syncId))
-          .orElseFail(TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
+          .orElseFail(TarantoolError.NotFoundOperation(syncId))
         _ <- operation.request.operationCode match {
           case RequestCode.Eval => // todo: Call ?
             operation.response.succeed(TarantoolEvalResponse(response))
@@ -87,7 +87,7 @@ private[tarantool] object RequestHandler {
       for {
         operation <- ZIO
           .fromOption(awaitingRequestMap.remove(syncId))
-          .orElseFail(TarantoolError.NotFoundOperation(s"Operation $syncId not found"))
+          .orElseFail(TarantoolError.NotFoundOperation(syncId))
         _ <- operation.response.fail(TarantoolError.OperationException(reason, errorCode))
       } yield ()
 

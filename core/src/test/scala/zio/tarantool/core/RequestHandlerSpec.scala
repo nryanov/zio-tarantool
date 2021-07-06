@@ -62,11 +62,7 @@ object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
         } yield ()
 
         assertM(result.provideLayer(requestHandlerLayer).run)(
-          fails(
-            equalTo(
-              TarantoolError.NotFoundOperation("Operation 1 not found")
-            )
-          )
+          fails(equalTo(TarantoolError.NotFoundOperation(1L)))
         )
       },
       testM("should throw error on failing request if request does not exist") {
@@ -75,11 +71,7 @@ object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
         } yield ()
 
         assertM(result.provideLayer(requestHandlerLayer).run)(
-          fails(
-            equalTo(
-              TarantoolError.NotFoundOperation("Operation 1 not found")
-            )
-          )
+          fails(equalTo(TarantoolError.NotFoundOperation(1L)))
         )
       },
       testM("should fail all requests before closed") {
