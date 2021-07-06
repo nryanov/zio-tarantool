@@ -18,6 +18,9 @@ trait BaseLayers {
   val tarantoolLayer: ZLayer[Any, Nothing, Tarantool] =
     Blocking.live >>> TarantoolContainer.tarantool()
 
+  val tarantoolSecuredLayer: ZLayer[Any, Nothing, Tarantool] =
+    Blocking.live >>> TarantoolSecuredContainer.tarantool()
+
   val configLayer: ZLayer[Any, Nothing, Has[TarantoolConfig]] =
     tarantoolLayer >>> ZLayer.fromService(container =>
       TarantoolConfig(
@@ -25,9 +28,6 @@ trait BaseLayers {
         port = container.container.getMappedPort(3301)
       )
     )
-
-  val tarantoolSecuredLayer: ZLayer[Any, Nothing, Tarantool] =
-    Blocking.live >>> TarantoolSecuredContainer.tarantool()
 
   val configSecuredLayer: ZLayer[Any, Nothing, Has[TarantoolConfig]] =
     tarantoolSecuredLayer >>> ZLayer.fromService(container =>

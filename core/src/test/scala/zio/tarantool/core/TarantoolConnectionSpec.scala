@@ -1,19 +1,19 @@
 package zio.tarantool.core
 
+import com.dimafeng.testcontainers.GenericContainer
 import zio._
 import zio.duration._
 import zio.clock.Clock
-import zio.tarantool.BaseLayers
+import zio.tarantool.TarantoolContainer.Tarantool
+import zio.tarantool.TarantoolError.AuthError
+import zio.tarantool.core.TarantoolConnection.TarantoolConnection
+import zio.tarantool.{AuthInfo, BaseLayers, TarantoolConfig, TarantoolError}
 import zio.tarantool.protocol.{MessagePackPacket, RequestCode, ResponseType, TarantoolRequest}
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect.{sequential, timeout}
 
 object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
-  private val sharedLayer = configLayer ++ Clock.live ++ loggingLayer ++ syncIdProviderLayer
-  private val sharedSecuredLayer =
-    configSecuredLayer ++ Clock.live ++ loggingLayer ++ syncIdProviderLayer
-
   private val connectAndCommunicate =
     testM("Create new connection then send and receive message") {
       for {
@@ -27,17 +27,55 @@ object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
       } yield assert(responseType)(equalTo(ResponseType.PingResponse))
     }
 
+  private val failOnIncorrectAuthInfo = testM("fail on incorrect auth info") {
+    val layer = createTestSpecificLayer(Some(AuthInfo("random", "random")))
+
+    val task = for {
+      pingRequest <- TarantoolRequest.createPacket(
+        TarantoolRequest(RequestCode.Ping, 1, Map.empty)
+      )
+      _ <- TarantoolConnection.sendRequest(pingRequest)
+    } yield ()
+
+    assertM(task.provideLayer(layer).run)(
+      fails(equalTo(AuthError("User 'random' is not found")))
+    )
+  }
+
   private val unsecuredSpecs = suite("TarantoolConnection without auth")(
-    connectAndCommunicate
-  ).provideSomeLayer(TarantoolConnection.live.orDie).provideSomeLayerShared(sharedLayer)
+    connectAndCommunicate.provideLayer(createTestSpecificLayer().orDie)
+  ).provideSomeLayerShared(tarantoolLayer)
 
   private val securedSpecs = suite("TarantoolConnection with auth")(
-    connectAndCommunicate
-  ).provideSomeLayer(TarantoolConnection.live.orDie).provideSomeLayerShared(sharedSecuredLayer)
+    connectAndCommunicate.provideLayer(
+      createTestSpecificLayer(Some(AuthInfo("username", "password"))).orDie
+    ),
+    failOnIncorrectAuthInfo
+  ).provideSomeLayerShared(tarantoolSecuredLayer)
 
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     suite("TarantoolConnection")(
       unsecuredSpecs,
       securedSpecs
     ) @@ sequential @@ timeout(5 seconds)
+
+  private def createTestSpecificLayer(
+    authInfo: Option[AuthInfo] = None
+  ): ZLayer[Tarantool, TarantoolError, TarantoolConnection] = {
+    val tarantool = ZLayer.requires[Tarantool]
+    val clock = Clock.live
+    val logging = loggingLayer
+    val syncId = syncIdProviderLayer
+
+    val config = ZLayer.fromService[GenericContainer, TarantoolConfig] { container =>
+      val cfg = TarantoolConfig(
+        host = container.container.getHost,
+        port = container.container.getMappedPort(3301)
+      )
+
+      cfg.copy(authInfo = authInfo)
+    }
+
+    (tarantool ++ clock ++ logging ++ syncId ++ config) >>> TarantoolConnection.live
+  }
 }
