@@ -8,6 +8,7 @@ import zio.tarantool.protocol.{
   MessagePackPacket,
   RequestCode,
   ResponseCode,
+  TarantoolOperation,
   TarantoolRequest,
   TarantoolRequestBody
 }
@@ -17,6 +18,7 @@ import java.security.MessageDigest
 import java.util.Base64
 
 import scodec.bits.ByteVector
+import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
 
 private[tarantool] object TarantoolConnection {
@@ -24,44 +26,49 @@ private[tarantool] object TarantoolConnection {
   type TarantoolConnection = Has[Service]
 
   trait Service extends Serializable {
-    def sendRequest(packet: MessagePackPacket): IO[TarantoolError, Boolean]
+    def sendRequest(request: TarantoolRequest): IO[TarantoolError, TarantoolOperation]
 
-    private[tarantool] def forceSendRequest(packet: MessagePackPacket): IO[TarantoolError, Unit]
+    private[tarantool] def forceSendRequest(request: TarantoolRequest): IO[TarantoolError, Unit]
 
     def receive(): Stream[TarantoolError, MessagePackPacket]
   }
 
-  def sendRequest(packet: MessagePackPacket): ZIO[TarantoolConnection, TarantoolError, Boolean] =
-    ZIO.accessM[TarantoolConnection](_.get.sendRequest(packet))
+  def sendRequest(
+    request: TarantoolRequest
+  ): ZIO[TarantoolConnection, TarantoolError, TarantoolOperation] =
+    ZIO.accessM[TarantoolConnection](_.get.sendRequest(request))
 
   private[tarantool] def forceSendRequest(
-    packet: MessagePackPacket
+    request: TarantoolRequest
   ): ZIO[TarantoolConnection, TarantoolError, Unit] =
-    ZIO.accessM[TarantoolConnection](_.get.forceSendRequest(packet))
+    ZIO.accessM[TarantoolConnection](_.get.forceSendRequest(request))
 
   def receive(): ZStream[TarantoolConnection, TarantoolError, MessagePackPacket] =
     ZStream.access[TarantoolConnection](_.get.receive()).flatten
 
-  val live: ZLayer[Logging with Clock with SyncIdProvider with Has[
+  val live: ZLayer[Logging with Clock with SyncIdProvider with RequestHandler with Has[
     TarantoolConfig
   ], TarantoolError, Has[Service]] =
-    ZLayer.fromServiceManaged[
+    ZLayer.fromServicesManaged[
       TarantoolConfig,
-      Logging with Clock with SyncIdProvider,
+      SyncIdProvider.Service,
+      RequestHandler.Service,
+      Logging with Clock,
       TarantoolError,
       Service
-    ](cfg => ZIO.service[SyncIdProvider.Service].toManaged_.flatMap(service => make(cfg, service)))
+    ]((cfg, syncId, requestHandler) => make(cfg, syncId, requestHandler))
 
   def make(
     config: TarantoolConfig,
-    syncIdProvider: SyncIdProvider.Service
+    syncIdProvider: SyncIdProvider.Service,
+    requestHandler: RequestHandler.Service
   ): ZManaged[Logging with Clock, TarantoolError, Service] =
     for {
       logger <- ZIO.service[Logger[String]].toManaged_
       openChannel <- AsyncSocketChannelProvider.connect(config)
       requestQueue <- Queue.bounded[ByteBuffer](config.clientConfig.requestQueueSize).toManaged_
       _ <- logger.info(s"Protocol version: ${openChannel.version}").toManaged_
-      live = new Live(logger, openChannel.channel, requestQueue)
+      live = new Live(logger, openChannel.channel, requestQueue, requestHandler)
 
       _ <- config.authInfo match {
         case None           => IO.unit.toManaged_
@@ -74,19 +81,34 @@ private[tarantool] object TarantoolConnection {
   private[tarantool] class Live(
     logger: Logger[String],
     channel: AsyncSocketChannelProvider,
-    requestQueue: Queue[ByteBuffer]
+    requestQueue: Queue[ByteBuffer],
+    requestHandler: RequestHandler.Service
   ) extends TarantoolConnection.Service {
 
-    override def sendRequest(packet: MessagePackPacket): IO[TarantoolError, Boolean] =
-      MessagePackPacket.toBuffer(packet).flatMap(buffer => requestQueue.offer(buffer))
+    override def sendRequest(request: TarantoolRequest): IO[TarantoolError, TarantoolOperation] =
+      requestHandler.submitRequest(request).flatMap { operation =>
+        TarantoolRequest
+          .createPacket(request)
+          .flatMap(packet =>
+            MessagePackPacket.toBuffer(packet).flatMap(buffer => requestQueue.offer(buffer))
+          )
+          .as(operation)
+          .tapError(_ =>
+            requestHandler.fail(operation.request.syncId, "Error happened while sending request", 0)
+          )
+      }
 
     override private[tarantool] def forceSendRequest(
-      packet: MessagePackPacket
+      request: TarantoolRequest
     ): IO[TarantoolError, Unit] =
-      MessagePackPacket
-        .toBuffer(packet)
-        .flatMap(buffer =>
-          channel.write(Chunk.fromByteBuffer(buffer)).mapError(TarantoolError.IOError)
+      TarantoolRequest
+        .createPacket(request)
+        .flatMap(packet =>
+          MessagePackPacket
+            .toBuffer(packet)
+            .flatMap(buffer =>
+              channel.write(Chunk.fromByteBuffer(buffer)).mapError(TarantoolError.IOError)
+            )
         )
 
     // used by ResponseHandler fiber
@@ -114,8 +136,7 @@ private[tarantool] object TarantoolConnection {
     authRequest <- createAuthRequest(authInfo, salt, syncId).mapError(err =>
       TarantoolError.InternalError(err)
     )
-    packet <- TarantoolRequest.createPacket(authRequest)
-    _ <- openedConnection.forceSendRequest(packet)
+    _ <- openedConnection.forceSendRequest(authRequest)
     responseOpt <- openedConnection.receive().take(1).runHead
     response <- ZIO
       .fromOption(responseOpt)

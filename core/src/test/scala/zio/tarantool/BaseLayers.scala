@@ -55,13 +55,13 @@ trait BaseLayers {
 
   val syncIdProviderLayer: ZLayer[Any, Nothing, SyncIdProvider] = SyncIdProvider.live
 
-  val tarantoolConnectionLayer: ZLayer[Any, Throwable, TarantoolConnection] =
-    (Clock.live ++ configLayer ++ loggingLayer ++ syncIdProviderLayer) >>> TarantoolConnection.live
-
   val requestHandlerLayer: ZLayer[Any, TarantoolError, RequestHandler] = RequestHandler.live
 
+  val tarantoolConnectionLayer: ZLayer[Any, Throwable, TarantoolConnection] =
+    (Clock.live ++ configLayer ++ loggingLayer ++ syncIdProviderLayer ++ requestHandlerLayer) >>> TarantoolConnection.live
+
   val schemaMetaManagerLayer: ZLayer[Any, Throwable, SchemaMetaManager] =
-    (configLayer ++ requestHandlerLayer ++ tarantoolConnectionLayer ++ syncIdProviderLayer ++ Clock.live ++ loggingLayer) >>> SchemaMetaManager.live
+    (configLayer ++ tarantoolConnectionLayer ++ syncIdProviderLayer ++ Clock.live ++ loggingLayer) >>> SchemaMetaManager.live
 
   val responseHandlerLayer: ZLayer[Any, Throwable, ResponseHandler] =
     (tarantoolConnectionLayer ++ requestHandlerLayer ++ loggingLayer) >>> ResponseHandler.live

@@ -9,7 +9,6 @@ import zio.tarantool.core.schema.SchemaEncoder._
 import zio.tarantool.msgpack.MpArray16
 import zio.tarantool.core.schema.{IndexMeta, SpaceMeta}
 import zio.tarantool.TarantoolError.{IndexNotFound, SpaceNotFound}
-import zio.tarantool.core.RequestHandler.RequestHandler
 import zio.tarantool.core.SyncIdProvider.SyncIdProvider
 import zio.tarantool.core.TarantoolConnection.TarantoolConnection
 import zio.tarantool.{TarantoolConfig, TarantoolError}
@@ -44,17 +43,16 @@ private[tarantool] object SchemaMetaManager {
 
   val live: ZLayer[Has[
     TarantoolConfig
-  ] with RequestHandler with TarantoolConnection with SyncIdProvider with Clock with Logging, Nothing, SchemaMetaManager] =
+  ] with TarantoolConnection with SyncIdProvider with Clock with Logging, Nothing, SchemaMetaManager] =
     ZLayer.fromServicesManaged[
       TarantoolConfig,
-      RequestHandler.Service,
       TarantoolConnection.Service,
       SyncIdProvider.Service,
       Clock with Logging,
       Nothing,
       Service
-    ] { (cfg, requestHandler, connection, syncIdProvider) =>
-      make(cfg, requestHandler, connection, syncIdProvider)
+    ] { (cfg, connection, syncIdProvider) =>
+      make(cfg, connection, syncIdProvider)
     }
 
   val test: ZLayer[Any, Nothing, SchemaMetaManager] =
@@ -77,7 +75,6 @@ private[tarantool] object SchemaMetaManager {
   // lazy start
   def make(
     cfg: TarantoolConfig,
-    requestHandler: RequestHandler.Service,
     connection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service
   ): ZManaged[Logging with Clock, Nothing, Service] =
@@ -90,7 +87,6 @@ private[tarantool] object SchemaMetaManager {
         semaphore <- Semaphore.make(1)
       } yield new Live(
         cfg,
-        requestHandler,
         connection,
         syncIdProvider,
         spaceMetaMap,
@@ -114,7 +110,6 @@ private[tarantool] object SchemaMetaManager {
 
   private[tarantool] class Live(
     cfg: TarantoolConfig,
-    requestHandler: RequestHandler.Service,
     connection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service,
     spaceMetaMap: Ref[Map[String, SpaceMeta]],
@@ -213,10 +208,8 @@ private[tarantool] object SchemaMetaManager {
           )
           .mapError(TarantoolError.CodecError)
         request = TarantoolRequest(RequestCode.Select, syncId, body)
-        response <- requestHandler.submitRequest(request)
-        packet <- TarantoolRequest.createPacket(request)
-        _ <- connection.sendRequest(packet)
-      } yield response
+        operation <- connection.sendRequest(request)
+      } yield operation
 
   }
 }

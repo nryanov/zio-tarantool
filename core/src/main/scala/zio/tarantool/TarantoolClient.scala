@@ -455,23 +455,17 @@ object TarantoolClient {
     for {
       logger <- ZIO.service[Logger[String]].toManaged_
       syncIdProvider <- SyncIdProvider.make()
-      connection <- TarantoolConnection.make(config, syncIdProvider)
       requestHandler <- RequestHandler.make()
-      schemaMetaManager <- SchemaMetaManager.make(
-        config,
-        requestHandler,
-        connection,
-        syncIdProvider
-      )
+      connection <- TarantoolConnection.make(config, syncIdProvider, requestHandler)
+      schemaMetaManager <- SchemaMetaManager.make(config, connection, syncIdProvider)
       _ <- ResponseHandler.make(connection, requestHandler)
       // fetch actual meta on start
       _ <- schemaMetaManager.refresh.toManaged_
-    } yield new Live(logger, schemaMetaManager, requestHandler, connection, syncIdProvider)
+    } yield new Live(logger, schemaMetaManager, connection, syncIdProvider)
 
   private[this] final class Live(
     logger: Logger[String],
     schemaMetaManager: SchemaMetaManager.Service,
-    requestHandler: RequestHandler.Service,
     connection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service
   ) extends TarantoolClient.Service {
@@ -789,9 +783,7 @@ object TarantoolClient {
         syncId <- syncIdProvider.syncId()
         request = TarantoolRequest(op, syncId, body)
         _ <- logger.debug(s"Submit operation: $syncId")
-        operation <- requestHandler.submitRequest(request)
-        packet <- TarantoolRequest.createPacket(request)
-        _ <- connection.sendRequest(packet)
+        operation <- connection.sendRequest(request)
       } yield operation
   }
 }

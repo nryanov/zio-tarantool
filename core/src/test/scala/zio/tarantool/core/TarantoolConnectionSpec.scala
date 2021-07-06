@@ -17,10 +17,7 @@ object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
   private val connectAndCommunicate =
     testM("Create new connection then send and receive message") {
       for {
-        pingRequest <- TarantoolRequest.createPacket(
-          TarantoolRequest(RequestCode.Ping, 1, Map.empty)
-        )
-        _ <- TarantoolConnection.sendRequest(pingRequest)
+        _ <- TarantoolConnection.sendRequest(TarantoolRequest(RequestCode.Ping, 1, Map.empty))
         responseOpt <- TarantoolConnection.receive().take(1).runHead
         response <- ZIO.fromOption(responseOpt)
         responseType <- MessagePackPacket.responseType(response)
@@ -31,10 +28,7 @@ object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
     val layer = createTestSpecificLayer(Some(AuthInfo("random", "random")))
 
     val task = for {
-      pingRequest <- TarantoolRequest.createPacket(
-        TarantoolRequest(RequestCode.Ping, 1, Map.empty)
-      )
-      _ <- TarantoolConnection.sendRequest(pingRequest)
+      _ <- TarantoolConnection.sendRequest(TarantoolRequest(RequestCode.Ping, 1, Map.empty))
     } yield ()
 
     assertM(task.provideLayer(layer).run)(
@@ -66,6 +60,7 @@ object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
     val clock = Clock.live
     val logging = loggingLayer
     val syncId = syncIdProviderLayer
+    val requestHandler = requestHandlerLayer
 
     val config = ZLayer.fromService[GenericContainer, TarantoolConfig] { container =>
       val cfg = TarantoolConfig(
@@ -76,6 +71,6 @@ object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
       cfg.copy(authInfo = authInfo)
     }
 
-    (tarantool ++ clock ++ logging ++ syncId ++ config) >>> TarantoolConnection.live
+    (tarantool ++ clock ++ requestHandler ++ logging ++ syncId ++ config) >>> TarantoolConnection.live
   }
 }
