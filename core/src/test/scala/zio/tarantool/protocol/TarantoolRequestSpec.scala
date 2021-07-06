@@ -19,5 +19,5 @@ object TarantoolRequestSpec extends DefaultRunnableSpec {
         val result = TarantoolRequest.createPacket(request)
         assertM(result)(equalTo(expected))
       }
-    ).provideCustomLayerShared(testEnvironment)
+    )
 }

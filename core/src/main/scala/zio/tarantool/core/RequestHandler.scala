@@ -1,7 +1,6 @@
 package zio.tarantool.core
 
 import zio._
-import zio.logging._
 import zio.tarantool.TarantoolError
 import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.TarantoolResponse.{TarantoolDataResponse, TarantoolEvalResponse}
@@ -46,15 +45,15 @@ private[tarantool] object RequestHandler {
   ): ZIO[RequestHandler, Nothing, Unit] =
     ZIO.accessM[RequestHandler](_.get.close())
 
-  val live: ZLayer[Logging, TarantoolError, RequestHandler] = make().toLayer
+  val live: ZLayer[Any, TarantoolError, RequestHandler] = make().toLayer
 
-  def make(): ZManaged[Logging, Nothing, Service] =
-    ZManaged.make(ZIO.service[Logger[String]].map(new Live(_)))(_.close())
+  def make(): ZManaged[Any, Nothing, Service] =
+    ZManaged.make(ZIO.succeed(new Live()))(_.close())
 
   private[tarantool] def sentRequests: ZIO[RequestHandler, Nothing, Map[Long, TarantoolOperation]] =
     ZIO.access(_.get.sentRequests)
 
-  private[tarantool] class Live(logger: Logger[String]) extends Service {
+  private[tarantool] class Live() extends Service {
     private val awaitingRequestMap: TrieMap[Long, TarantoolOperation] =
       new TrieMap[Long, TarantoolOperation]()
 
