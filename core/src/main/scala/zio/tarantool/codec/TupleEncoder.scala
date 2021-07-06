@@ -44,9 +44,11 @@ object TupleEncoder {
         case None        => Attempt.successful(MpFixArray(Vector.empty))
       }
 
-      override def decode(v: MpArray, idx: Int): Attempt[Option[A]] = v match {
-        case msg: MpArray if msg.value.nonEmpty => encoder.decode(msg.value(idx)).map(Some(_))
-        case msg: MpArray if msg.value.isEmpty  => Attempt.successful(None)
-      }
+      override def decode(v: MpArray, idx: Int): Attempt[Option[A]] =
+        if (v.value.nonEmpty) {
+          encoder.decode(v.value(idx)).map(Some(_))
+        } else {
+          Attempt.successful(None)
+        }
     }
 }

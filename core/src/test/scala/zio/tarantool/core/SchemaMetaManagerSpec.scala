@@ -26,7 +26,7 @@ object SchemaMetaManagerSpec extends DefaultRunnableSpec with BaseLayers {
       },
       testM("should fetch spaces and indexes") {
         for {
-          _ <- SchemaMetaManager.refresh
+          _ <- SchemaMetaManager.refresh()
           space <- SchemaMetaManager.getSpaceMeta("_vspace")
           index <- SchemaMetaManager.getIndexMeta("_vspace", "primary")
         } yield assert(space.spaceName)(equalTo("_vspace")) && assert(index.indexName)(
@@ -35,7 +35,7 @@ object SchemaMetaManagerSpec extends DefaultRunnableSpec with BaseLayers {
       },
       testM("should fail if index not found in cache") {
         val result = for {
-          _ <- SchemaMetaManager.refresh
+          _ <- SchemaMetaManager.refresh()
           _ <- SchemaMetaManager.getIndexMeta("_vspace", "notExistingIndex")
         } yield ()
 

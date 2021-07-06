@@ -84,7 +84,6 @@ object MessagePackPacket {
     syncId <- Encoder.longEncoder.decodeM(syncIdMp)
   } yield syncId
 
-  @deprecated("Currently not used")
   def extractSchemaId(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
     schemaIdMp <- ZIO
       .fromOption(packet.header.get(Header.SchemaId.value))
