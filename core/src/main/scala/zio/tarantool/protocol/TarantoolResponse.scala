@@ -18,12 +18,17 @@ sealed trait TarantoolResponse {
 }
 
 object TarantoolResponse {
+  // Returned data: [tuple]
   final case class TarantoolEvalResponse(messagePack: MessagePack) extends TarantoolResponse {
     override def resultSet[A](implicit encoder: TupleEncoder[A]): IO[TarantoolError, Vector[A]] =
       messagePack match {
         case v: MpArray =>
-          IO.effect(encoder.decode(v, 0).require)
-            .bimap(err => CodecError(err), value => Vector(value))
+          if (v.value.nonEmpty) {
+            IO.effect(encoder.decode(v, 0).require)
+              .bimap(err => CodecError(err), value => Vector(value))
+          } else {
+            IO.succeed(Vector.empty)
+          }
         case v =>
           IO.fail(
             ProtocolError(s"Unexpected tuple type. Expected MpArray, but got: ${v.typeName()}")
@@ -31,6 +36,7 @@ object TarantoolResponse {
       }
   }
 
+  // Returned data: [ [tuple1], [tuple2], ..., [tupleN] ]
   final case class TarantoolDataResponse(messagePack: MessagePack) extends TarantoolResponse {
     override def resultSet[A](implicit encoder: TupleEncoder[A]): IO[TarantoolError, Vector[A]] =
       messagePack match {
