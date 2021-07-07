@@ -10,6 +10,7 @@ import zio.tarantool.protocol.Implicits._
 import zio.tarantool.protocol.TarantoolResponse.{TarantoolDataResponse, TarantoolEvalResponse}
 import zio.test._
 import zio.test.Assertion._
+import zio.test.TestAspect.sequential
 
 object TarantoolResponseSpec extends DefaultRunnableSpec {
   private val tarantoolEvalResponseResultSet =
@@ -141,7 +142,7 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
       tarantoolDataResponseHead,
       tarantoolDataResponseHeadEmptyResultSet,
       tarantoolDataResponseFailOnIncorrectMessagePack
-    )
+    ) @@ sequential
 
   private def encodeTuple(tuple: TestTuple)(implicit
     encoder: TupleEncoder[TestTuple]

@@ -37,10 +37,10 @@ object TarantoolRequestBody {
     RequestBodyKey.Tuple.value -> tuple
   )
 
-  def deleteBody(spaceId: Int, indexId: Int, tuple: MpArray): Map[Long, MessagePack] = Map(
+  def deleteBody(spaceId: Int, indexId: Int, key: MpArray): Map[Long, MessagePack] = Map(
     RequestBodyKey.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
     RequestBodyKey.Index.value -> Encoder[Long].encodeUnsafe(indexId),
-    RequestBodyKey.Key.value -> tuple
+    RequestBodyKey.Key.value -> key
   )
 
   def upsertBody(
