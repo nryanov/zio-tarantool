@@ -1,4 +1,4 @@
-package zio.tarantool.core
+package zio.tarantool.internal
 
 import zio.test._
 import zio.duration._

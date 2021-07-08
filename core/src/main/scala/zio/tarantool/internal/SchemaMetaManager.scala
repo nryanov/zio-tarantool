@@ -1,16 +1,16 @@
-package zio.tarantool.core
+package zio.tarantool.internal
 
 import zio._
 import zio.logging._
 import zio.duration._
 import zio.clock.Clock
 import zio.tarantool.protocol._
-import zio.tarantool.core.schema.SchemaEncoder._
+import zio.tarantool.internal.schema.SchemaEncoder._
 import zio.tarantool.msgpack.MpArray16
-import zio.tarantool.core.schema.{IndexMeta, SpaceMeta}
+import zio.tarantool.internal.schema.{IndexMeta, SpaceMeta}
 import zio.tarantool.TarantoolError.{IndexNotFound, SpaceNotFound}
-import zio.tarantool.core.SyncIdProvider.SyncIdProvider
-import zio.tarantool.core.TarantoolConnection.TarantoolConnection
+import zio.tarantool.internal.SyncIdProvider.SyncIdProvider
+import zio.tarantool.internal.TarantoolConnection.TarantoolConnection
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 
 private[tarantool] object SchemaMetaManager {

@@ -1,11 +1,11 @@
-package zio.tarantool.core
+package zio.tarantool.internal
 
 import zio._
 import zio.test._
 import zio.stream.ZStream
 import zio.test.Assertion._
 import zio.test.TestAspect.sequential
-import zio.tarantool.core.ByteStream.decoder
+import zio.tarantool.internal.ByteStream.decoder
 import zio.tarantool.codec.MessagePackPacketCodec
 import zio.tarantool.msgpack.{MessagePackCodec, MpUint32}
 import zio.tarantool.protocol.{RequestCode, TarantoolRequest}

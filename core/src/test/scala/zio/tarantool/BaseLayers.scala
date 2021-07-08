@@ -5,14 +5,14 @@ import zio.console.Console
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.logging.{LogLevel, Logging}
-import zio.tarantool.core._
+import zio.tarantool.internal._
 import zio.tarantool.TarantoolClient.TarantoolClient
 import zio.tarantool.TarantoolContainer.Tarantool
-import zio.tarantool.core.RequestHandler.RequestHandler
-import zio.tarantool.core.ResponseHandler.ResponseHandler
-import zio.tarantool.core.SchemaMetaManager.SchemaMetaManager
-import zio.tarantool.core.SyncIdProvider.SyncIdProvider
-import zio.tarantool.core.TarantoolConnection.TarantoolConnection
+import zio.tarantool.internal.RequestHandler.RequestHandler
+import zio.tarantool.internal.ResponseHandler.ResponseHandler
+import zio.tarantool.internal.SchemaMetaManager.SchemaMetaManager
+import zio.tarantool.internal.SyncIdProvider.SyncIdProvider
+import zio.tarantool.internal.TarantoolConnection.TarantoolConnection
 
 trait BaseLayers {
   val tarantoolLayer: ZLayer[Any, Nothing, Tarantool] =

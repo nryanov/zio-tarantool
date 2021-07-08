@@ -1,4 +1,4 @@
-package zio.tarantool.core.schema
+package zio.tarantool.internal.schema
 
 import scodec.{Attempt, Err}
 import zio.tarantool.codec.TupleEncoder

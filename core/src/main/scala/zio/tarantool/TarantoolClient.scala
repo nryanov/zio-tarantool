@@ -3,7 +3,7 @@ package zio.tarantool
 import zio._
 import zio.logging._
 import zio.clock.Clock
-import zio.tarantool.core._
+import zio.tarantool.internal._
 import zio.tarantool.msgpack._
 import zio.tarantool.msgpack.MpArray
 import zio.tarantool.codec.TupleEncoder

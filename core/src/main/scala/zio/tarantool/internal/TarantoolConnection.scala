@@ -1,4 +1,4 @@
-package zio.tarantool.core
+package zio.tarantool.internal
 
 import zio._
 import zio.stream._
@@ -18,8 +18,8 @@ import java.security.MessageDigest
 import java.util.Base64
 
 import scodec.bits.ByteVector
-import zio.tarantool.core.RequestHandler.RequestHandler
-import zio.tarantool.core.SyncIdProvider.SyncIdProvider
+import zio.tarantool.internal.RequestHandler.RequestHandler
+import zio.tarantool.internal.SyncIdProvider.SyncIdProvider
 
 private[tarantool] object TarantoolConnection {
 

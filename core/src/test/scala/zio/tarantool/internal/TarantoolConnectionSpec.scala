@@ -1,4 +1,4 @@
-package zio.tarantool.core
+package zio.tarantool.internal
 
 import com.dimafeng.testcontainers.GenericContainer
 import zio._
@@ -6,7 +6,7 @@ import zio.duration._
 import zio.clock.Clock
 import zio.tarantool.TarantoolContainer.Tarantool
 import zio.tarantool.TarantoolError.AuthError
-import zio.tarantool.core.TarantoolConnection.TarantoolConnection
+import zio.tarantool.internal.TarantoolConnection.TarantoolConnection
 import zio.tarantool.{AuthInfo, BaseLayers, TarantoolConfig, TarantoolError}
 import zio.tarantool.protocol.{MessagePackPacket, RequestCode, ResponseType, TarantoolRequest}
 import zio.test._

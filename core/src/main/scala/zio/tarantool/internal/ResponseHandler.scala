@@ -1,10 +1,10 @@
-package zio.tarantool.core
+package zio.tarantool.internal
 
 import zio._
 import zio.logging._
 import zio.tarantool._
-import zio.tarantool.core.RequestHandler.RequestHandler
-import zio.tarantool.core.TarantoolConnection.TarantoolConnection
+import zio.tarantool.internal.RequestHandler.RequestHandler
+import zio.tarantool.internal.TarantoolConnection.TarantoolConnection
 import zio.tarantool.msgpack.MpFixArray
 import zio.tarantool.protocol.{MessagePackPacket, ResponseCode, ResponseType}
 
