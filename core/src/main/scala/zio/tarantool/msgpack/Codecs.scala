@@ -9,10 +9,8 @@ object Codecs {
   implicit val mpPositiveFixIntCodec: Codec[MpPositiveFixInt] =
     (constant(bin"0") :: uint(7)).dropUnits.as[MpPositiveFixInt]
   implicit val mpNegativeFixIntCodec: Codec[MpNegativeFixInt] =
-    (constant(bin"111") :: bits(5).xmap[Int](
-      bits => -bits.toInt(signed = false), // last 5 bits are negative value
-      value => BitVector.fromInt(value & 0xfffff, 5) // just write 5-bits vector
-    )).dropUnits.as[MpNegativeFixInt]
+    (constant(bin"111") :: uint(5).xmap[Int](_ - 0x20, v => v + 0x20)).dropUnits
+      .as[MpNegativeFixInt]
   implicit val mpFixMapCodec: Codec[MpFixMap] =
     (constant(bin"1000") :: multiMapCodec(uint(4))).dropUnits.as[MpFixMap]
   implicit val mpFixArrayCodec: Codec[MpFixArray] =
@@ -33,9 +31,9 @@ object Codecs {
   implicit val mpExtension8Codec: Codec[MpExtension8] =
     (constant(hex"C7") :: extensionVariableSize(uint8)).dropUnits.as[MpExtension8]
   implicit val mpExtension16Codec: Codec[MpExtension16] =
-    (constant(hex"C8") :: extensionVariableSize(uint8)).dropUnits.as[MpExtension16]
+    (constant(hex"C8") :: extensionVariableSize(uint16)).dropUnits.as[MpExtension16]
   implicit val mpExtension32Codec: Codec[MpExtension32] =
-    (constant(hex"C9") :: extensionVariableSize(uint8)).dropUnits.as[MpExtension32]
+    (constant(hex"C9") :: extensionVariableSize(int32)).dropUnits.as[MpExtension32]
   implicit val mpFloat32Codec: Codec[MpFloat32] =
     (constant(hex"CA") :: float).dropUnits.as[MpFloat32]
   implicit val mpFloat64Codec: Codec[MpFloat64] =
