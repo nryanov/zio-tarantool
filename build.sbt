@@ -4,18 +4,12 @@ val scodecVersion = "1.11.7"
 val scodecBitsVersion = "1.1.17"
 val shapelessVersion = "2.3.3"
 val testContainersVersion = "0.39.1"
-val paradiseVersion = "2.1.1"
+val logbackVersion = "1.2.3"
 
 val scala2_12 = "2.12.13"
 val scala2_13 = "2.13.5"
 
 val compileAndTest = "compile->compile;test->test"
-
-def priorTo2_13(scalaVersion: String): Boolean =
-  CrossVersion.partialVersion(scalaVersion) match {
-    case Some((2, minor)) if minor < 13 => true
-    case _                              => false
-  }
 
 def compilerOptions(scalaVersion: String): Seq[String] = Seq(
   "-deprecation",
@@ -47,24 +41,6 @@ lazy val scala213CompilerOptions = Seq(
   "-Wunused:imports"
 )
 
-lazy val macroSettings: Seq[Setting[_]] = Seq(
-  libraryDependencies ++= (Seq(
-    scalaOrganization.value % "scala-compiler" % scalaVersion.value % Provided,
-    scalaOrganization.value % "scala-reflect" % scalaVersion.value % Provided
-  ) ++ (
-    if (priorTo2_13(scalaVersion.value)) {
-      Seq(
-        compilerPlugin(
-          ("org.scalamacros" % "paradise" % paradiseVersion).cross(CrossVersion.patch)
-        )
-      )
-    } else Nil
-  )),
-  scalacOptions ++= (
-    if (priorTo2_13(scalaVersion.value)) Nil else Seq("-Ymacro-annotations")
-  )
-)
-
 lazy val noPublish = Seq(
   publish := {},
   publishLocal := {},
@@ -90,7 +66,7 @@ lazy val buildSettings = Seq(
   Test / parallelExecution := false
 )
 
-lazy val allSettings = buildSettings ++ macroSettings
+lazy val allSettings = buildSettings
 
 lazy val zioTarantool =
   project.in(file(".")).settings(noPublish).aggregate(core)
@@ -107,7 +83,8 @@ lazy val core = project
       "dev.zio" %% "zio-logging" % zioLoggingVersion,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
-      "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test
+      "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test,
+      "ch.qos.logback" % "logback-classic" % logbackVersion % Test
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
