@@ -1,7 +1,6 @@
 package zio.tarantool.internal
 
 import zio._
-import zio.logging._
 import zio.duration._
 import zio.clock.Clock
 import zio.tarantool.protocol._
@@ -43,12 +42,12 @@ private[tarantool] object SchemaMetaManager {
 
   val live: ZLayer[Has[
     TarantoolConfig
-  ] with TarantoolConnection with SyncIdProvider with Clock with Logging, Nothing, SchemaMetaManager] =
+  ] with TarantoolConnection with SyncIdProvider with Clock, Nothing, SchemaMetaManager] =
     ZLayer.fromServicesManaged[
       TarantoolConfig,
       TarantoolConnection.Service,
       SyncIdProvider.Service,
-      Clock with Logging,
+      Clock,
       Nothing,
       Service
     ] { (cfg, connection, syncIdProvider) =>
@@ -77,11 +76,10 @@ private[tarantool] object SchemaMetaManager {
     cfg: TarantoolConfig,
     connection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service
-  ): ZManaged[Logging with Clock, Nothing, Service] =
+  ): ZManaged[Clock, Nothing, Service] =
     ZManaged.fromEffect(
       for {
         clock <- ZIO.environment[Clock]
-        logger <- ZIO.service[Logger[String]]
         spaceMetaMap <- Ref.make(Map.empty[String, SpaceMeta])
         currentSchemaId <- Ref.make[Option[Long]](None)
         semaphore <- Semaphore.make(1)
@@ -92,7 +90,6 @@ private[tarantool] object SchemaMetaManager {
         spaceMetaMap,
         currentSchemaId,
         semaphore,
-        logger,
         clock
       )
     )
@@ -115,7 +112,6 @@ private[tarantool] object SchemaMetaManager {
     spaceMetaMap: Ref[Map[String, SpaceMeta]],
     currentSchemaId: Ref[Option[Long]],
     fetchSemaphore: Semaphore,
-    logger: Logger[String],
     clock: Clock
   ) extends Service {
 
@@ -182,24 +178,19 @@ private[tarantool] object SchemaMetaManager {
     ): IO[TarantoolError.Timeout, TarantoolResponse] = select(
       spaceId,
       indexId
-    ).tapError(err =>
-      logger.error(s"Error happened while fetching meta: ${err.getLocalizedMessage}")
     ).flatMap(
       _.response.await
         .timeout(cfg.clientConfig.schemaRequestTimeoutMillis.milliseconds)
         .flatMap(ZIO.fromOption(_))
-    ).tapError(_ => logger.error(s"Schema request timeout. SpaceId: $spaceId, indexId: $indexId"))
-      .orElseFail(
-        TarantoolError.Timeout(s"Schema request timeout. SpaceId: $spaceId, indexId: $indexId")
-      )
-      .provide(clock)
+    ).orElseFail(
+      TarantoolError.Timeout(s"Schema request timeout. SpaceId: $spaceId, indexId: $indexId")
+    ).provide(clock)
 
     private def select(
       spaceId: Int,
       indexId: Int
     ): IO[TarantoolError, TarantoolOperation] =
       for {
-        _ <- logger.debug(s"Schema select request space id: $spaceId")
         syncId <- syncIdProvider.syncId()
         body <- ZIO
           .effect(

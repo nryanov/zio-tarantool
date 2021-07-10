@@ -1,7 +1,6 @@
 package zio.tarantool.internal
 
 import zio._
-import zio.logging._
 import zio.tarantool._
 import zio.tarantool.internal.RequestHandler.RequestHandler
 import zio.tarantool.internal.TarantoolConnection.TarantoolConnection
@@ -21,34 +20,32 @@ private[tarantool] object ResponseHandler {
     ZIO.accessM[ResponseHandler](_.get.start())
 
   val live: ZLayer[
-    TarantoolConnection with RequestHandler with Logging,
+    TarantoolConnection with RequestHandler,
     TarantoolError.IOError,
     ResponseHandler
-  ] =
-    ZLayer.fromServicesManaged[
-      TarantoolConnection.Service,
-      RequestHandler.Service,
-      Logging,
-      TarantoolError.IOError,
-      Service
-    ]((connection, requestHandler) => make(connection, requestHandler))
+  ] = ZLayer.fromServicesManaged[
+    TarantoolConnection.Service,
+    RequestHandler.Service,
+    Any,
+    TarantoolError.IOError,
+    Service
+  ]((connection, requestHandler) => make(connection, requestHandler))
 
   def make(
     connection: TarantoolConnection.Service,
     requestHandler: RequestHandler.Service
-  ): ZManaged[Logging, TarantoolError.IOError, Service] =
+  ): ZManaged[Any, TarantoolError.IOError, Service] = {
+    val live = new Live(
+      connection,
+      requestHandler
+    )
+
     for {
-      logger <- ZIO.service[Logger[String]].toManaged_
-      live = new Live(
-        logger,
-        connection,
-        requestHandler
-      )
       _ <- live.start().forkManaged
     } yield live
+  }
 
   private[tarantool] class Live(
-    logger: Logger[String],
     connection: TarantoolConnection.Service,
     requestHandler: RequestHandler.Service
   ) extends Service {
@@ -58,7 +55,7 @@ private[tarantool] object ResponseHandler {
         .receive()
         .foreach(mp =>
           complete(mp).onError(err =>
-            logger.error(s"Error happened while trying to complete operation. Packet: $mp", err)
+            sys.error(s"Error happened while trying to complete operation. Packet: $mp. $err")
           )
         )
         .forever
@@ -66,7 +63,6 @@ private[tarantool] object ResponseHandler {
     private def complete(packet: MessagePackPacket): IO[TarantoolError, Unit] =
       for {
         syncId <- MessagePackPacket.extractSyncId(packet)
-        _ <- logger.debug(s"Complete operation with id: $syncId")
         code <- MessagePackPacket.extractCode(packet)
         _ <- completeByCode(code, syncId, packet).tapError(err =>
           requestHandler.fail(syncId, err.getLocalizedMessage, 0)

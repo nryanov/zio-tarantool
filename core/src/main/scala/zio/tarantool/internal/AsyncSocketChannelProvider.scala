@@ -5,8 +5,7 @@ import java.net.{InetSocketAddress, SocketAddress, StandardSocketOptions}
 import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousSocketChannel, Channel, CompletionHandler}
 
-import zio.logging.{Logger, Logging}
-import zio.{Chunk, IO, Managed, UIO, ZIO, ZManaged}
+import zio._
 import zio.stream.ZStream
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 import AsyncSocketChannelProvider._
@@ -71,7 +70,7 @@ private[tarantool] object AsyncSocketChannelProvider {
 
   def connect(
     cfg: TarantoolConfig
-  ): ZManaged[Logging, TarantoolError.IOError, OpenChannel] =
+  ): ZManaged[Any, TarantoolError.IOError, OpenChannel] =
     (for {
       address <- UIO(
         new InetSocketAddress(cfg.connectionConfig.host, cfg.connectionConfig.port)
@@ -91,10 +90,9 @@ private[tarantool] object AsyncSocketChannelProvider {
 
   def openChannel(
     address: SocketAddress
-  ): ZManaged[Logging, IOException, AsynchronousSocketChannel] =
+  ): ZManaged[Any, IOException, AsynchronousSocketChannel] =
     Managed.fromAutoCloseable {
       for {
-        logger <- ZIO.service[Logger[String]]
         channel <- IO.effect {
           val channel = AsynchronousSocketChannel.open()
           channel.setOption(StandardSocketOptions.SO_KEEPALIVE, Boolean.box(true))
@@ -102,7 +100,6 @@ private[tarantool] object AsyncSocketChannelProvider {
           channel
         }
         _ <- completeWith[Void](channel)(channel.connect(address, null, _))
-        _ <- logger.info("Connected to the tarantool server.")
       } yield channel
     }.refineToOrDie[IOException]
 

@@ -1,8 +1,6 @@
 val zioVersion = "1.0.3"
-val zioLoggingVersion = "0.5.4"
 val scodecVersion = "1.11.7"
 val scodecBitsVersion = "1.1.17"
-val shapelessVersion = "2.3.3"
 val testContainersVersion = "0.39.1"
 val logbackVersion = "1.2.3"
 
@@ -69,7 +67,7 @@ lazy val buildSettings = Seq(
 lazy val allSettings = buildSettings
 
 lazy val zioTarantool =
-  project.in(file(".")).settings(noPublish).aggregate(core)
+  project.in(file(".")).settings(noPublish).aggregate(core, examples)
 
 lazy val core = project
   .in(file("core"))
@@ -80,7 +78,6 @@ lazy val core = project
       "org.scodec" %% "scodec-core" % scodecVersion,
       "org.scodec" %% "scodec-bits" % scodecBitsVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
-      "dev.zio" %% "zio-logging" % zioLoggingVersion,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
       "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test,
@@ -88,3 +85,6 @@ lazy val core = project
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
+
+lazy val examples =
+  project.in(file("examples")).settings(allSettings).settings(noPublish).dependsOn(core)

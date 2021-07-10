@@ -58,7 +58,6 @@ object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
   ): ZLayer[Tarantool, TarantoolError, TarantoolConnection] = {
     val tarantool = ZLayer.requires[Tarantool]
     val clock = Clock.live
-    val logging = loggingLayer
     val syncId = syncIdProviderLayer
     val requestHandler = requestHandlerLayer
 
@@ -71,6 +70,6 @@ object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
       cfg.copy(authInfo = authInfo)
     }
 
-    (tarantool ++ clock ++ requestHandler ++ logging ++ syncId ++ config) >>> TarantoolConnection.live
+    (tarantool ++ clock ++ requestHandler ++ syncId ++ config) >>> TarantoolConnection.live
   }
 }

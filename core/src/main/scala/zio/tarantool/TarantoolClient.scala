@@ -1,7 +1,6 @@
 package zio.tarantool
 
 import zio._
-import zio.logging._
 import zio.clock.Clock
 import zio.tarantool.internal._
 import zio.tarantool.msgpack._
@@ -452,14 +451,13 @@ object TarantoolClient {
   def prepare(sql: String): ZIO[TarantoolClient, TarantoolError, TarantoolOperation] =
     ZIO.accessM[TarantoolClient](_.get.prepare(sql))
 
-  val live: ZLayer[Has[TarantoolConfig] with Logging with Clock, TarantoolError, TarantoolClient] =
-    ZLayer.fromServiceManaged[TarantoolConfig, Logging with Clock, TarantoolError, Service] { cfg =>
+  val live: ZLayer[Has[TarantoolConfig] with Clock, TarantoolError, TarantoolClient] =
+    ZLayer.fromServiceManaged[TarantoolConfig, Clock, TarantoolError, Service] { cfg =>
       make(cfg)
     }
 
-  def make(config: TarantoolConfig): ZManaged[Clock with Logging, TarantoolError, Service] =
+  def make(config: TarantoolConfig): ZManaged[Clock, TarantoolError, Service] =
     for {
-      logger <- ZIO.service[Logger[String]].toManaged_
       syncIdProvider <- SyncIdProvider.make()
       requestHandler <- RequestHandler.make()
       connection <- TarantoolConnection.make(config, syncIdProvider, requestHandler)
@@ -467,10 +465,9 @@ object TarantoolClient {
       _ <- ResponseHandler.make(connection, requestHandler)
       // fetch actual meta on start
       _ <- ZIO.when(config.clientConfig.useSchemaMetaCache)(schemaMetaManager.refresh).toManaged_
-    } yield new Live(logger, schemaMetaManager, connection, syncIdProvider)
+    } yield new Live(schemaMetaManager, connection, syncIdProvider)
 
   private[this] final class Live(
-    logger: Logger[String],
     schemaMetaManager: SchemaMetaManager.Service,
     connection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service
@@ -788,7 +785,6 @@ object TarantoolClient {
       for {
         syncId <- syncIdProvider.syncId()
         request = TarantoolRequest(op, syncId, body)
-        _ <- logger.debug(s"Submit operation: $syncId")
         operation <- connection.sendRequest(request)
       } yield operation
   }

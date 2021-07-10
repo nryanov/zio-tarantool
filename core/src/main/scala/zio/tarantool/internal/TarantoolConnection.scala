@@ -2,7 +2,6 @@ package zio.tarantool.internal
 
 import zio._
 import zio.stream._
-import zio.logging._
 import zio.clock.Clock
 import zio.tarantool.protocol.{
   MessagePackPacket,
@@ -46,14 +45,14 @@ private[tarantool] object TarantoolConnection {
   def receive(): ZStream[TarantoolConnection, TarantoolError, MessagePackPacket] =
     ZStream.access[TarantoolConnection](_.get.receive()).flatten
 
-  val live: ZLayer[Logging with Clock with SyncIdProvider with RequestHandler with Has[
+  val live: ZLayer[Clock with SyncIdProvider with RequestHandler with Has[
     TarantoolConfig
   ], TarantoolError, Has[Service]] =
     ZLayer.fromServicesManaged[
       TarantoolConfig,
       SyncIdProvider.Service,
       RequestHandler.Service,
-      Logging with Clock,
+      Clock,
       TarantoolError,
       Service
     ]((cfg, syncId, requestHandler) => make(cfg, syncId, requestHandler))
@@ -62,13 +61,11 @@ private[tarantool] object TarantoolConnection {
     config: TarantoolConfig,
     syncIdProvider: SyncIdProvider.Service,
     requestHandler: RequestHandler.Service
-  ): ZManaged[Logging with Clock, TarantoolError, Service] =
+  ): ZManaged[Clock, TarantoolError, Service] =
     for {
-      logger <- ZIO.service[Logger[String]].toManaged_
       openChannel <- AsyncSocketChannelProvider.connect(config)
       requestQueue <- Queue.bounded[ByteBuffer](config.clientConfig.requestQueueSize).toManaged_
-      _ <- logger.info(s"Protocol version: ${openChannel.version}").toManaged_
-      live = new Live(logger, openChannel.channel, requestQueue, requestHandler)
+      live = new Live(openChannel.channel, requestQueue, requestHandler)
 
       _ <- config.authInfo match {
         case None           => IO.unit.toManaged_
@@ -79,7 +76,6 @@ private[tarantool] object TarantoolConnection {
     } yield live
 
   private[tarantool] class Live(
-    logger: Logger[String],
     channel: AsyncSocketChannelProvider,
     requestQueue: Queue[ByteBuffer],
     requestHandler: RequestHandler.Service
@@ -115,10 +111,7 @@ private[tarantool] object TarantoolConnection {
     val receive: ZStream[Any, TarantoolError, MessagePackPacket] =
       channel.read.transduce(ByteStream.decoder).mapError(TarantoolError.InternalError)
 
-    val run: ZIO[Any, TarantoolError, Unit] = send.forever
-      .tapError(e => logger.warn(s"Reconnecting due to error: $e"))
-      .retryWhile(_ => true)
-      .unit
+    val run: ZIO[Any, TarantoolError, Unit] = send.forever.retryWhile(_ => true).unit
 
     private def send: IO[TarantoolError, Unit] =
       requestQueue.take.flatMap { request =>
@@ -131,7 +124,7 @@ private[tarantool] object TarantoolConnection {
     salt: String,
     openedConnection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service
-  ): ZIO[Logging, TarantoolError, Unit] = for {
+  ): ZIO[Any, TarantoolError, Unit] = for {
     syncId <- syncIdProvider.syncId()
     authRequest <- createAuthRequest(authInfo, salt, syncId).mapError(err =>
       TarantoolError.InternalError(err)

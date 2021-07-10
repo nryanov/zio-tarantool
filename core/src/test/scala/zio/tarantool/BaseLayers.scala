@@ -1,10 +1,8 @@
 package zio.tarantool
 
 import zio.{Has, ZLayer}
-import zio.console.Console
 import zio.blocking.Blocking
 import zio.clock.Clock
-import zio.logging.{LogLevel, Logging}
 import zio.tarantool.internal._
 import zio.tarantool.TarantoolClient.TarantoolClient
 import zio.tarantool.TarantoolContainer.Tarantool
@@ -50,25 +48,22 @@ trait BaseLayers {
       )
     )
 
-  val loggingLayer: ZLayer[Any, Nothing, Logging] =
-    (Clock.live ++ Console.live) >>> Logging.console(logLevel = LogLevel.Debug)
-
   val syncIdProviderLayer: ZLayer[Any, Nothing, SyncIdProvider] = SyncIdProvider.live
 
   val requestHandlerLayer: ZLayer[Any, TarantoolError, RequestHandler] = RequestHandler.live
 
   val tarantoolConnectionLayer: ZLayer[Any, Throwable, TarantoolConnection] =
-    (Clock.live ++ configLayer ++ loggingLayer ++ syncIdProviderLayer ++ requestHandlerLayer) >>> TarantoolConnection.live
+    (Clock.live ++ configLayer ++ syncIdProviderLayer ++ requestHandlerLayer) >>> TarantoolConnection.live
 
   val schemaMetaManagerLayer: ZLayer[Any, Throwable, SchemaMetaManager] =
-    (configLayer ++ tarantoolConnectionLayer ++ syncIdProviderLayer ++ Clock.live ++ loggingLayer) >>> SchemaMetaManager.live
+    (configLayer ++ tarantoolConnectionLayer ++ syncIdProviderLayer ++ Clock.live) >>> SchemaMetaManager.live
 
   val responseHandlerLayer: ZLayer[Any, Throwable, ResponseHandler] =
-    (tarantoolConnectionLayer ++ requestHandlerLayer ++ loggingLayer) >>> ResponseHandler.live
+    (tarantoolConnectionLayer ++ requestHandlerLayer) >>> ResponseHandler.live
 
   val tarantoolClientLayer: ZLayer[Any, Nothing, TarantoolClient] =
-    ((loggingLayer ++ Clock.live ++ configLayer) >>> TarantoolClient.live).orDie
+    ((Clock.live ++ configLayer) >>> TarantoolClient.live).orDie
 
   val tarantoolClientNotMetaCacheLayer: ZLayer[Any, Nothing, TarantoolClient] =
-    ((loggingLayer ++ Clock.live ++ configNoMetaCacheLayer) >>> TarantoolClient.live).orDie
+    ((Clock.live ++ configNoMetaCacheLayer) >>> TarantoolClient.live).orDie
 }
