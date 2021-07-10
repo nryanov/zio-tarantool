@@ -1,16 +1,22 @@
 package zio.tarantool.data
 
 import scodec.Attempt
-import zio.tarantool.builder.TupleBuilder
 import zio.tarantool.codec.TupleEncoder
-import zio.tarantool.msgpack.{Encoder, MpArray}
+import zio.tarantool.msgpack.{Encoder, MessagePack, MpArray}
 
 final case class TestTuple(f1: String, f2: Int, f3: Long)
 
 object TestTuple {
+  // manual codec creation example
   implicit val tupleEncoder: TupleEncoder[TestTuple] = new TupleEncoder[TestTuple] {
     override def encode(v: TestTuple): Attempt[MpArray] =
-      TupleBuilder().put(v.f1).put(v.f2).put(v.f3).build()
+      for {
+        f1Mp <- Encoder[String].encode(v.f1)
+        f2Mp <- Encoder[Int].encode(v.f2)
+        f3Mp <- Encoder[Long].encode(v.f3)
+
+        tupleMp <- Encoder[Vector[MessagePack]].encode(Vector(f1Mp, f2Mp, f3Mp))
+      } yield tupleMp.asInstanceOf[MpArray]
 
     override def decode(v: MpArray, idx: Int): Attempt[TestTuple] = {
       val vector = v.value

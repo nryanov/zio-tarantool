@@ -76,7 +76,7 @@ private[tarantool] object RequestHandler {
           .fromOption(awaitingRequestMap.remove(syncId))
           .orElseFail(TarantoolError.NotFoundOperation(syncId))
         _ <- operation.request.operationCode match {
-          case RequestCode.Eval => // todo: Call ?
+          case RequestCode.Eval | RequestCode.Call =>
             operation.response.succeed(TarantoolEvalResponse(response))
           case _ => operation.response.succeed(TarantoolDataResponse(response))
         }

@@ -1,16 +1,47 @@
-package zio.tarantool.codec.auto
+package zio.tarantool.codec
 
-import scodec.Attempt
+import scodec.{Attempt, Err}
 import shapeless._
 import shapeless.labelled.{FieldType, field}
 import zio.tarantool.msgpack._
-import zio.tarantool.codec.TupleEncoder
 
-object TupleEncoderAuto extends LowPriorityInstances {
-  def apply[A](implicit instance: TupleEncoder[A]): instance.type = instance
-}
+object auto extends LowPriorityInstances
 
-trait LowPriorityInstances extends LowestPriorityInstances {
+private[tarantool] trait LowPriorityInstances extends LowestPriorityInstances {
+  final implicit def genericFamilyEncoder[A, H <: Coproduct](implicit
+    gen: LabelledGeneric.Aux[A, H],
+    hEncoder: Lazy[TupleEncoder[H]],
+    notOption: A <:!< Option[Z] forSome { type Z }
+  ): TupleEncoder[A] = new TupleEncoder[A] {
+    override def encode(v: A): Attempt[MpArray] = hEncoder.value.encode(gen.to(v))
+
+    override def decode(v: MpArray, idx: Int): Attempt[A] =
+      hEncoder.value.decode(v, idx).map(h => gen.from(h))
+  }
+
+  final implicit val cnilEncoder: TupleEncoder[CNil] = new TupleEncoder[CNil] {
+    override def encode(v: CNil): Attempt[MpArray] = Attempt.successful(MpFixArray(Vector.empty))
+
+    override def decode(v: MpArray, idx: Int): Attempt[CNil] = Attempt.failure(Err("Unexpected"))
+  }
+
+  final implicit def coproductEncoder[K <: Symbol, H, T <: Coproduct](implicit
+    hEncoder: Lazy[TupleEncoder[H]],
+    tEncoder: Lazy[TupleEncoder[T]]
+  ): TupleEncoder[FieldType[K, H] :+: T] = new TupleEncoder[FieldType[K, H] :+: T] {
+    override def encode(v: FieldType[K, H] :+: T): Attempt[MpArray] =
+      v match {
+        case Inl(head) => hEncoder.value.encode(head)
+        case Inr(tail) => tEncoder.value.encode(tail)
+      }
+
+    override def decode(v: MpArray, idx: Int): Attempt[FieldType[K, H] :+: T] =
+      hEncoder.value
+        .decode(v, idx)
+        .map(r => Inl(field[K](r)))
+        .orElse(tEncoder.value.decode(v, idx).map(r => Inr(r)))
+  }
+
   implicit def genericEncoder[A, H <: HList](implicit
     gen: LabelledGeneric.Aux[A, H],
     hEncoder: Lazy[TupleEncoder[H]]
@@ -53,7 +84,7 @@ trait LowPriorityInstances extends LowestPriorityInstances {
   }
 }
 
-trait LowestPriorityInstances {
+private[tarantool] trait LowestPriorityInstances {
   implicit def genericOptionEncoder[A, H <: HList](implicit
     gen: LabelledGeneric.Aux[A, H],
     hEncoder: Lazy[TupleEncoder[Option[H]]]

@@ -66,9 +66,9 @@ trait BaseLayers {
   val responseHandlerLayer: ZLayer[Any, Throwable, ResponseHandler] =
     (tarantoolConnectionLayer ++ requestHandlerLayer ++ loggingLayer) >>> ResponseHandler.live
 
-  val tarantoolClientLayer: ZLayer[Any, Throwable, TarantoolClient] =
-    (loggingLayer ++ Clock.live ++ configLayer) >>> TarantoolClient.live
+  val tarantoolClientLayer: ZLayer[Any, Nothing, TarantoolClient] =
+    ((loggingLayer ++ Clock.live ++ configLayer) >>> TarantoolClient.live).orDie
 
-  val tarantoolClientNotMetaCacheLayer: ZLayer[Any, Throwable, TarantoolClient] =
-    (loggingLayer ++ Clock.live ++ configNoMetaCacheLayer) >>> TarantoolClient.live
+  val tarantoolClientNotMetaCacheLayer: ZLayer[Any, Nothing, TarantoolClient] =
+    ((loggingLayer ++ Clock.live ++ configNoMetaCacheLayer) >>> TarantoolClient.live).orDie
 }

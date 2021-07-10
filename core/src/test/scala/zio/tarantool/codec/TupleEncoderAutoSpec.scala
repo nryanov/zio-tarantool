@@ -1,13 +1,13 @@
-package zio.tarantool.codec.auto
+package zio.tarantool.codec
 
-import zio.tarantool.codec.TupleEncoder
-import zio.tarantool.msgpack.{MpFixArray, MpFixMap, MpFixString, MpPositiveFixInt, MpTrue}
-import zio.tarantool.codec.auto.TupleEncoderAuto._
-import zio.test._
-import zio.test.Assertion._
+import zio.tarantool.msgpack._
 import zio.tarantool.protocol.Implicits._
+import zio.tarantool.codec.auto._
+import zio.test.Assertion._
+import zio.test._
 
 object TupleEncoderAutoSpec extends DefaultRunnableSpec {
+  // todo: test case when there is no value for some fields (optional/non-optional)
   final case class A(f1: Int, f2: Long, f3: String)
   final case class B(f1: Int, f2: Long, f3: String, f4: Vector[Int], f5: Option[Boolean])
   final case class C(f1: Int, f2: Long, f3: String, f4: Vector[Int], f5: Map[String, String])
