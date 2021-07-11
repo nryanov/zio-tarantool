@@ -8,6 +8,8 @@ import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.msgpack.{MessagePack, MpArray}
 
 sealed trait TarantoolResponse {
+  def raw: MessagePack
+
   def resultSet[A: TupleEncoder]: IO[TarantoolError, Vector[A]]
 
   final def head[A: TupleEncoder]: IO[TarantoolError, A] =
@@ -20,6 +22,8 @@ sealed trait TarantoolResponse {
 object TarantoolResponse {
   // Returned data: [tuple]
   final case class TarantoolEvalResponse(messagePack: MessagePack) extends TarantoolResponse {
+    override val raw: MessagePack = messagePack
+
     override def resultSet[A](implicit encoder: TupleEncoder[A]): IO[TarantoolError, Vector[A]] =
       messagePack match {
         case v: MpArray =>
@@ -38,6 +42,8 @@ object TarantoolResponse {
 
   // Returned data: [ [tuple1], [tuple2], ..., [tupleN] ]
   final case class TarantoolDataResponse(messagePack: MessagePack) extends TarantoolResponse {
+    override val raw: MessagePack = messagePack
+
     override def resultSet[A](implicit encoder: TupleEncoder[A]): IO[TarantoolError, Vector[A]] =
       messagePack match {
         case v: MpArray =>

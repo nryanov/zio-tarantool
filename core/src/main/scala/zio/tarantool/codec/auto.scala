@@ -5,7 +5,11 @@ import shapeless._
 import shapeless.labelled.{FieldType, field}
 import zio.tarantool.msgpack._
 
-object auto extends LowPriorityInstances
+object auto extends LowPriorityInstances {
+  implicit class TupleUpdateBuilder[A <: Product](val value: A) {
+    def builder(implicit opsBuilder: TupleOpsBuilder[A]): TupleOpsBuilder[A] = opsBuilder
+  }
+}
 
 private[tarantool] trait LowPriorityInstances extends LowestPriorityInstances {
   final implicit def genericFamilyEncoder[A, H <: Coproduct](implicit
