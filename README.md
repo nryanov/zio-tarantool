@@ -95,7 +95,7 @@ TarantoolConfig(host, port, AuthInfo(username, password))
 - `Call` -- remote stored-procedure call
 - `Execute` -- execute the SQL statement contained in the sql-statement parameter
 - `Prepare` -- prepare the SQL statement contained in the sql-statement parameter
-- `Refresh` -- force schema cache update
+- `RefreshMeta` -- force schema cache update
 
 All operations return `Promise[TarantoolError, TarantoolResponse]`. `TarantoolResponse` has methods for accessing the actual data:
 - `resultSet[A]`
