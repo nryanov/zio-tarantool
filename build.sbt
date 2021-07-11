@@ -10,18 +10,22 @@ val compileAndTest = "compile->compile;test->test"
 
 def compilerOptions(scalaVersion: String): Seq[String] = Seq(
   "-deprecation",
+  "-unchecked",
   "-encoding",
   "UTF-8",
+  "-explaintypes",
   "-feature",
   "-language:existentials",
   "-language:higherKinds",
   "-language:implicitConversions",
-  "-unchecked",
-  "-Ywarn-dead-code",
-  "-Xlint",
   "-language:existentials",
   "-language:postfixOps",
-  "-Xlint:_,-byname-implicit"
+  "-Ywarn-dead-code",
+  "-Xlint",
+  "-Xlint:constant",
+  "-Xlint:inaccessible",
+  "-Xlint:nullary-unit",
+  "-Xlint:type-parameter-shadow"
 //  "-Xlog-implicits"
 ) ++ (CrossVersion.partialVersion(scalaVersion) match {
   case Some((2, scalaMajor)) if scalaMajor == 12 => scala212CompilerOptions
@@ -30,12 +34,40 @@ def compilerOptions(scalaVersion: String): Seq[String] = Seq(
 
 lazy val scala212CompilerOptions = Seq(
   "-Yno-adapted-args",
-  "-Ywarn-unused-import",
-  "-Xfuture"
+  "-Xfuture",
+  "-Ypartial-unification",
+  "-Ywarn-dead-code",
+  "-Ywarn-numeric-widen",
+  "-Ywarn-unused:implicits",
+  "-Ywarn-unused:imports",
+  "-Ywarn-unused:locals",
+  "-Ywarn-unused:params",
+  "-Ywarn-unused:patvars",
+  "-Ywarn-unused:privates",
+  "-Ywarn-value-discard",
+  "-Xlint:unsound-match"
 )
 
 lazy val scala213CompilerOptions = Seq(
-  "-Wunused:imports"
+  "-Xlint:_,-byname-implicit",
+  "-Ymacro-annotations",
+  "-Wdead-code",
+  "-Wnumeric-widen",
+  "-Wunused:explicits",
+  "-Wunused:implicits",
+  "-Wunused:imports",
+  "-Wunused:locals",
+  "-Wunused:patvars",
+  "-Wunused:privates",
+  "-Wvalue-discard",
+  "-Xlint:deprecation",
+  "-Xlint:eta-sam",
+  "-Xlint:eta-zero",
+  "-Xlint:implicit-not-found",
+  "-Xlint:infer-any",
+  "-Xlint:nonlocal-return",
+  "-Xlint:unused",
+  "-Xlint:valpattern"
 )
 
 lazy val noPublish = Seq(

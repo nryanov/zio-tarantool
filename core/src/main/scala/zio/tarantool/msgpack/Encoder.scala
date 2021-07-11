@@ -37,10 +37,10 @@ object Encoder {
   implicit val byteEncoder: Encoder[Byte] = new Encoder[Byte] {
     override def encode(v: Byte): Attempt[MessagePack] =
       if (v < -(1 << 5)) {
-        Attempt.successful(MpInt8(v))
+        Attempt.successful(MpInt8(v.toInt))
       } else {
-        if (v < 0) Attempt.successful(MpNegativeFixInt(v))
-        else Attempt.successful(MpPositiveFixInt(v))
+        if (v < 0) Attempt.successful(MpNegativeFixInt(v.toInt))
+        else Attempt.successful(MpPositiveFixInt(v.toInt))
       }
 
     override def decode(v: MessagePack): Attempt[Byte] = v match {
@@ -65,18 +65,18 @@ object Encoder {
     override def encode(v: Short): Attempt[MessagePack] =
       if (v < -(1 << 5)) {
         if (v < -(1 << 7)) {
-          Attempt.successful(MpInt16(v))
+          Attempt.successful(MpInt16(v.toInt))
         } else {
-          Attempt.successful(MpInt8(v))
+          Attempt.successful(MpInt8(v.toInt))
         }
       } else if (v < (1 << 7)) {
-        if (v < 0) Attempt.successful(MpNegativeFixInt(v))
-        else Attempt.successful(MpPositiveFixInt(v))
+        if (v < 0) Attempt.successful(MpNegativeFixInt(v.toInt))
+        else Attempt.successful(MpPositiveFixInt(v.toInt))
       } else {
         if (v < (1 << 8)) {
-          Attempt.successful(MpUint8(v))
+          Attempt.successful(MpUint8(v.toInt))
         } else {
-          Attempt.successful(MpUint16(v))
+          Attempt.successful(MpUint16(v.toInt))
         }
       }
 
@@ -111,7 +111,7 @@ object Encoder {
       } else {
         if (v < (1 << 8)) Attempt.successful(MpUint8(v))
         else if (v < (1 << 16)) Attempt.successful(MpUint16(v))
-        else Attempt.successful(MpUint32(v))
+        else Attempt.successful(MpUint32(v.toLong))
       }
 
     override def decode(v: MessagePack): Attempt[Int] = v match {

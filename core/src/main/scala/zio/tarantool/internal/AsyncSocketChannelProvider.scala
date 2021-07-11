@@ -64,9 +64,9 @@ private[tarantool] object AsyncSocketChannelProvider {
   44-byte base64-encoded salt
   20-byte NULL
    */
-  private val GreetingLength = 128
-  private val ProtocolVersionLength = 64
-  private val SaltLength = 44
+  private val GreetingLength: Long = 128
+  private val ProtocolVersionLength: Int = 64
+  private val SaltLength: Int = 44
 
   final case class OpenChannel(version: String, salt: String, channel: AsyncSocketChannelProvider)
 

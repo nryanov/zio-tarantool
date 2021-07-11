@@ -72,7 +72,6 @@ object TupleOpsBuilder {
   def apply[A](implicit builder: TupleOpsBuilder[A]): TupleOpsBuilder[A] = builder
 
   implicit def newBuilder[A, ARepr <: HList, KeysRepr <: HList](implicit
-    gen: LabelledGeneric.Aux[A, ARepr],
     keys: Keys.Aux[ARepr, KeysRepr],
     keysToTraversable: ToTraversable.Aux[KeysRepr, List, Symbol]
   ): TupleOpsBuilder[A] = {

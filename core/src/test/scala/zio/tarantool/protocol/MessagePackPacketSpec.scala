@@ -12,7 +12,7 @@ import zio.test.TestAspect.sequential
 
 object MessagePackPacketSpec extends DefaultRunnableSpec {
   private def createPacket(body: MessagePack): MessagePackPacket =
-    MessagePackPacket(Map.empty, Map(RequestBodyKey.Key.value -> body))
+    MessagePackPacket(Map.empty[Long, MessagePack], Map(RequestBodyKey.Key.value -> body))
 
   private val messagePackPacketProcessingSuite = suite("process message pack packet internals")(
     testM("should extract code") {
@@ -48,14 +48,17 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
     },
     testM("should extract data response type") {
       val packet =
-        MessagePackPacket(Map.empty, Some(Map(ResponseBodyKey.Data.value -> MpPositiveFixInt(0))))
+        MessagePackPacket(
+          Map.empty[Long, MessagePack],
+          Some(Map(ResponseBodyKey.Data.value -> MpPositiveFixInt(0)))
+        )
       val result = MessagePackPacket.responseType(packet)
       assertM(result)(equalTo(ResponseType.DataResponse))
     },
     testM("should extract sql response type") {
       val packet =
         MessagePackPacket(
-          Map.empty,
+          Map.empty[Long, MessagePack],
           Some(Map(ResponseBodyKey.SqlInfo.value -> MpPositiveFixInt(0)))
         )
       val result = MessagePackPacket.responseType(packet)
@@ -64,7 +67,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
     testM("should extract error24 response type") {
       val packet =
         MessagePackPacket(
-          Map.empty,
+          Map.empty[Long, MessagePack],
           Some(Map(ResponseBodyKey.Error24.value -> MpPositiveFixInt(0)))
         )
       val result = MessagePackPacket.responseType(packet)
@@ -72,31 +75,36 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
     },
     testM("should extract error response type") {
       val packet =
-        MessagePackPacket(Map.empty, Some(Map(ResponseBodyKey.Error.value -> MpPositiveFixInt(0))))
+        MessagePackPacket(
+          Map.empty[Long, MessagePack],
+          Some(Map(ResponseBodyKey.Error.value -> MpPositiveFixInt(0)))
+        )
       val result = MessagePackPacket.responseType(packet)
       assertM(result)(equalTo(ResponseType.ErrorResponse))
     },
     testM("should extract ping response type") {
       val packet =
-        MessagePackPacket(Map.empty, Some(Map.empty[Long, MessagePack]))
+        MessagePackPacket(Map.empty[Long, MessagePack], Some(Map.empty[Long, MessagePack]))
       val result = MessagePackPacket.responseType(packet)
       assertM(result)(equalTo(ResponseType.PingResponse))
     },
     testM("should fail if packet has unknown response type") {
-      val packet = MessagePackPacket(Map.empty, Some(Map(100500L -> MpPositiveFixInt(1))))
+      val packet =
+        MessagePackPacket(Map.empty[Long, MessagePack], Some(Map(100500L -> MpPositiveFixInt(1))))
       assertM(MessagePackPacket.responseType(packet).run)(
         fails(equalTo(UnknownResponseCode(packet)))
       )
     },
     testM("should extract data") {
       val packet = MessagePackPacket(
-        Map.empty,
+        Map.empty[Long, MessagePack],
         Some(Map(ResponseBodyKey.Data.value -> MpPositiveFixInt(123)))
       )
       assertM(MessagePackPacket.extractData(packet))(equalTo(MpPositiveFixInt(123)))
     },
     testM("should fail with ProtocolError when trying to extract not existing data") {
-      val packet = MessagePackPacket(Map.empty, Some(Map.empty[Long, MessagePack]))
+      val packet =
+        MessagePackPacket(Map.empty[Long, MessagePack], Some(Map.empty[Long, MessagePack]))
       val result = MessagePackPacket.extractData(packet)
       assertM(result.run)(
         fails(
