@@ -45,7 +45,7 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
   private val upsert = testM("upsert") {
     for {
       spaceId <- ZIO.service[Int]
-      ops <- TupleOpsBuilder[TestTuple].assign(Symbol("f2"), 321).assign(Symbol("f3"), 11).buildM()
+      ops <- TupleOpsBuilder[TestTuple].assign("f2", 321).assign("f3", 11).buildM()
       _ <- TarantoolClient.upsert(spaceId, 0, ops, tuple)
       operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
       initialValue <- awaitResponseData[TestTuple](operation)
@@ -72,7 +72,7 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
   private val update = testM("update") {
     for {
       spaceId <- ZIO.service[Int]
-      ops <- TupleOpsBuilder[TestTuple].assign(Symbol("f2"), 123).assign(Symbol("f3"), 321).buildM()
+      ops <- TupleOpsBuilder[TestTuple].assign("f2", 123).assign("f3", 321).buildM()
       _ <- TarantoolClient.insert(spaceId, tuple)
       operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
       initialValue <- awaitResponseData[TestTuple](operation)

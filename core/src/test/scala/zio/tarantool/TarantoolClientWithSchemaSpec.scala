@@ -28,7 +28,7 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
     for {
       insert <- TarantoolClient.insert("test", tuple)
       inserted <- awaitResponseData[TestTuple](insert)
-      ops <- TupleOpsBuilder[TestTuple].assign(Symbol("f2"), 2).assign(Symbol("f3"), 3).buildM()
+      ops <- TupleOpsBuilder[TestTuple].assign("f2", 2).assign("f3", 3).buildM()
       _ <- TarantoolClient.update("test", "primary", key, ops)
       selectAfterUpdate <- TarantoolClient.select("test", "primary", 1, 0, IteratorCode.Eq, key)
       afterUpdate <- awaitResponseData[TestTuple](selectAfterUpdate)
@@ -49,7 +49,7 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
 
   private val upsert = testM("upsert record") {
     for {
-      ops <- TupleOpsBuilder[TestTuple].assign(Symbol("f2"), 2).assign(Symbol("f3"), 3).buildM()
+      ops <- TupleOpsBuilder[TestTuple].assign("f2", 2).assign("f3", 3).buildM()
       _ <- TarantoolClient.upsert("test", "primary", ops, tuple)
       selectInserted <- TarantoolClient.select("test", "primary", 1, 0, IteratorCode.Eq, key)
       inserted <- awaitResponseHeadOption[TestTuple](selectInserted)

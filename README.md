@@ -161,17 +161,17 @@ import zio.tarantool.codec.auto._
 final case class A(f1: String, f2: Int, f3: Long)
 
 val a = A("1", 2, 3)
-val updateOps: Attempt[UpdateOperations] = user.builder.assign(Symbol("f1"), "test").plus(Symbol("f2"), 5).build()
+val updateOps: Attempt[UpdateOperations] = user.builder.assign("f1", "test").plus("f2", 5).build()
 ```
 
 Currently, only fields which contains primitive data can be updated. If field does not exist then `Attempt.failure` will be returned.
 Also, keep in mind that there is no additional checks for types which are passed into update operations, so there is no error for this:
 ```scala
-user.builder.assign(Symbol("f1"), 12345).build() // tarantool will update field f1 and set value to 12345 
+user.builder.assign("f1", 12345).build() // tarantool will update field f1 and set value to 12345 
 ```
 But there are checks for operations and types:
 ```scala
-user.builder.minus(Symbol("myField"), "lalala").build() // Attempt.failure because string value cannot be used in numeric operations
+user.builder.minus("myField", "lalala").build() // Attempt.failure because string value cannot be used in numeric operations
 ```
 
 ## Project status

@@ -11,30 +11,30 @@ import zio.tarantool.codec.TupleOpsBuilder.FieldMeta
 
 import scala.collection.mutable
 
-final class TupleOpsBuilder[C] private (fields: Map[Symbol, FieldMeta]) {
+final class TupleOpsBuilder[C] private (fields: Map[String, FieldMeta]) {
   private val buffer = mutable.ListBuffer[Attempt[FieldUpdate]]()
 
-  def plus[A](field: Symbol, value: A)(implicit ops: TupleOps[A]): this.type =
+  def plus[A](field: String, value: A)(implicit ops: TupleOps[A]): this.type =
     applyOperation(field, value, (meta, a) => ops.plus(meta.position, a))
 
-  def minus[A](field: Symbol, value: A)(implicit ops: TupleOps[A]): this.type =
+  def minus[A](field: String, value: A)(implicit ops: TupleOps[A]): this.type =
     applyOperation(field, value, (meta, a) => ops.minus(meta.position, a))
 
-  def or[A](field: Symbol, value: A)(implicit ops: TupleOps[A]): this.type =
+  def or[A](field: String, value: A)(implicit ops: TupleOps[A]): this.type =
     applyOperation(field, value, (meta, a) => ops.or(meta.position, a))
 
-  def and[A](field: Symbol, value: A)(implicit ops: TupleOps[A]): this.type =
+  def and[A](field: String, value: A)(implicit ops: TupleOps[A]): this.type =
     applyOperation(field, value, (meta, a) => ops.and(meta.position, a))
 
-  def xor[A](field: Symbol, value: A)(implicit ops: TupleOps[A]): this.type =
+  def xor[A](field: String, value: A)(implicit ops: TupleOps[A]): this.type =
     applyOperation(field, value, (meta, a) => ops.xor(meta.position, a))
 
-  def splice[A](field: Symbol, start: Int, length: Int, replacement: A)(implicit
+  def splice[A](field: String, start: Int, length: Int, replacement: A)(implicit
     ops: TupleOps[A]
   ): this.type =
     applyOperation(field, replacement, (meta, a) => ops.splice(meta.position, start, length, a))
 
-  def assign[A](field: Symbol, value: A)(implicit ops: TupleOps[A]): this.type =
+  def assign[A](field: String, value: A)(implicit ops: TupleOps[A]): this.type =
     applyOperation(field, value, (meta, a) => ops.assign(meta.position, a))
 
   def build(): Attempt[UpdateOperations] = {
@@ -52,7 +52,7 @@ final class TupleOpsBuilder[C] private (fields: Map[Symbol, FieldMeta]) {
   def reset(): Unit = buffer.clear()
 
   private def applyOperation[A](
-    field: Symbol,
+    field: String,
     value: A,
     f: (FieldMeta, A) => Attempt[FieldUpdate]
   ): this.type = {
@@ -72,12 +72,13 @@ object TupleOpsBuilder {
   def apply[A](implicit builder: TupleOpsBuilder[A]): TupleOpsBuilder[A] = builder
 
   implicit def newBuilder[A, ARepr <: HList, KeysRepr <: HList](implicit
+    gen: LabelledGeneric.Aux[A, ARepr],
     keys: Keys.Aux[ARepr, KeysRepr],
     keysToTraversable: ToTraversable.Aux[KeysRepr, List, Symbol]
   ): TupleOpsBuilder[A] = {
-    val fieldMetas: Map[Symbol, FieldMeta] =
+    val fieldMetas: Map[String, FieldMeta] =
       keys().toList.zipWithIndex.map { case (symbol, i) =>
-        symbol -> FieldMeta(i)
+        symbol.name -> FieldMeta(i)
       }.toMap
 
     new TupleOpsBuilder[A](fieldMetas)
