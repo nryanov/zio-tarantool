@@ -1,11 +1,13 @@
 package zio.tarantool.internal
 
-import java.io.{EOFException, IOException}
-import java.net.{InetSocketAddress, SocketAddress, StandardSocketOptions}
 import java.nio.ByteBuffer
+import java.io.{EOFException, IOException}
+import java.net.{ConnectException, InetSocketAddress, SocketAddress, StandardSocketOptions}
 import java.nio.channels.{AsynchronousSocketChannel, Channel, CompletionHandler}
 
 import zio._
+import zio.duration._
+import zio.clock.Clock
 import zio.stream.ZStream
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 import AsyncSocketChannelProvider._
@@ -70,7 +72,7 @@ private[tarantool] object AsyncSocketChannelProvider {
 
   def connect(
     cfg: TarantoolConfig
-  ): ZManaged[Any, TarantoolError.IOError, OpenChannel] =
+  ): ZManaged[Clock, TarantoolError, OpenChannel] =
     (for {
       address <- UIO(
         new InetSocketAddress(cfg.connectionConfig.host, cfg.connectionConfig.port)
@@ -79,6 +81,14 @@ private[tarantool] object AsyncSocketChannelProvider {
       readBuffer <- makeBuffer.toManaged_
       writeBuffer <- makeBuffer.toManaged_
       channel <- openChannel(address)
+        .timeout(cfg.connectionConfig.connectionTimeoutMillis.milliseconds)
+        .retry(
+          Schedule.recurs(cfg.connectionConfig.retries) && Schedule
+            .spaced(cfg.connectionConfig.retryTimeoutMillis.milliseconds)
+        )
+        .flatMap(opt =>
+          ZManaged.fromEither(opt.toRight(new ConnectException("Connection time out")))
+        )
 
       provider = new AsyncSocketChannelProvider(readBuffer, writeBuffer, channel)
       greeting <- provider.read.take(GreetingLength).runCollect.toManaged_

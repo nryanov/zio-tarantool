@@ -1,6 +1,5 @@
 val zioVersion = "1.0.3"
 val scodecVersion = "1.11.7"
-val scodecBitsVersion = "1.1.17"
 val testContainersVersion = "0.39.1"
 val logbackVersion = "1.2.3"
 
@@ -76,7 +75,6 @@ lazy val core = project
     moduleName := "zio-tarantool-core",
     libraryDependencies ++= Seq(
       "org.scodec" %% "scodec-core" % scodecVersion,
-      "org.scodec" %% "scodec-bits" % scodecBitsVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
