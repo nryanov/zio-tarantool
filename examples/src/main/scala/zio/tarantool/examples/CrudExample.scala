@@ -31,7 +31,7 @@ object CrudExample extends zio.App {
     _ <- zio.console.putStrLn(s"User: $user")
 
     // currently, only primitive types supported
-    updates <- user.builder.assign(Symbol("name"), "John").plus(Symbol("age"), 5).buildM()
+    updates <- user.builder.assign("name", "John").plus("age", 5).buildM()
 
     _ <- TarantoolClient.update("users", "primary", Tuple1(1), updates)
 
