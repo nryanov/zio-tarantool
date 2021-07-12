@@ -1,5 +1,5 @@
 # zio-tarantool
-[![GitHub license](https://img.shields.io/github/license/nryanov/zio-tarantool)](https://github.com/nryanov/zio-tarantool/blob/master/LICENSE.txt)
+[![GitHub license](https://img.shields.io/github/license/nryanov/zio-tarantool)](https://github.com/nryanov/zio-tarantool/blob/master/LICENSE)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.nryanov.zio-tarantool/zio-tarantool-core_2.13/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.nryanov.zio-tarantool/zio-tarantool-core_2.13)
 [![zio-tarantool CI](https://github.com/nryanov/zio-tarantool/actions/workflows/scala.yml/badge.svg?branch=master)](https://github.com/nryanov/zio-tarantool/actions/workflows/scala.yml)
 
@@ -110,7 +110,7 @@ If `ClientConfig.useSchemaMetaCache` is set to `true` then space and index metas
 This info will be used in cases where space name and index name are passed instead of their ids. 
 
 Schema will be fetched at the beginning after connection is established, but there is an option to force update it.
-To update the schema cache use `TarantoolClient.refresh`.
+To update the schema cache use `TarantoolClient.refreshMeta`.
 
 ## Codecs
 The core encoder type class is `TupleEncoder[A]`. 
