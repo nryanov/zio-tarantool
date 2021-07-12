@@ -13,10 +13,7 @@ final case class ConnectionConfig(
 )
 
 final case class ClientConfig(
-  writeTimeoutMillis: Int = 1000,
   schemaRequestTimeoutMillis: Int = 10000,
-  schemaRequestRetries: Int = 5,
-  schemaRequestRetryTimeoutMillis: Int = 1000,
   requestQueueSize: Int = 64,
   useSchemaMetaCache: Boolean = true
 )

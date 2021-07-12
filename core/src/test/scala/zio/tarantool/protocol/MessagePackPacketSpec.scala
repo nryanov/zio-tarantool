@@ -2,45 +2,27 @@ package zio.tarantool.protocol
 
 import zio.test._
 import zio.test.Assertion._
-import zio.tarantool.ScalacheckInterop._
 import zio.tarantool.Generators._
 import zio.tarantool.TarantoolError
-import zio.tarantool.msgpack.{Encoder, MessagePack, MpPositiveFixInt}
-import java.nio.ByteBuffer
+import zio.tarantool.msgpack.{Encoder, MessagePack, MpInt8, MpPositiveFixInt}
 
 import scodec.bits.ByteVector
+import zio.tarantool.TarantoolError.UnknownResponseCode
 import zio.test.TestAspect.sequential
 
 object MessagePackPacketSpec extends DefaultRunnableSpec {
   private def createPacket(body: MessagePack): MessagePackPacket =
-    MessagePackPacket(Map.empty, Map(RequestBodyKey.Key.value -> body))
+    MessagePackPacket(Map.empty[Long, MessagePack], Map(RequestBodyKey.Key.value -> body))
 
   private val messagePackPacketProcessingSuite = suite("process message pack packet internals")(
-    testM("should convert to ByteBuffer") {
-      val packet = MessagePackPacket(
-        Map(
-          Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
-          Header.Code.value -> Encoder[Long].encodeUnsafe(RequestCode.Ping.value)
-        )
-      )
-      val result = MessagePackPacket.toBuffer(packet)
-      assertM(result)(isSubtype[ByteBuffer](anything))
-    },
     testM("should extract code") {
-      val packet = MessagePackPacket(
-        Map(
-          Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
-          Header.Code.value -> Encoder[Long].encodeUnsafe(
-            ResponseCode.Success.value
-          )
-        )
-      )
+      val packet =
+        MessagePackPacket(Map(Header.Code.value -> MpPositiveFixInt(ResponseCode.Success.value)))
       val result = MessagePackPacket.extractCode(packet)
       assertM(result)(equalTo(ResponseCode.Success))
     },
     testM("should fail with ProtocolError when trying to extract not existing code") {
-      val packet =
-        MessagePackPacket(Map(Header.Sync.value -> Encoder[Long].encodeUnsafe(1)))
+      val packet = MessagePackPacket(Map.empty)
       val result = MessagePackPacket.extractCode(packet)
       assertM(result.run)(
         fails(
@@ -51,22 +33,12 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       )
     },
     testM("should extract error code") {
-      val packet = MessagePackPacket(
-        Map(
-          Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
-          Header.Code.value -> Encoder[Long].encodeUnsafe(0x8123)
-        )
-      )
+      val packet = MessagePackPacket(Map(Header.Code.value -> MpInt8(0x8123)))
       val result = MessagePackPacket.extractCode(packet)
       assertM(result)(equalTo(ResponseCode.Error(0x0123)))
     },
     testM("should fail with ProtocolError when trying to extract incorrect error code") {
-      val packet = MessagePackPacket(
-        Map(
-          Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
-          Header.Code.value -> Encoder[Long].encodeUnsafe(0x1234)
-        )
-      )
+      val packet = MessagePackPacket(Map(Header.Code.value -> MpInt8(0x1234)))
       val result = MessagePackPacket.extractCode(packet)
       assertM(result.run)(
         fails(
@@ -74,29 +46,65 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
         )
       )
     },
+    testM("should extract data response type") {
+      val packet =
+        MessagePackPacket(
+          Map.empty[Long, MessagePack],
+          Some(Map(ResponseBodyKey.Data.value -> MpPositiveFixInt(0)))
+        )
+      val result = MessagePackPacket.responseType(packet)
+      assertM(result)(equalTo(ResponseType.DataResponse))
+    },
+    testM("should extract sql response type") {
+      val packet =
+        MessagePackPacket(
+          Map.empty[Long, MessagePack],
+          Some(Map(ResponseBodyKey.SqlInfo.value -> MpPositiveFixInt(0)))
+        )
+      val result = MessagePackPacket.responseType(packet)
+      assertM(result)(equalTo(ResponseType.SqlResponse))
+    },
+    testM("should extract error24 response type") {
+      val packet =
+        MessagePackPacket(
+          Map.empty[Long, MessagePack],
+          Some(Map(ResponseBodyKey.Error24.value -> MpPositiveFixInt(0)))
+        )
+      val result = MessagePackPacket.responseType(packet)
+      assertM(result)(equalTo(ResponseType.ErrorResponse))
+    },
+    testM("should extract error response type") {
+      val packet =
+        MessagePackPacket(
+          Map.empty[Long, MessagePack],
+          Some(Map(ResponseBodyKey.Error.value -> MpPositiveFixInt(0)))
+        )
+      val result = MessagePackPacket.responseType(packet)
+      assertM(result)(equalTo(ResponseType.ErrorResponse))
+    },
+    testM("should extract ping response type") {
+      val packet =
+        MessagePackPacket(Map.empty[Long, MessagePack], Some(Map.empty[Long, MessagePack]))
+      val result = MessagePackPacket.responseType(packet)
+      assertM(result)(equalTo(ResponseType.PingResponse))
+    },
+    testM("should fail if packet has unknown response type") {
+      val packet =
+        MessagePackPacket(Map.empty[Long, MessagePack], Some(Map(100500L -> MpPositiveFixInt(1))))
+      assertM(MessagePackPacket.responseType(packet).run)(
+        fails(equalTo(UnknownResponseCode(packet)))
+      )
+    },
     testM("should extract data") {
       val packet = MessagePackPacket(
-        Map(
-          Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
-          Header.Code.value -> Encoder[Long].encodeUnsafe(0x0)
-        ),
-        Some(
-          Map(
-            ResponseBodyKey.Data.value -> Encoder[Long].encodeUnsafe(123)
-          )
-        )
+        Map.empty[Long, MessagePack],
+        Some(Map(ResponseBodyKey.Data.value -> MpPositiveFixInt(123)))
       )
-      val result = MessagePackPacket.extractData(packet)
-      assertM(result)(equalTo(MpPositiveFixInt(123)))
+      assertM(MessagePackPacket.extractData(packet))(equalTo(MpPositiveFixInt(123)))
     },
     testM("should fail with ProtocolError when trying to extract not existing data") {
-      val packet = MessagePackPacket(
-        Map(
-          Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
-          Header.Code.value -> Encoder[Long].encodeUnsafe(0x0)
-        ),
-        Some(Map.empty[Long, MessagePack])
-      )
+      val packet =
+        MessagePackPacket(Map.empty[Long, MessagePack], Some(Map.empty[Long, MessagePack]))
       val result = MessagePackPacket.extractData(packet)
       assertM(result.run)(
         fails(
@@ -109,12 +117,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       )
     },
     testM("should extract syncId") {
-      val packet = MessagePackPacket(
-        Map(
-          Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
-          Header.Code.value -> Encoder[Long].encodeUnsafe(0x8123)
-        )
-      )
+      val packet = MessagePackPacket(Map(Header.Sync.value -> MpPositiveFixInt(1)))
       val result = MessagePackPacket.extractSyncId(packet)
       assertM(result)(equalTo(1.toLong))
     },
@@ -130,13 +133,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       )
     },
     testM("should extract schemaId") {
-      val packet = MessagePackPacket(
-        Map(
-          Header.Sync.value -> Encoder[Long].encodeUnsafe(1),
-          Header.Code.value -> Encoder[Long].encodeUnsafe(0x8123),
-          Header.SchemaId.value -> Encoder[Long].encodeUnsafe(2)
-        )
-      )
+      val packet = MessagePackPacket(Map(Header.SchemaId.value -> MpPositiveFixInt(2)))
       val result = MessagePackPacket.extractSchemaId(packet)
       assertM(result)(equalTo(2.toLong))
     },
@@ -153,128 +150,83 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
     }
   )
 
-  private val messagePAckPacketEncodingSuite = suite("encode packet")(
-    testM("encode/decode byte") {
-      checkM(byte().toGenZIO) { value =>
-        val encoded =
-          Encoder[Byte].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
-
-        for {
-          _ <- MessagePackPacket.toBuffer(createPacket(encoded))
-        } yield assertCompletes
+  private val messagePackPacketToBufferSuite = suite("convert packet into byte buffer")(
+    testM("convert byte") {
+      checkM(byte()) { value =>
+        val encoded = Encoder[Byte].encodeUnsafe(value)
+        successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("encode/decode short") {
-      checkM(short().toGenZIO) { value =>
-        val encoded =
-          Encoder[Short].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
-
-        for {
-          _ <- MessagePackPacket.toBuffer(createPacket(encoded))
-        } yield assertCompletes
+    testM("convert short") {
+      checkM(short()) { value =>
+        val encoded = Encoder[Short].encodeUnsafe(value)
+        successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("encode/decode int") {
-      checkM(int().toGenZIO) { value =>
-        val encoded =
-          Encoder[Int].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
-
-        for {
-          _ <- MessagePackPacket.toBuffer(createPacket(encoded))
-        } yield assertCompletes
+    testM("convert int") {
+      checkM(int()) { value =>
+        val encoded = Encoder[Int].encodeUnsafe(value)
+        successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("encode/decode long") {
-      checkM(long().toGenZIO) { value =>
-        val encoded =
-          Encoder[Long].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
-
-        for {
-          _ <- MessagePackPacket.toBuffer(createPacket(encoded))
-        } yield assertCompletes
+    testM("convert long") {
+      checkM(long()) { value =>
+        val encoded = Encoder[Long].encodeUnsafe(value)
+        successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("encode/decode float") {
-      checkM(float().toGenZIO) { value =>
-        val encoded =
-          Encoder[Float].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
-
-        for {
-          _ <- MessagePackPacket.toBuffer(createPacket(encoded))
-        } yield assertCompletes
+    testM("convert float") {
+      checkM(float()) { value =>
+        val encoded = Encoder[Float].encodeUnsafe(value)
+        successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("encode/decode double") {
-      checkM(double().toGenZIO) { value =>
-        val encoded =
-          Encoder[Double].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
-
-        for {
-          _ <- MessagePackPacket.toBuffer(createPacket(encoded))
-        } yield assertCompletes
+    testM("convert double") {
+      checkM(double()) { value =>
+        val encoded = Encoder[Double].encodeUnsafe(value)
+        successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("encode/decode string") {
-      checkM(nonEmptyString(64).toGenZIO) { value =>
-        val encoded =
-          Encoder[String].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
-
-        for {
-          _ <- MessagePackPacket.toBuffer(createPacket(encoded))
-        } yield assertCompletes
+    testM("convert string") {
+      checkM(nonEmptyString(64)) { value =>
+        val encoded = Encoder[String].encodeUnsafe(value)
+        successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("encode/decode boolean") {
-      checkM(bool().toGenZIO) { value =>
-        val encoded =
-          Encoder[Boolean].encode(value).getOrElse(throw new RuntimeException("Fail to encode"))
-
-        for {
-          _ <- MessagePackPacket.toBuffer(createPacket(encoded))
-        } yield assertCompletes
+    testM("convert boolean") {
+      checkM(bool()) { value =>
+        val encoded = Encoder[Boolean].encodeUnsafe(value)
+        successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("encode/decode binary") {
-      checkM(listOf(10, byte()).toGenZIO) { value =>
-        val encoded =
-          Encoder[ByteVector]
-            .encode(ByteVector(value))
-            .getOrElse(throw new RuntimeException("Fail to encode"))
-
-        for {
-          _ <- MessagePackPacket.toBuffer(createPacket(encoded))
-        } yield assertCompletes
+    testM("convert binary") {
+      checkM(listOf(10, byte())) { value =>
+        val encoded = Encoder[ByteVector].encodeUnsafe(ByteVector(value))
+        successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("encode/decode vector") {
-      checkM(listOf(32, org.scalacheck.Gen.alphaStr).toGenZIO) { value =>
-        val encoded =
-          Encoder[Vector[String]]
-            .encode(value.toVector)
-            .getOrElse(throw new RuntimeException("Fail to encode"))
-
-        for {
-          _ <- MessagePackPacket.toBuffer(createPacket(encoded))
-        } yield assertCompletes
+    testM("convert vector") {
+      checkM(listOf(32, nonEmptyString(64))) { value =>
+        val encoded = Encoder[Vector[String]].encodeUnsafe(value.toVector)
+        successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("encode/decode map") {
-      checkM(mapOf(32, int(), int()).toGenZIO) { value =>
-        val encoded =
-          Encoder[Map[Int, Int]]
-            .encode(value)
-            .getOrElse(throw new RuntimeException("Fail to encode"))
-
-        for {
-          _ <- MessagePackPacket.toBuffer(createPacket(encoded))
-        } yield assertCompletes
+    testM("convert map") {
+      checkM(mapOf(32, int(), int())) { value =>
+        val encoded = Encoder[Map[Int, Int]].encodeUnsafe(value)
+        successfullyConvertPacketToBuffer(encoded)
       }
     }
   )
 
+  private def successfullyConvertPacketToBuffer(mp: MessagePack) =
+    for {
+      _ <- MessagePackPacket.toBuffer(createPacket(mp))
+    } yield assertCompletes
+
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     suite("MessagePackPacket")(
       messagePackPacketProcessingSuite,
-      messagePAckPacketEncodingSuite
+      messagePackPacketToBufferSuite
     ) @@ sequential
 }

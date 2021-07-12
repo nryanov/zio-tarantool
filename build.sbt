@@ -1,40 +1,31 @@
 val zioVersion = "1.0.3"
-val zioLoggingVersion = "0.5.4"
 val scodecVersion = "1.11.7"
-val scodecBitsVersion = "1.1.17"
-val shapelessVersion = "2.3.3"
-val scalatestVersion = "3.2.0"
-val scalacheckPlusVersion = "3.2.0.0"
-val scalamockVersion = "5.0.0"
-val scalacheckVersion = "1.14.3"
 val testContainersVersion = "0.39.1"
 val logbackVersion = "1.2.3"
-val paradiseVersion = "2.1.1"
 
 val scala2_12 = "2.12.13"
 val scala2_13 = "2.13.5"
 
 val compileAndTest = "compile->compile;test->test"
 
-def priorTo2_13(scalaVersion: String): Boolean =
-  CrossVersion.partialVersion(scalaVersion) match {
-    case Some((2, minor)) if minor < 13 => true
-    case _                              => false
-  }
-
 def compilerOptions(scalaVersion: String): Seq[String] = Seq(
   "-deprecation",
+  "-unchecked",
   "-encoding",
   "UTF-8",
+  "-explaintypes",
   "-feature",
   "-language:existentials",
   "-language:higherKinds",
   "-language:implicitConversions",
-  "-unchecked",
+  "-language:existentials",
+  "-language:postfixOps",
   "-Ywarn-dead-code",
   "-Xlint",
-  "-language:existentials",
-  "-language:postfixOps"
+  "-Xlint:constant",
+  "-Xlint:inaccessible",
+  "-Xlint:nullary-unit",
+  "-Xlint:type-parameter-shadow"
 //  "-Xlog-implicits"
 ) ++ (CrossVersion.partialVersion(scalaVersion) match {
   case Some((2, scalaMajor)) if scalaMajor == 12 => scala212CompilerOptions
@@ -43,30 +34,46 @@ def compilerOptions(scalaVersion: String): Seq[String] = Seq(
 
 lazy val scala212CompilerOptions = Seq(
   "-Yno-adapted-args",
-  "-Ywarn-unused-import",
-  "-Xfuture"
+  "-Xfuture",
+  "-Ypartial-unification",
+  "-Ywarn-dead-code",
+  "-Ywarn-numeric-widen",
+  "-Ywarn-unused:implicits",
+  "-Ywarn-unused:imports",
+  "-Ywarn-unused:locals",
+  "-Ywarn-unused:params",
+  "-Ywarn-unused:patvars",
+  "-Ywarn-unused:privates",
+  "-Ywarn-value-discard",
+  "-Xlint:unsound-match"
 )
 
 lazy val scala213CompilerOptions = Seq(
-  "-Wunused:imports"
+  "-Xlint:_,-byname-implicit",
+  "-Ymacro-annotations",
+  "-Wdead-code",
+  "-Wnumeric-widen",
+  "-Wunused:explicits",
+  "-Wunused:implicits",
+  "-Wunused:imports",
+  "-Wunused:locals",
+  "-Wunused:patvars",
+  "-Wunused:privates",
+  "-Wvalue-discard",
+  "-Xlint:deprecation",
+  "-Xlint:eta-sam",
+  "-Xlint:eta-zero",
+  "-Xlint:implicit-not-found",
+  "-Xlint:infer-any",
+  "-Xlint:nonlocal-return",
+  "-Xlint:unused",
+  "-Xlint:valpattern"
 )
 
-lazy val macroSettings: Seq[Setting[_]] = Seq(
-  libraryDependencies ++= (Seq(
-    scalaOrganization.value % "scala-compiler" % scalaVersion.value % Provided,
-    scalaOrganization.value % "scala-reflect" % scalaVersion.value % Provided
-  ) ++ (
-    if (priorTo2_13(scalaVersion.value)) {
-      Seq(
-        compilerPlugin(
-          ("org.scalamacros" % "paradise" % paradiseVersion).cross(CrossVersion.patch)
-        )
-      )
-    } else Nil
-  )),
-  scalacOptions ++= (
-    if (priorTo2_13(scalaVersion.value)) Nil else Seq("-Ymacro-annotations")
-  )
+lazy val noPublish = Seq(
+  publish := {},
+  publishLocal := {},
+  publishArtifact := false
 )
 
 lazy val buildSettings = Seq(
@@ -83,45 +90,31 @@ lazy val buildSettings = Seq(
     )
   ),
   scalaVersion := scala2_13,
-  crossScalaVersions := Seq(scala2_12, scala2_13)
-)
-
-lazy val commonSettings = Seq(
-  libraryDependencies ++= Seq(
-    // todo: remove unused dependencies
-    "org.scalatest" %% "scalatest" % scalatestVersion % Test,
-    "org.scalatestplus" %% "scalacheck-1-14" % scalacheckPlusVersion % Test,
-    "org.scalamock" %% "scalamock" % scalamockVersion % Test,
-    "org.scalacheck" %% "scalacheck" % scalacheckVersion % Test,
-    "ch.qos.logback" % "logback-classic" % logbackVersion % Test
-  ),
-  scalacOptions ++= compilerOptions(scalaVersion.value),
-  organization := "",
-  scalaVersion := scala2_13,
   crossScalaVersions := Seq(scala2_12, scala2_13),
+  scalacOptions ++= compilerOptions(scalaVersion.value),
   Test / parallelExecution := false
 )
 
+lazy val allSettings = buildSettings
+
 lazy val zioTarantool =
-  project.in(file(".")).settings(skip in publish := true).aggregate(core)
+  project.in(file(".")).settings(noPublish).aggregate(core, examples)
 
 lazy val core = project
   .in(file("core"))
-  .settings(commonSettings)
-  .settings(macroSettings)
+  .settings(allSettings)
   .settings(
     moduleName := "zio-tarantool-core",
     libraryDependencies ++= Seq(
       "org.scodec" %% "scodec-core" % scodecVersion,
-      "org.scodec" %% "scodec-bits" % scodecBitsVersion,
-      "dev.zio" %% "zio" % zioVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
-      "dev.zio" %% "zio-macros" % zioVersion, // todo: remove
-      "dev.zio" %% "zio-logging" % zioLoggingVersion,
-      "dev.zio" %% "zio-logging-slf4j" % zioLoggingVersion % Test,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
-      "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test
+      "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test,
+      "ch.qos.logback" % "logback-classic" % logbackVersion % Test
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
+
+lazy val examples =
+  project.in(file("examples")).settings(allSettings).settings(noPublish).dependsOn(core)

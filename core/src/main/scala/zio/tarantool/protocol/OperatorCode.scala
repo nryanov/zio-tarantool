@@ -1,5 +1,7 @@
 package zio.tarantool.protocol
 
+import zio.tarantool.msgpack.Encoder
+
 sealed abstract class OperatorCode(val value: String)
 
 /**
@@ -23,4 +25,10 @@ object OperatorCode {
   case object Insertion extends OperatorCode("!")
   case object Deletion extends OperatorCode("#")
   case object Assigment extends OperatorCode("=")
+
+  implicit val operatorCodeEncoder: Encoder[OperatorCode] =
+    Encoder.stringEncoder.xmap(
+      _ => throw new UnsupportedOperationException("OperatorCode decoding is not supported"),
+      _.value
+    )
 }

@@ -12,16 +12,16 @@ object TarantoolRequestBody {
     iterator: IteratorCode,
     key: MpArray
   ): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
-    RequestBodyKey.Index.value -> Encoder[Long].encodeUnsafe(indexId),
-    RequestBodyKey.Limit.value -> Encoder[Long].encodeUnsafe(limit),
-    RequestBodyKey.Offset.value -> Encoder[Long].encodeUnsafe(offset),
-    RequestBodyKey.Iterator.value -> Encoder[Long].encodeUnsafe(iterator.value),
+    RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
+    RequestBodyKey.Index.value -> Encoder[Int].encodeUnsafe(indexId),
+    RequestBodyKey.Limit.value -> Encoder[Int].encodeUnsafe(limit),
+    RequestBodyKey.Offset.value -> Encoder[Int].encodeUnsafe(offset),
+    RequestBodyKey.Iterator.value -> Encoder[Int].encodeUnsafe(iterator.value),
     RequestBodyKey.Key.value -> key
   )
 
   def insertBody(spaceId: Int, tuple: MpArray): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
+    RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
     RequestBodyKey.Tuple.value -> tuple
   )
 
@@ -31,16 +31,16 @@ object TarantoolRequestBody {
     key: MpArray,
     tuple: MpArray
   ): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
-    RequestBodyKey.Index.value -> Encoder[Long].encodeUnsafe(indexId),
+    RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
+    RequestBodyKey.Index.value -> Encoder[Int].encodeUnsafe(indexId),
     RequestBodyKey.Key.value -> key,
     RequestBodyKey.Tuple.value -> tuple
   )
 
-  def deleteBody(spaceId: Int, indexId: Int, tuple: MpArray): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
-    RequestBodyKey.Index.value -> Encoder[Long].encodeUnsafe(indexId),
-    RequestBodyKey.Key.value -> tuple
+  def deleteBody(spaceId: Int, indexId: Int, key: MpArray): Map[Long, MessagePack] = Map(
+    RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
+    RequestBodyKey.Index.value -> Encoder[Int].encodeUnsafe(indexId),
+    RequestBodyKey.Key.value -> key
   )
 
   def upsertBody(
@@ -49,8 +49,8 @@ object TarantoolRequestBody {
     ops: MpArray,
     tuple: MpArray
   ): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
-    RequestBodyKey.Index.value -> Encoder[Long].encodeUnsafe(indexId),
+    RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
+    RequestBodyKey.Index.value -> Encoder[Int].encodeUnsafe(indexId),
     RequestBodyKey.UpsertOps.value -> ops,
     RequestBodyKey.Tuple.value -> tuple
   )
@@ -60,7 +60,7 @@ object TarantoolRequestBody {
     tuple: MpArray
   ): Map[Long, MessagePack] =
     Map(
-      RequestBodyKey.Space.value -> Encoder[Long].encodeUnsafe(spaceId),
+      RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
       RequestBodyKey.Tuple.value -> tuple
     )
 
@@ -85,7 +85,7 @@ object TarantoolRequestBody {
     sqlBind: MpArray,
     options: MpArray
   ): Map[Long, MessagePack] = Map(
-    RequestSqlBodyKey.StatementId.value -> Encoder[Long].encodeUnsafe(statementId),
+    RequestSqlBodyKey.StatementId.value -> Encoder[Int].encodeUnsafe(statementId),
     RequestSqlBodyKey.SqlBind.value -> sqlBind,
     RequestSqlBodyKey.Options.value -> options
   )
@@ -103,7 +103,7 @@ object TarantoolRequestBody {
   def prepareBody(
     statementId: Int
   ): Map[Long, MessagePack] = Map(
-    RequestSqlBodyKey.StatementId.value -> Encoder[Long].encodeUnsafe(statementId)
+    RequestSqlBodyKey.StatementId.value -> Encoder[Int].encodeUnsafe(statementId)
   )
 
   def prepareBody(

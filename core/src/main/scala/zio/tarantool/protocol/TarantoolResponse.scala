@@ -2,45 +2,70 @@ package zio.tarantool.protocol
 
 import zio._
 import scodec.{Attempt, Err}
+import zio.tarantool.TarantoolError
+import zio.tarantool.TarantoolError.{CodecError, EmptyResultSet, ProtocolError}
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.msgpack.{MessagePack, MpArray}
 
-/**
- * @param messagePack - data returned in response
- */
-final case class TarantoolResponse(messagePack: MessagePack) {
+sealed trait TarantoolResponse {
+  def raw: MessagePack
 
-  /** use this method to get actual value after `eval` */
-  def value[A](implicit encoder: TupleEncoder[A]): Task[Attempt[A]] =
-    ZIO.effect(messagePack match {
-      case v: MpArray => encoder.decode(v, 0)
-      case v =>
-        Attempt.failure(Err(s"Unexpected tuple type. Expected MpArray, but got: ${v.typeName()}"))
-    })
+  def resultSet[A: TupleEncoder]: IO[TarantoolError, Vector[A]]
 
-  def valueUnsafe[A](implicit encoder: TupleEncoder[A]): ZIO[Any, Throwable, A] =
-    value.map(_.require)
+  final def head[A: TupleEncoder]: IO[TarantoolError, A] =
+    headOption.flatMap(opt => IO.require(EmptyResultSet)(IO.succeed(opt)))
 
-  /** use this method to get actual data after CRUD operations */
-  def data[A](implicit
-    encoder: TupleEncoder[A]
-  ): Task[Attempt[Vector[A]]] = ZIO.effect(messagePack match {
-    case v: MpArray =>
-      v.value.foldLeft(Attempt.successful(Vector.empty[A])) {
-        case (acc, value: MpArray) =>
-          for {
-            a <- acc
-            decodedValue <- encoder.decode(value, 0)
-          } yield a :+ decodedValue
-        case (_, value) =>
-          Attempt.failure(
-            Err(s"Unexpected tuple type. Expected MpArray, but got: ${value.typeName()}")
+  final def headOption[A: TupleEncoder]: IO[TarantoolError, Option[A]] =
+    resultSet.map(_.headOption)
+}
+
+object TarantoolResponse {
+  // Returned data: [tuple]
+  final case class TarantoolEvalResponse(messagePack: MessagePack) extends TarantoolResponse {
+    override val raw: MessagePack = messagePack
+
+    override def resultSet[A](implicit encoder: TupleEncoder[A]): IO[TarantoolError, Vector[A]] =
+      messagePack match {
+        case v: MpArray =>
+          if (v.value.nonEmpty) {
+            IO.effect(encoder.decode(v, 0).require)
+              .bimap(err => CodecError(err), value => Vector(value))
+          } else {
+            IO.succeed(Vector.empty)
+          }
+        case v =>
+          IO.fail(
+            ProtocolError(s"Unexpected tuple type. Expected MpArray, but got: ${v.typeName()}")
           )
       }
-    case v =>
-      Attempt.failure(Err(s"Unexpected tuple type. Expected MpArray, but got: ${v.typeName()}"))
-  })
+  }
 
-  def dataUnsafe[A](implicit encoder: TupleEncoder[A]): ZIO[Any, Throwable, Vector[A]] =
-    data.map(_.require)
+  // Returned data: [ [tuple1], [tuple2], ..., [tupleN] ]
+  final case class TarantoolDataResponse(messagePack: MessagePack) extends TarantoolResponse {
+    override val raw: MessagePack = messagePack
+
+    override def resultSet[A](implicit encoder: TupleEncoder[A]): IO[TarantoolError, Vector[A]] =
+      messagePack match {
+        case v: MpArray =>
+          IO.effect(
+            v.value
+              .foldLeft(Attempt.successful(Vector.empty[A])) {
+                case (acc, value: MpArray) =>
+                  for {
+                    a <- acc
+                    decodedValue <- encoder.decode(value, 0)
+                  } yield a :+ decodedValue
+                case (_, value) =>
+                  Attempt.failure(
+                    Err(s"Unexpected tuple type. Expected MpArray, but got: ${value.typeName()}")
+                  )
+              }
+              .require
+          ).mapError(CodecError)
+        case v =>
+          IO.fail(
+            ProtocolError(s"Unexpected tuple type. Expected MpArray, but got: ${v.typeName()}")
+          )
+      }
+  }
 }

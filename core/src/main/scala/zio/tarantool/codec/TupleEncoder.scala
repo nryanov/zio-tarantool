@@ -1,7 +1,7 @@
 package zio.tarantool.codec
 
 import scodec.{Attempt, Err}
-import zio.tarantool.msgpack.{Encoder, MpArray, MpFixArray}
+import zio.tarantool.msgpack.{Encoder, MpArray, MpFixArray, MpNil}
 
 trait TupleEncoder[A] extends Serializable {
   def encode(v: A): Attempt[MpArray]
@@ -34,22 +34,26 @@ object TupleEncoder {
     override def encode(v: A): Attempt[MpArray] =
       encoder.encode(v).map(res => MpFixArray(Vector(res)))
 
-    override def decode(v: MpArray, idx: Int): Attempt[A] = v match {
-      case array: MpArray => encoder.decode(array.value(idx))
-      case _              => Attempt.failure(Err(s"Error while unpacking tuple: $v"))
-    }
+    override def decode(v: MpArray, idx: Int): Attempt[A] = encoder.decode(v.value(idx))
   }
 
   implicit def fromEncoderOption[A](implicit encoder: Encoder[A]): TupleEncoder[Option[A]] =
     new TupleEncoder[Option[A]] {
       override def encode(v: Option[A]): Attempt[MpArray] = v match {
         case Some(value) => encoder.encode(value).map(value => MpFixArray(Vector(value)))
-        case None        => Attempt.successful(MpFixArray(Vector.empty))
+        case None        => Attempt.successful(MpFixArray(Vector(MpNil)))
       }
 
-      override def decode(v: MpArray, idx: Int): Attempt[Option[A]] = v match {
-        case msg: MpArray if msg.value.nonEmpty => encoder.decode(msg.value(idx)).map(Some(_))
-        case msg: MpArray if msg.value.isEmpty  => Attempt.successful(None)
-      }
+      override def decode(v: MpArray, idx: Int): Attempt[Option[A]] =
+        if (v.value.nonEmpty) {
+          val mp = v.value(idx)
+
+          mp match {
+            case MpNil => Attempt.successful(None)
+            case _     => encoder.decode(mp).map(Some(_))
+          }
+        } else {
+          Attempt.successful(None)
+        }
     }
 }

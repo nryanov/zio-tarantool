@@ -1,9 +1,12 @@
 package zio.tarantool.msgpack
 
 import scodec.bits.ByteVector
+import zio.tarantool.msgpack.MessagePackException.UnexpectedMessagePackType
 
 sealed trait MessagePack {
   def typeName(): String
+
+  def toNumber(): Int = throw UnexpectedMessagePackType(s"Not a natural number: ${typeName()}")
 }
 
 sealed trait MpArray extends MessagePack {
@@ -16,10 +19,12 @@ sealed trait MpMap extends MessagePack {
 
 final case class MpPositiveFixInt(value: Int) extends MessagePack {
   override def typeName(): String = "MpPositiveFixInt"
+  override def toNumber(): Int = value
 }
 
 final case class MpNegativeFixInt(value: Int) extends MessagePack {
   override def typeName(): String = "MpNegativeFixInt"
+  override def toNumber(): Int = value
 }
 
 final case class MpFixMap(value: Map[MessagePack, MessagePack]) extends MpMap {
@@ -73,28 +78,36 @@ final case class MpFloat64(value: Double) extends MessagePack {
 
 final case class MpUint8(value: Int) extends MessagePack {
   override def typeName(): String = "MpUint8"
+  override def toNumber(): Int = value
 }
 final case class MpUint16(value: Int) extends MessagePack {
   override def typeName(): String = "MpUint16"
+  override def toNumber(): Int = value
 }
 final case class MpUint32(value: Long) extends MessagePack {
   override def typeName(): String = "MpUint32"
+  override def toNumber(): Int = value.toInt
 }
 final case class MpUint64(value: Long) extends MessagePack {
   override def typeName(): String = "MpUint64"
+  override def toNumber(): Int = value.toInt
 }
 
 final case class MpInt8(value: Int) extends MessagePack {
   override def typeName(): String = "MpInt8"
+  override def toNumber(): Int = value
 }
 final case class MpInt16(value: Int) extends MessagePack {
   override def typeName(): String = "MpInt16"
+  override def toNumber(): Int = value
 }
 final case class MpInt32(value: Int) extends MessagePack {
   override def typeName(): String = "MpInt32"
+  override def toNumber(): Int = value
 }
 final case class MpInt64(value: Long) extends MessagePack {
   override def typeName(): String = "MpInt64"
+  override def toNumber(): Int = value.toInt
 }
 
 final case class MpFixExtension1(code: Int, data: ByteVector) extends MessagePack {

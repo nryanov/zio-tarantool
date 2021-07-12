@@ -4,47 +4,35 @@ import java.io.IOException
 
 import zio.tarantool.protocol.{MessagePackPacket, RequestCode}
 
-import scala.util.control.NoStackTrace
-
-sealed abstract class TarantoolError(msg: String, cause: Throwable)
-    extends RuntimeException(msg, cause)
-    with NoStackTrace
+sealed abstract class TarantoolError(message: String, cause: Throwable)
+    extends Exception(message, cause)
 
 object TarantoolError {
+  final case class IOError(exception: IOException)
+      extends TarantoolError(exception.getLocalizedMessage, exception)
   final case class InternalError(cause: Throwable)
       extends TarantoolError(cause.getLocalizedMessage, cause)
 
-  final case class ConfigurationError(message: String) extends TarantoolError(message, null)
-
   final case class AuthError(message: String) extends TarantoolError(message, null)
 
-  final case class SpaceNotFound(message: String) extends TarantoolError(message, null)
-  final case class IndexNotFound(message: String) extends TarantoolError(message, null)
-
-  final case class NotEqualSchemaId(message: String) extends TarantoolError(message, null)
+  final case class SpaceNotFound(space: String) extends TarantoolError(space, null)
+  final case class IndexNotFound(space: String, index: String)
+      extends TarantoolError(s"$space:$index", null)
 
   final case class ProtocolError(message: String) extends TarantoolError(message, null)
   final case class CodecError(exception: Throwable)
       extends TarantoolError(exception.getLocalizedMessage, exception)
-  final case class IOError(exception: IOException)
-      extends TarantoolError(exception.getLocalizedMessage, exception)
+  case object EmptyResultSet extends TarantoolError("Empty result set", null)
   final case class Timeout(message: String) extends TarantoolError(message, null)
   final case class UnknownResponseCode(mp: MessagePackPacket)
-      extends TarantoolError(s"Packet $mp has unknown response code", null)
-
-  final case class DirectWriteError(message: String) extends TarantoolError(message, null)
-  final case class MessagePackPacketReadError(message: String) extends TarantoolError(message, null)
+      extends TarantoolError("Unknown response code", null)
 
   final case class OperationException(reason: String, errorCode: Int)
-      extends TarantoolError(reason, null)
-  final case class NotFoundOperation(reason: String) extends TarantoolError(reason, null)
-  final case class DuplicateOperation(syncId: Long)
-      extends TarantoolError(s"Operation with id $syncId was already sent", null)
+      extends TarantoolError(s"[$errorCode] $reason", null)
+  final case class NotFoundOperation(syncId: Long) extends TarantoolError(syncId.toString, null)
+  final case class DuplicateOperation(syncId: Long) extends TarantoolError(syncId.toString, null)
   final case class DeclinedOperation(syncId: Long, code: RequestCode)
-      extends TarantoolError(
-        s"Operation $syncId:$code was declined",
-        null
-      )
+      extends TarantoolError(s"$code -- $syncId", null)
 
   private[tarantool] val toIOError: PartialFunction[Throwable, TarantoolError.IOError] = {
     case e: IOException => TarantoolError.IOError(e)
