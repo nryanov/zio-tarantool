@@ -1,6 +1,6 @@
 val zioVersion = "1.0.3"
 val scodecVersion = "1.11.7"
-val testContainersVersion = "0.39.1"
+val testContainersVersion = "0.39.5"
 val logbackVersion = "1.2.3"
 
 val scala2_12 = "2.12.13"
