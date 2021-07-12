@@ -78,7 +78,7 @@ lazy val noPublish = Seq(
 
 lazy val buildSettings = Seq(
   sonatypeProfileName := "com.nryanov",
-  organization := "com.nryanov.tarantool",
+  organization := "com.nryanov.zio-tarantool",
   homepage := Some(url("https://github.com/nryanov/zio-tarantool")),
   licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
   developers := List(
@@ -98,7 +98,12 @@ lazy val buildSettings = Seq(
 lazy val allSettings = buildSettings
 
 lazy val zioTarantool =
-  project.in(file(".")).settings(noPublish).aggregate(core, examples)
+  project
+    .in(file("."))
+    .settings(moduleName := "zio-tarantool")
+    .settings(allSettings)
+    .settings(noPublish)
+    .aggregate(core, examples)
 
 lazy val core = project
   .in(file("core"))
