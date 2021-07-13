@@ -22,8 +22,6 @@ libraryDependencies ++= Seq(
 )
 ```
 
-The only dependencies are [zio](https://github.com/zio/zio) and [scodec](https://github.com/scodec/scodec).
-
 ## Getting started
 ```scala
 import zio._

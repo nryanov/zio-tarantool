@@ -4,7 +4,7 @@ import zio.test._
 import zio.test.Assertion._
 import zio.tarantool.Generators._
 import zio.tarantool.TarantoolError
-import zio.tarantool.msgpack.{Encoder, MessagePack, MpInt8, MpPositiveFixInt}
+import zio.tarantool.msgpack.{MessagePack, MpInt8, MpPositiveFixInt}
 
 import scodec.bits.ByteVector
 import zio.tarantool.TarantoolError.UnknownResponseCode

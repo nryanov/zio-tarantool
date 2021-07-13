@@ -1,7 +1,7 @@
 package zio.tarantool.codec
 
 import scodec.{Attempt, Err}
-import zio.tarantool.msgpack.{Encoder, MessagePack}
+import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.FieldUpdate.{SimpleFieldUpdate, SpliceFieldUpdate}
 import zio.tarantool.protocol.{FieldUpdate, OperatorCode}
 

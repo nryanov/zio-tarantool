@@ -2,7 +2,7 @@ package zio.tarantool.data
 
 import scodec.Attempt
 import zio.tarantool.codec.TupleEncoder
-import zio.tarantool.msgpack.{Encoder, MessagePack, MpArray}
+import zio.tarantool.msgpack.{MessagePack, MpArray}
 
 final case class TestTuple(f1: String, f2: Int, f3: Long)
 

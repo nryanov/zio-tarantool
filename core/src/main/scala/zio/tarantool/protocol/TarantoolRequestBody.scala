@@ -1,7 +1,7 @@
 package zio.tarantool.protocol
 
 import scodec.bits.ByteVector
-import zio.tarantool.msgpack.{Encoder, MessagePack, MpArray}
+import zio.tarantool.msgpack.{MessagePack, MpArray}
 
 object TarantoolRequestBody {
   def selectBody(

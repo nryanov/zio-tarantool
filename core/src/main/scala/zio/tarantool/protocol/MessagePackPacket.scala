@@ -9,7 +9,7 @@ import zio.tarantool.TarantoolError
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.TarantoolError.toIOError
 import zio.tarantool.codec.MessagePackPacketCodec
-import zio.tarantool.msgpack.{Encoder, MessagePack, MessagePackCodec}
+import zio.tarantool.msgpack.{MessagePack, MessagePackCodec}
 
 final case class MessagePackPacket(header: Map[Long, MessagePack], body: Map[Long, MessagePack])
 

@@ -1,7 +1,7 @@
 package zio.tarantool.codec
 
 import scodec.{Attempt, Err}
-import zio.tarantool.msgpack.{Encoder, MpArray, MpFixArray, MpNil}
+import zio.tarantool.msgpack.{MpArray, MpFixArray, MpNil}
 
 trait TupleEncoder[A] extends Serializable {
   def encode(v: A): Attempt[MpArray]

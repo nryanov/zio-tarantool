@@ -2,7 +2,7 @@ package zio.tarantool.protocol
 
 import zio._
 import zio.tarantool.TarantoolError
-import zio.tarantool.msgpack.{Encoder, MessagePack}
+import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.Implicits._
 
 final case class TarantoolRequest(
