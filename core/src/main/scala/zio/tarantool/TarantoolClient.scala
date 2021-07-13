@@ -3,8 +3,9 @@ package zio.tarantool
 import zio._
 import zio.clock.Clock
 import zio.tarantool.internal._
-import zio.tarantool.msgpack._
-import zio.tarantool.msgpack.MpArray
+import org.msgpack.core._
+import org.msgpack.value.Value
+import org.msgpack.value.impl.ImmutableArrayValueImpl
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.protocol.TarantoolRequestBody._
@@ -19,7 +20,7 @@ import zio.tarantool.protocol.{
 object TarantoolClient {
   type TarantoolClient = Has[Service]
 
-  private[this] val EmptyTuple = MpFixArray(Vector.empty)
+  private[this] val EmptyTuple = new ImmutableArrayValueImpl(Array.empty)
 
   trait Service extends Serializable {
     def ping(): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
@@ -32,7 +33,7 @@ object TarantoolClient {
       limit: Int,
       offset: Int,
       iterator: IteratorCode,
-      key: MpArray
+      key: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def select[A: TupleEncoder](
@@ -50,7 +51,7 @@ object TarantoolClient {
       limit: Int,
       offset: Int,
       iterator: IteratorCode,
-      key: MpArray
+      key: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def select[A: TupleEncoder](
@@ -64,7 +65,7 @@ object TarantoolClient {
 
     def insert(
       spaceId: Int,
-      tuple: MpArray
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def insert[A: TupleEncoder](
@@ -74,7 +75,7 @@ object TarantoolClient {
 
     def insert(
       spaceName: String,
-      tuple: MpArray
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def insert[A: TupleEncoder](
@@ -85,8 +86,8 @@ object TarantoolClient {
     def update(
       spaceId: Int,
       indexId: Int,
-      key: MpArray,
-      tuple: MpArray
+      key: Value,
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def update[A: TupleEncoder](
@@ -99,8 +100,8 @@ object TarantoolClient {
     def update(
       spaceName: String,
       indexName: String,
-      key: MpArray,
-      tuple: MpArray
+      key: Value,
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def update[A: TupleEncoder](
@@ -113,7 +114,7 @@ object TarantoolClient {
     def delete(
       spaceId: Int,
       indexId: Int,
-      key: MpArray
+      key: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def delete[A: TupleEncoder](
@@ -125,7 +126,7 @@ object TarantoolClient {
     def delete(
       spaceName: String,
       indexName: String,
-      key: MpArray
+      key: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def delete[A: TupleEncoder](
@@ -137,8 +138,8 @@ object TarantoolClient {
     def upsert(
       spaceId: Int,
       indexId: Int,
-      ops: MpArray,
-      tuple: MpArray
+      ops: Value,
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def upsert[A: TupleEncoder](
@@ -151,8 +152,8 @@ object TarantoolClient {
     def upsert(
       spaceName: String,
       indexName: String,
-      ops: MpArray,
-      tuple: MpArray
+      ops: Value,
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def upsert[A: TupleEncoder](
@@ -164,7 +165,7 @@ object TarantoolClient {
 
     def replace(
       spaceId: Int,
-      tuple: MpArray
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def replace[A: TupleEncoder](
@@ -174,7 +175,7 @@ object TarantoolClient {
 
     def replace(
       spaceName: String,
-      tuple: MpArray
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def replace[A: TupleEncoder](
@@ -184,7 +185,7 @@ object TarantoolClient {
 
     def call(
       functionName: String,
-      args: MpArray
+      args: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def call[A: TupleEncoder](
@@ -196,7 +197,7 @@ object TarantoolClient {
 
     def eval(
       expression: String,
-      args: MpArray
+      args: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def eval[A: TupleEncoder](
@@ -208,13 +209,13 @@ object TarantoolClient {
 
     def execute(
       statementId: Int,
-      sqlBind: MpArray,
-      options: MpArray
+      sqlBind: Value,
+      options: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     final def execute(
       statementId: Int,
-      sqlBind: MpArray
+      sqlBind: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
       execute(statementId, sqlBind, EmptyTuple)
 
@@ -225,13 +226,13 @@ object TarantoolClient {
 
     def execute(
       sql: String,
-      sqlBind: MpArray,
-      options: MpArray
+      sqlBind: Value,
+      options: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     final def execute(
       sql: String,
-      sqlBind: MpArray
+      sqlBind: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
       execute(sql, sqlBind, EmptyTuple)
 
@@ -255,7 +256,7 @@ object TarantoolClient {
     limit: Int,
     offset: Int,
     iterator: IteratorCode,
-    key: MpArray
+    key: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.select(spaceId, indexId, limit, offset, iterator, key))
 
@@ -275,7 +276,7 @@ object TarantoolClient {
     limit: Int,
     offset: Int,
     iterator: IteratorCode,
-    key: MpArray
+    key: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.select(spaceName, indexName, limit, offset, iterator, key))
 
@@ -291,7 +292,7 @@ object TarantoolClient {
 
   def insert(
     spaceId: Int,
-    tuple: MpArray
+    tuple: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.insert(spaceId, tuple))
 
@@ -303,7 +304,7 @@ object TarantoolClient {
 
   def insert(
     spaceName: String,
-    tuple: MpArray
+    tuple: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.insert(spaceName, tuple))
 
@@ -316,8 +317,8 @@ object TarantoolClient {
   def update(
     spaceId: Int,
     indexId: Int,
-    key: MpArray,
-    tuple: MpArray
+    key: Value,
+    tuple: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.update(spaceId, indexId, key, tuple))
 
@@ -332,8 +333,8 @@ object TarantoolClient {
   def update(
     spaceName: String,
     indexName: String,
-    key: MpArray,
-    tuple: MpArray
+    key: Value,
+    tuple: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.update(spaceName, indexName, key, tuple))
 
@@ -348,7 +349,7 @@ object TarantoolClient {
   def delete(
     spaceId: Int,
     indexId: Int,
-    key: MpArray
+    key: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.delete(spaceId, indexId, key))
 
@@ -361,7 +362,7 @@ object TarantoolClient {
   def delete(
     spaceName: String,
     indexName: String,
-    key: MpArray
+    key: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.delete(spaceName, indexName, key))
 
@@ -375,8 +376,8 @@ object TarantoolClient {
   def upsert(
     spaceId: Int,
     indexId: Int,
-    ops: MpArray,
-    tuple: MpArray
+    ops: Value,
+    tuple: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.upsert(spaceId, indexId, ops, tuple))
 
@@ -391,8 +392,8 @@ object TarantoolClient {
   def upsert(
     spaceName: String,
     indexName: String,
-    ops: MpArray,
-    tuple: MpArray
+    ops: Value,
+    tuple: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.upsert(spaceName, indexName, ops, tuple))
 
@@ -406,7 +407,7 @@ object TarantoolClient {
 
   def replace(
     spaceId: Int,
-    tuple: MpArray
+    tuple: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.replace(spaceId, tuple))
 
@@ -418,7 +419,7 @@ object TarantoolClient {
 
   def replace(
     spaceName: String,
-    tuple: MpArray
+    tuple: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.replace(spaceName, tuple))
 
@@ -430,7 +431,7 @@ object TarantoolClient {
 
   def call(
     functionName: String,
-    args: MpArray
+    args: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.call(functionName, args))
 
@@ -447,7 +448,7 @@ object TarantoolClient {
 
   def eval(
     expression: String,
-    args: MpArray
+    args: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.eval(expression, args))
 
@@ -464,14 +465,14 @@ object TarantoolClient {
 
   def execute(
     statementId: Int,
-    sqlBind: MpArray,
-    options: MpArray
+    sqlBind: Value,
+    options: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.execute(statementId, sqlBind, options))
 
   def execute(
     statementId: Int,
-    sqlBind: MpArray
+    sqlBind: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.execute(statementId, sqlBind))
 
@@ -482,14 +483,14 @@ object TarantoolClient {
 
   def execute(
     sql: String,
-    sqlBind: MpArray,
-    options: MpArray
+    sqlBind: Value,
+    options: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.execute(sql, sqlBind, options))
 
   def execute(
     sql: String,
-    sqlBind: MpArray
+    sqlBind: Value
   ): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     ZIO.accessM[TarantoolClient](_.get.execute(sql, sqlBind))
 
@@ -541,7 +542,7 @@ object TarantoolClient {
       limit: Int,
       offset: Int,
       iterator: IteratorCode,
-      key: MpArray
+      key: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
       for {
         body <- ZIO
@@ -568,7 +569,7 @@ object TarantoolClient {
       limit: Int,
       offset: Int,
       iterator: IteratorCode,
-      key: MpArray
+      key: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
       meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- select(meta.spaceId, meta.indexId, limit, offset, iterator, key)
@@ -588,7 +589,7 @@ object TarantoolClient {
 
     override def insert(
       spaceId: Int,
-      tuple: MpArray
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
       for {
         body <- ZIO.effect(insertBody(spaceId, tuple)).mapError(TarantoolError.CodecError)
@@ -607,7 +608,7 @@ object TarantoolClient {
 
     override def insert(
       spaceName: String,
-      tuple: MpArray
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
       for {
         meta <- schemaMetaManager.getSpaceMeta(spaceName)
@@ -626,8 +627,8 @@ object TarantoolClient {
     override def update(
       spaceId: Int,
       indexId: Int,
-      key: MpArray,
-      ops: MpArray
+      key: Value,
+      ops: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
       body <- ZIO.effect(updateBody(spaceId, indexId, key, ops)).mapError(TarantoolError.CodecError)
       response <- send(RequestCode.Update, body)
@@ -647,8 +648,8 @@ object TarantoolClient {
     override def update(
       spaceName: String,
       indexName: String,
-      key: MpArray,
-      tuple: MpArray
+      key: Value,
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
       meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- update(meta.spaceId, meta.indexId, key, tuple)
@@ -667,7 +668,7 @@ object TarantoolClient {
     override def delete(
       spaceId: Int,
       indexId: Int,
-      key: MpArray
+      key: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
       body <- ZIO.effect(deleteBody(spaceId, indexId, key)).mapError(TarantoolError.CodecError)
       response <- send(RequestCode.Delete, body)
@@ -685,7 +686,7 @@ object TarantoolClient {
     override def delete(
       spaceName: String,
       indexName: String,
-      key: MpArray
+      key: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
       meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- delete(meta.spaceId, meta.indexId, key)
@@ -703,8 +704,8 @@ object TarantoolClient {
     override def upsert(
       spaceId: Int,
       indexId: Int,
-      ops: MpArray,
-      tuple: MpArray
+      ops: Value,
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
       body <- ZIO
         .effect(upsertBody(spaceId, indexId, ops, tuple))
@@ -726,8 +727,8 @@ object TarantoolClient {
     override def upsert(
       spaceName: String,
       indexName: String,
-      ops: MpArray,
-      tuple: MpArray
+      ops: Value,
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
       meta <- schemaMetaManager.getIndexMeta(spaceName, indexName)
       response <- upsert(meta.spaceId, meta.indexId, ops, tuple)
@@ -745,7 +746,7 @@ object TarantoolClient {
 
     override def replace(
       spaceId: Int,
-      tuple: MpArray
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
       for {
         body <- ZIO.effect(replaceBody(spaceId, tuple)).mapError(TarantoolError.CodecError)
@@ -762,7 +763,7 @@ object TarantoolClient {
 
     override def replace(
       spaceName: String,
-      tuple: MpArray
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
       meta <- schemaMetaManager.getSpaceMeta(spaceName)
       response <- replace(meta.spaceId, tuple)
@@ -778,7 +779,7 @@ object TarantoolClient {
 
     override def call(
       functionName: String,
-      tuple: MpArray
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
       for {
         body <- ZIO.effect(callBody(functionName, tuple)).mapError(TarantoolError.CodecError)
@@ -801,7 +802,7 @@ object TarantoolClient {
 
     override def eval(
       expression: String,
-      tuple: MpArray
+      tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
       for {
         body <- ZIO.effect(evalBody(expression, tuple)).mapError(TarantoolError.CodecError)
@@ -823,8 +824,8 @@ object TarantoolClient {
 
     override def execute(
       statementId: Int,
-      sqlBind: MpArray,
-      options: MpArray
+      sqlBind: Value,
+      options: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
       body <- ZIO
         .effect(executeBody(statementId, sqlBind, options))
@@ -834,8 +835,8 @@ object TarantoolClient {
 
     override def execute(
       sql: String,
-      sqlBind: MpArray,
-      options: MpArray
+      sqlBind: Value,
+      options: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
       body <- ZIO.effect(executeBody(sql, sqlBind, options)).mapError(TarantoolError.CodecError)
       response <- send(RequestCode.Execute, body)
