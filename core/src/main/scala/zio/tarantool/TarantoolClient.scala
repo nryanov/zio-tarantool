@@ -559,7 +559,7 @@ object TarantoolClient {
       iterator: IteratorCode,
       key: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedKey <- TupleEncoder[A].encodeM(key)
+      encodedKey <- TupleEncoder[A].encodeToValueM(key)
       response <- select(spaceId, indexId, limit, offset, iterator, encodedKey)
     } yield response
 
@@ -637,13 +637,11 @@ object TarantoolClient {
       indexId: Int,
       key: A,
       updateOps: UpdateOperations
-    ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = ???
-    // fixme
-//      for {
-//      encodedKey <- TupleEncoder[A].encodeM(key)
-//      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeM(updateOps)
-//      response <- update(spaceId, indexId, encodedKey, encodedUpdateOps)
-//    } yield response
+    ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
+      encodedKey <- TupleEncoder[A].encodeToValueM(key)
+      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeToValueM(updateOps)
+      response <- update(spaceId, indexId, encodedKey, encodedUpdateOps)
+    } yield response
 
     override def update(
       spaceName: String,
@@ -679,7 +677,7 @@ object TarantoolClient {
       indexId: Int,
       key: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedKey <- TupleEncoder[A].encodeM(key)
+      encodedKey <- TupleEncoder[A].encodeToValueM(key)
       response <- delete(spaceId, indexId, encodedKey)
     } yield response
 
@@ -718,13 +716,11 @@ object TarantoolClient {
       indexId: Int,
       ops: UpdateOperations,
       tuple: A
-    ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = ???
-    // fixme
-//      for {
-//      encodedTuple <- TupleEncoder[A].encodeM(tuple)
-//      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeM(ops)
-//      response <- upsert(spaceId, indexId, encodedUpdateOps, encodedTuple)
-//    } yield response
+    ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
+      encodedTuple <- TupleEncoder[A].encodeToValueM(tuple)
+      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeToValueM(ops)
+      response <- upsert(spaceId, indexId, encodedUpdateOps, encodedTuple)
+    } yield response
 
     override def upsert(
       spaceName: String,
@@ -759,7 +755,7 @@ object TarantoolClient {
       spaceId: Int,
       tuple: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedTuple <- TupleEncoder[A].encodeM(tuple)
+      encodedTuple <- TupleEncoder[A].encodeToValueM(tuple)
       response <- replace(spaceId, encodedTuple)
     } yield response
 
@@ -798,7 +794,7 @@ object TarantoolClient {
       args: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
       for {
-        encodedArgs <- TupleEncoder[A].encodeM(args)
+        encodedArgs <- TupleEncoder[A].encodeToValueM(args)
         response <- call(functionName, encodedArgs)
       } yield response
 
@@ -820,7 +816,7 @@ object TarantoolClient {
       expression: String,
       args: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedArgs <- TupleEncoder[A].encodeM(args)
+      encodedArgs <- TupleEncoder[A].encodeToValueM(args)
       response <- eval(expression, encodedArgs)
     } yield response
 

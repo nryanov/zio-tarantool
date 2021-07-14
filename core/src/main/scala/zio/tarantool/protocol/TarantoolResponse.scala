@@ -59,7 +59,7 @@ object TarantoolResponse {
 
             if (next.isArrayValue) {
               val decoded = encoder.decode(next.asArrayValue(), 0)
-              buffer.appended(decoded)
+              buffer.+=(decoded)
             } else {
               throw ProtocolError(
                 s"Unexpected tuple type. Expected MpArray, but got: ${next.getValueType.name()}"

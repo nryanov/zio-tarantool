@@ -19,6 +19,9 @@ object Implicits {
     def encodeM(v: A): IO[TarantoolError.CodecError, Vector[Value]] =
       ZIO.effect(encoder.encode(v)).mapError(TarantoolError.CodecError)
 
+    def encodeToValueM(v: A): IO[TarantoolError.CodecError, Value] =
+      ZIO.effect(encoder.encode(v)).bimap(TarantoolError.CodecError, Encoder[Vector[Value]].encode)
+
     def decodeM(v: Array[Byte]): IO[TarantoolError.CodecError, A] =
       ZIO.effect {
         val unpacker = MessagePack.newDefaultUnpacker(v)

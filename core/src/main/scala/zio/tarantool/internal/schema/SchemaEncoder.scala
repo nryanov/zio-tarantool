@@ -1,23 +1,12 @@
 package zio.tarantool.internal.schema
 
-import org.msgpack.value.{ArrayValue, Value}
+import org.msgpack.value.{ArrayValue, MapValue, Value}
 import org.msgpack.value.impl.{ImmutableBooleanValueImpl, ImmutableNilValueImpl}
 import zio.tarantool.codec.{Encoder, TupleEncoder}
+import zio.tarantool.internal.schema.IndexPartMeta.{FullIndexPartMeta, SimpleIndexPartMeta}
 
-object SchemaEncoder {
+private[tarantool] object SchemaEncoder {
   private val empty = Vector(ImmutableNilValueImpl.get())
-
-  implicit val indexPartMetaEncoder: TupleEncoder[IndexPartMeta] = new TupleEncoder[IndexPartMeta] {
-
-    override def decode(v: ArrayValue, idx: Int): IndexPartMeta = {
-      val fieldNumberMp = Encoder[Int].decode(v.get(idx))
-      val fieldTypeMp = Encoder[String].decode(v.get(idx + 1))
-
-      IndexPartMeta(fieldNumberMp, fieldTypeMp)
-    }
-
-    override def encode(v: IndexPartMeta): Vector[Value] = empty
-  }
 
   implicit val indexMetaEncoder: TupleEncoder[IndexMeta] = new TupleEncoder[IndexMeta] {
     override def encode(v: IndexMeta): Vector[Value] = empty
@@ -99,10 +88,32 @@ object SchemaEncoder {
     vector: Vector[Value]
   ): List[IndexPartMeta] =
     vector.map {
-      case v: Value if v.isArrayValue => indexPartMetaEncoder.decode(v.asArrayValue(), 0)
+      case v: Value if v.isArrayValue => decodeSimpleIndexMeta(v.asArrayValue())
+      case v: Value if v.isMapValue   => decodeFullIndexMeta(v.asMapValue())
+
       case v =>
         throw new IllegalArgumentException(
           s"Unexpected tuple type. Expected MpArray, but got: ${v.getValueType.name()}"
         )
     }.foldLeft(Vector.empty[IndexPartMeta])((acc, value) => acc :+ value).toList
+
+  private def decodeSimpleIndexMeta(v: ArrayValue): SimpleIndexPartMeta = {
+    val fieldNumberMp = Encoder[Int].decode(v.get(0))
+    val fieldTypeMp = Encoder[String].decode(v.get(1))
+
+    SimpleIndexPartMeta(fieldNumberMp, fieldTypeMp)
+  }
+
+  private def decodeFullIndexMeta(v: MapValue): FullIndexPartMeta = {
+    val map = Encoder[Map[String, Value]].decode(v)
+
+    FullIndexPartMeta(
+      fieldType = Encoder[String].decode(map("type")),
+      fieldNumber = Encoder[Int].decode(map("field")),
+      isNullable = Encoder[Boolean].decode(map("is_nullable")),
+      nullableAction = Encoder[String].decode(map("nullable_action")),
+      sortOrder = Encoder[String].decode(map("sort_order"))
+    )
+  }
+
 }

@@ -1,3 +1,15 @@
 package zio.tarantool.internal.schema
 
-private[tarantool] final case class IndexPartMeta(fieldNumber: Int, fieldType: String)
+private[tarantool] sealed trait IndexPartMeta
+
+private[tarantool] object IndexPartMeta {
+  final case class SimpleIndexPartMeta(fieldNumber: Int, fieldType: String) extends IndexPartMeta
+
+  final case class FullIndexPartMeta(
+    fieldType: String,
+    fieldNumber: Int,
+    isNullable: Boolean,
+    nullableAction: String,
+    sortOrder: String
+  ) extends IndexPartMeta
+}

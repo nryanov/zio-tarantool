@@ -18,12 +18,8 @@ private[tarantool] object ByteStream {
             stateRef.modify {
               // length part was read and is ready to be decoded
               case State(length, data) if length != 0 && data.length == length =>
-                val unpacker = MessagePack.newDefaultUnpacker(data.toArray)
-                val decoded = Chunk
-                  .single(MessagePackPacketCodec.decode(unpacker.unpackValue().asArrayValue(), 0))
-                unpacker.close()
                 (
-                  decoded,
+                  Chunk.single(MessagePackPacketCodec.decode(data.toArray)),
                   State(0, Chunk.empty)
                 )
               case state => (Chunk.empty, state)
@@ -60,9 +56,7 @@ private[tarantool] object ByteStream {
         if (state.dataChunk.length >= state.length) {
           // dataChunk length is enough to decode packet
           val (dataChunk, remainderChunk) = state.dataChunk.splitAt(state.length)
-          val unpacker = MessagePack.newDefaultUnpacker(dataChunk.toArray)
-          val packet = MessagePackPacketCodec.decode(unpacker.unpackValue().asArrayValue(), 0)
-          unpacker.close()
+          val packet = MessagePackPacketCodec.decode(dataChunk.toArray)
           acc += packet
           go(State(0, remainderChunk), acc)
         } else {

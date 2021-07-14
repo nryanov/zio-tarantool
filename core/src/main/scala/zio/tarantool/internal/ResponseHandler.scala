@@ -56,7 +56,7 @@ private[tarantool] object ResponseHandler {
         .receive()
         .foreach(mp =>
           complete(mp).onError(err =>
-            sys.error(s"Error happened while trying to complete operation. Packet: $mp. $err")
+            sys.error(s"Error happened while trying to complete operation: $err \n Packet: $mp")
           )
         )
         .forever
