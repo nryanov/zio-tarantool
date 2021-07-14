@@ -66,7 +66,7 @@ private[tarantool] trait LowPriorityInstances extends LowestPriorityInstances {
   }
 
   implicit val hnilEncoder: TupleEncoder[HNil] = new TupleEncoder[HNil] {
-    override def encode(v: HNil): Vector[Value] = Vector(ImmutableNilValueImpl.get())
+    override def encode(v: HNil): Vector[Value] = Vector.empty
 
     override def decode(v: ArrayValue, idx: Int): HNil = HNil
   }

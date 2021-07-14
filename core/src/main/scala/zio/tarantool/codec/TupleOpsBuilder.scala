@@ -37,19 +37,21 @@ final class TupleOpsBuilder[C] private (fields: Map[String, FieldMeta]) {
   def assign[A](field: String, value: A)(implicit ops: TupleOps[A]): this.type =
     applyOperation(field, value, (meta, a) => ops.assign(meta.position, a))
 
-  // fixme
-  def build(): Either[TarantoolError, UpdateOperations] =
-//    val attempt: Either[TarantoolError, Vector[FieldUpdate]] =
-//      buffer.foldLeft(Either[TarantoolError, Vector[FieldUpdate]](Vector.empty[FieldUpdate])) {
-//        case (acc, el) =>
-//          acc.flatMap(a => el.map(a :+ _))
-//      }
-//
-//    attempt.map(ops => UpdateOperations(ops))
-    ???
+  def build(): Either[TarantoolError, UpdateOperations] = {
+    val attempt: Either[TarantoolError, Vector[FieldUpdate]] = {
+      val empty: Either[TarantoolError, Vector[FieldUpdate]] =
+        Right[TarantoolError, Vector[FieldUpdate]](Vector.empty[FieldUpdate])
 
-  def buildM(): IO[CodecError, UpdateOperations] = ???
-//    IO.effect(build().require).mapError(err => CodecError(err))
+      buffer.foldLeft(empty) { case (acc, el) =>
+        acc.flatMap(a => el.map(a :+ _))
+      }
+    }
+
+    attempt.map(ops => UpdateOperations(ops))
+  }
+
+  def buildM(): IO[CodecError, UpdateOperations] =
+    IO.fromEither(build()).mapError(err => CodecError(err))
 
   def reset(): Unit = buffer.clear()
 
@@ -57,15 +59,18 @@ final class TupleOpsBuilder[C] private (fields: Map[String, FieldMeta]) {
     field: String,
     value: A,
     f: (FieldMeta, A) => Either[TarantoolError, FieldUpdate]
-  ): this.type =
-//    val result: Either[TarantoolError, FieldUpdate] = fields.get(field) match {
-//      case Some(meta) => f(meta, value).mapErr(err => Err(s"$field: ${err.message}"))
-//      case None       => Attempt.failure(Err(s"Field $field does not exist"))
-//    }
-//
-//    buffer += result
-//    this
-    ???
+  ): this.type = {
+    val result: Either[TarantoolError, FieldUpdate] = fields.get(field) match {
+      case Some(meta) =>
+        f(meta, value).left.map(err =>
+          TarantoolError.NotSupportedUpdateOperation(s"$field: ${err.getLocalizedMessage}")
+        )
+      case None => Left(TarantoolError.NotSupportedUpdateOperation(s"Field $field does not exist"))
+    }
+
+    buffer += result
+    this
+  }
 }
 
 object TupleOpsBuilder {

@@ -3,7 +3,6 @@ package zio.tarantool
 import zio._
 import zio.clock.Clock
 import zio.tarantool.internal._
-import org.msgpack.core._
 import org.msgpack.value.Value
 import org.msgpack.value.impl.ImmutableArrayValueImpl
 import zio.tarantool.codec.TupleEncoder
@@ -600,7 +599,7 @@ object TarantoolClient {
       spaceId: Int,
       tuple: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedTuple <- ZIO.effect(TupleEncoder[A].encode(tuple)).mapError(TarantoolError.CodecError)
+      encodedTuple <- TupleEncoder[A].encodeToValueM(tuple)
       response <- insert(spaceId, encodedTuple)
     } yield response
 
