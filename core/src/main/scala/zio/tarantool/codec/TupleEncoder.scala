@@ -1,13 +1,13 @@
 package zio.tarantool.codec
 
-import org.msgpack.core.MessageUnpacker
-import org.msgpack.value.Value
+import org.msgpack.value.{ArrayValue, Value}
 import org.msgpack.value.impl.ImmutableNilValueImpl
+import zio.tarantool.TarantoolError.CodecError
 
 trait TupleEncoder[A] extends Serializable {
   def encode(v: A): Vector[Value]
 
-  def decode(unpacker: MessageUnpacker): A
+  def decode(v: ArrayValue, idx: Int): A
 }
 
 object TupleEncoder {
@@ -16,19 +16,24 @@ object TupleEncoder {
   implicit val unitEncoder: TupleEncoder[Unit] = new TupleEncoder[Unit] {
     override def encode(v: Unit): Vector[Value] = Vector(ImmutableNilValueImpl.get())
 
-    override def decode(unpacker: MessageUnpacker): Unit = unpacker.unpackNil()
+    override def decode(v: ArrayValue, idx: Int): Unit = {
+      val value = v.get(idx)
+      if (!value.isNilValue) {
+        throw CodecError(new IllegalArgumentException(s"Expect MPNil, got: $value"))
+      }
+    }
   }
 
   implicit val valueEncoder: TupleEncoder[Value] = new TupleEncoder[Value] {
     override def encode(v: Value): Vector[Value] = Vector(v)
 
-    override def decode(unpacker: MessageUnpacker): Value = unpacker.unpackValue()
+    override def decode(v: ArrayValue, idx: Int): Value = v.get(idx)
   }
 
   implicit def fromEncoder[A](implicit encoder: Encoder[A]): TupleEncoder[A] = new TupleEncoder[A] {
     override def encode(v: A): Vector[Value] = Vector(encoder.encode(v))
 
-    override def decode(unpacker: MessageUnpacker): A = encoder.decode(unpacker.unpackValue())
+    override def decode(v: ArrayValue, idx: Int): A = encoder.decode(v.get(idx))
   }
 
   implicit def fromEncoderOption[A](implicit encoder: Encoder[A]): TupleEncoder[Option[A]] =
@@ -39,8 +44,8 @@ object TupleEncoder {
           case None        => Vector(ImmutableNilValueImpl.get())
         }
 
-      override def decode(unpacker: MessageUnpacker): Option[A] = {
-        val value = unpacker.unpackValue()
+      override def decode(v: ArrayValue, idx: Int): Option[A] = {
+        val value = v.get(idx)
         if (value.isNilValue) {
           None
         } else {

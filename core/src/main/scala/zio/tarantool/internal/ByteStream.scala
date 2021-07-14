@@ -1,5 +1,6 @@
 package zio.tarantool.internal
 
+import org.msgpack.core.MessagePack
 import zio.{Chunk, ChunkBuilder, ZRef}
 import zio.stream.ZTransducer
 import zio.tarantool.protocol.MessagePackPacket
@@ -17,9 +18,12 @@ private[tarantool] object ByteStream {
             stateRef.modify {
               // length part was read and is ready to be decoded
               case State(length, data) if length != 0 && data.length == length =>
-                val vector = ByteVector.view(data.toArray)
+                val unpacker = MessagePack.newDefaultUnpacker(data.toArray)
+                val decoded = Chunk
+                  .single(MessagePackPacketCodec.decode(unpacker.unpackValue().asArrayValue(), 0))
+                unpacker.close()
                 (
-                  Chunk.single(MessagePackPacketCodec.decodeValue(vector.toBitVector).require),
+                  decoded,
                   State(0, Chunk.empty)
                 )
               case state => (Chunk.empty, state)
@@ -43,8 +47,9 @@ private[tarantool] object ByteStream {
         if (state.dataChunk.length >= MessageSizeLength) {
           // dataChunk length is enough to decode length part
           val (lengthChunk, dataRemainderChunk) = state.dataChunk.splitAt(MessageSizeLength)
-          val vector = ByteVector.view(lengthChunk.toArray)
-          val length = vector.decodeUnsafe().toNumber()
+          val unpacker = MessagePack.newDefaultUnpacker(lengthChunk.toArray)
+          val length = unpacker.unpackInt()
+          unpacker.close()
           go(State(length, dataRemainderChunk), acc)
         } else {
           // dataChunk length is not enough to decode length part
@@ -55,8 +60,9 @@ private[tarantool] object ByteStream {
         if (state.dataChunk.length >= state.length) {
           // dataChunk length is enough to decode packet
           val (dataChunk, remainderChunk) = state.dataChunk.splitAt(state.length)
-          val vector = ByteVector(dataChunk.toArray)
-          val packet = MessagePackPacketCodec.decodeValue(vector.toBitVector).require
+          val unpacker = MessagePack.newDefaultUnpacker(dataChunk.toArray)
+          val packet = MessagePackPacketCodec.decode(unpacker.unpackValue().asArrayValue(), 0)
+          unpacker.close()
           acc += packet
           go(State(0, remainderChunk), acc)
         } else {

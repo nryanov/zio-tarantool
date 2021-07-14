@@ -3,6 +3,7 @@ package zio.tarantool.protocol
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
+import org.msgpack.core.MessagePack
 import org.msgpack.value.Value
 import zio.{IO, ZIO}
 import zio.tarantool.TarantoolError
@@ -19,8 +20,8 @@ object MessagePackPacket {
     header: Map[Long, Value],
     body: Option[Map[Long, Value]]
   ): MessagePackPacket = body match {
-    case Some(value) => ValuePacket(header, value)
-    case None        => ValuePacket(header)
+    case Some(value) => MessagePackPacket(header, value)
+    case None        => MessagePackPacket(header)
   }
 
   def apply(header: Map[Long, Value], body: Map[Long, Value]): MessagePackPacket =
@@ -32,10 +33,10 @@ object MessagePackPacket {
   def toBuffer(packet: MessagePackPacket): IO[TarantoolError, ByteBuffer] = for {
     os <- ZIO.effectTotal(new ByteArrayOutputStream(InitialRequestSize))
     encodedPacket <- encodePacket(packet)
-    size <- Encoder[Long].encodeM(encodedPacket.bytes.length)
+    size <- Encoder[Long].encodeM(encodedPacket.length)
     sizeMp <- encodeValue(size)
-    _ <- ZIO.effect(os.write(sizeMp.toByteArray)).refineOrDie(toIOError)
-    _ <- ZIO.effect(os.write(encodedPacket.toByteArray)).refineOrDie(toIOError)
+    _ <- ZIO.effect(os.write(sizeMp)).refineOrDie(toIOError)
+    _ <- ZIO.effect(os.write(encodedPacket)).refineOrDie(toIOError)
   } yield ByteBuffer.wrap(os.toByteArray)
 
   def responseType(packet: MessagePackPacket): IO[TarantoolError, ResponseType] =
@@ -112,8 +113,18 @@ object MessagePackPacket {
     }
 
   private def encodePacket(packet: MessagePackPacket): IO[TarantoolError.CodecError, Array[Byte]] =
-    ZIO.effect(MessagePackPacketCodec.encode(packet).require).mapError(TarantoolError.CodecError)
+    ZIO.effect {
+      val packer = MessagePack.newDefaultBufferPacker()
+      packer.packValue(Encoder[Vector[Value]].encode(MessagePackPacketCodec.encode(packet)))
+      packer.close()
+      packer.toByteArray
+    }.mapError(TarantoolError.CodecError)
 
   private def encodeValue(mp: Value): IO[TarantoolError.CodecError, Array[Byte]] =
-    IO.effect(ValueCodec.encode(mp).require).mapError(TarantoolError.CodecError)
+    IO.effect {
+      val packer = MessagePack.newDefaultBufferPacker()
+      packer.packValue(mp)
+      packer.close()
+      packer.toByteArray
+    }.mapError(TarantoolError.CodecError)
 }

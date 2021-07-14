@@ -16,13 +16,19 @@ object Implicits {
   }
 
   private[tarantool] implicit class RichTupleEncoder[A](encoder: TupleEncoder[A]) {
-    def encodeM(v: A): IO[TarantoolError.CodecError, Value] =
+    def encodeM(v: A): IO[TarantoolError.CodecError, Vector[Value]] =
       ZIO.effect(encoder.encode(v)).mapError(TarantoolError.CodecError)
 
     def decodeM(v: Array[Byte]): IO[TarantoolError.CodecError, A] =
       ZIO.effect {
         val unpacker = MessagePack.newDefaultUnpacker(v)
-        encoder.decode(unpacker)
+        val nextValue = unpacker.unpackValue()
+
+        if (!nextValue.isArrayValue) {
+          throw new IllegalArgumentException(s"Expected ArrayType, but got: $nextValue")
+        }
+
+        encoder.decode(nextValue.asArrayValue(), 0)
       }.mapError(TarantoolError.CodecError)
   }
 }

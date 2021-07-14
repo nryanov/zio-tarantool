@@ -1,7 +1,6 @@
 package zio.tarantool.protocol
 
-import org.msgpack.core.MessageUnpacker
-import org.msgpack.value.Value
+import org.msgpack.value.{ArrayValue, Value}
 import zio.tarantool.codec.{Encoder, TupleEncoder}
 
 final case class UpdateOperations(ops: Vector[FieldUpdate])
@@ -9,7 +8,7 @@ final case class UpdateOperations(ops: Vector[FieldUpdate])
 object UpdateOperations {
   implicit val updateOperationsTupleEncoder: TupleEncoder[UpdateOperations] =
     new TupleEncoder[UpdateOperations] {
-      override def encode(v: UpdateOperations): Value = {
+      override def encode(v: UpdateOperations): Vector[Value] = {
         val encodedOps: Vector[Value] =
           v.ops.foldLeft(Vector.empty[Value]) { (state, ops) =>
             val opsEncoded: Value = ops match {
@@ -44,10 +43,10 @@ object UpdateOperations {
             state :+ opsEncoded
           }
 
-        Encoder[Vector[Value]].encode(encodedOps)
+        encodedOps
       }
 
-      override def decode(unpacker: MessageUnpacker): UpdateOperations =
+      override def decode(v: ArrayValue, idx: Int): UpdateOperations =
         throw new UnsupportedOperationException("UpdateOperations decoding is not supported")
     }
 }

@@ -16,7 +16,6 @@ import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.Base64
 
-import scodec.bits.ByteVector
 import zio.tarantool.internal.RequestHandler.RequestHandler
 import zio.tarantool.internal.SyncIdProvider.SyncIdProvider
 
@@ -160,10 +159,8 @@ private[tarantool] object TarantoolConnection {
         auth1.update(i, auth1(i).^(scramble(i)).toByte)
       }
 
-      val body = TarantoolRequestBody.authBody(
-        authInfo.username,
-        Vector(ByteVector.view("chap-sha1".getBytes), ByteVector.view(auth1))
-      )
+      val body =
+        TarantoolRequestBody.authBody(authInfo.username, Vector("chap-sha1".getBytes, auth1))
 
       TarantoolRequest(RequestCode.Auth, syncId, body)
     }

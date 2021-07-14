@@ -1,7 +1,6 @@
 package zio.tarantool.codec
 
-import org.msgpack.core.MessageUnpacker
-import org.msgpack.value.Value
+import org.msgpack.value.{ArrayValue, Value}
 import org.msgpack.value.impl.ImmutableArrayValueImpl
 import zio.tarantool.protocol.MessagePackPacket
 
@@ -17,13 +16,11 @@ object MessagePackPacketCodec extends TupleEncoder[MessagePackPacket] {
       )
     )
 
-  override def decode(unpacker: MessageUnpacker): MessagePackPacket = {
-    val value = unpacker.unpackValue()
-    val map = value.asArrayValue().iterator()
-
-    val header = Encoder[Map[Long, Value]].decode(map.next())
-    val body = Encoder[Map[Long, Value]].decode(map.next())
+  override def decode(v: ArrayValue, idx: Int): MessagePackPacket = {
+    val header = Encoder[Map[Long, Value]].decode(v.get(idx))
+    val body = Encoder[Map[Long, Value]].decode(v.get(idx + 1))
 
     MessagePackPacket(header, body)
   }
+
 }

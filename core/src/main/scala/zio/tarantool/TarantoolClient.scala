@@ -637,11 +637,13 @@ object TarantoolClient {
       indexId: Int,
       key: A,
       updateOps: UpdateOperations
-    ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedKey <- TupleEncoder[A].encodeM(key)
-      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeM(updateOps)
-      response <- update(spaceId, indexId, encodedKey, encodedUpdateOps)
-    } yield response
+    ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = ???
+    // fixme
+//      for {
+//      encodedKey <- TupleEncoder[A].encodeM(key)
+//      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeM(updateOps)
+//      response <- update(spaceId, indexId, encodedKey, encodedUpdateOps)
+//    } yield response
 
     override def update(
       spaceName: String,
@@ -716,11 +718,13 @@ object TarantoolClient {
       indexId: Int,
       ops: UpdateOperations,
       tuple: A
-    ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedTuple <- TupleEncoder[A].encodeM(tuple)
-      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeM(ops)
-      response <- upsert(spaceId, indexId, encodedUpdateOps, encodedTuple)
-    } yield response
+    ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = ???
+    // fixme
+//      for {
+//      encodedTuple <- TupleEncoder[A].encodeM(tuple)
+//      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeM(ops)
+//      response <- upsert(spaceId, indexId, encodedUpdateOps, encodedTuple)
+//    } yield response
 
     override def upsert(
       spaceName: String,
