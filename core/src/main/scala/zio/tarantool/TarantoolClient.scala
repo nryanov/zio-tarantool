@@ -600,9 +600,7 @@ object TarantoolClient {
       spaceId: Int,
       tuple: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedTuple <- ZIO
-        .effect(TupleEncoder[A].encodeUnsafe(tuple))
-        .mapError(TarantoolError.CodecError)
+      encodedTuple <- ZIO.effect(TupleEncoder[A].encode(tuple)).mapError(TarantoolError.CodecError)
       response <- insert(spaceId, encodedTuple)
     } yield response
 
@@ -858,7 +856,7 @@ object TarantoolClient {
 
     private def send(
       op: RequestCode,
-      body: Map[Long, MessagePack]
+      body: Map[Long, Value]
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
       for {
         syncId <- syncIdProvider.syncId()

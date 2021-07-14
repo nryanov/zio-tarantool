@@ -3,38 +3,37 @@ package zio.tarantool.protocol
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
+import org.msgpack.value.Value
 import zio.{IO, ZIO}
-import scodec.bits.BitVector
 import zio.tarantool.TarantoolError
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.TarantoolError.toIOError
-import zio.tarantool.codec.MessagePackPacketCodec
-import zio.tarantool.msgpack.{MessagePack, MessagePackCodec}
+import zio.tarantool.codec.{Encoder, MessagePackPacketCodec}
 
-final case class MessagePackPacket(header: Map[Long, MessagePack], body: Map[Long, MessagePack])
+final case class MessagePackPacket(header: Map[Long, Value], body: Map[Long, Value])
 
 object MessagePackPacket {
   private val InitialRequestSize = 1024
 
   def apply(
-    header: Map[Long, MessagePack],
-    body: Option[Map[Long, MessagePack]]
+    header: Map[Long, Value],
+    body: Option[Map[Long, Value]]
   ): MessagePackPacket = body match {
-    case Some(value) => MessagePackPacket(header, value)
-    case None        => MessagePackPacket(header)
+    case Some(value) => ValuePacket(header, value)
+    case None        => ValuePacket(header)
   }
 
-  def apply(header: Map[Long, MessagePack], body: Map[Long, MessagePack]): MessagePackPacket =
+  def apply(header: Map[Long, Value], body: Map[Long, Value]): MessagePackPacket =
     new MessagePackPacket(header, body)
 
-  def apply(header: Map[Long, MessagePack]): MessagePackPacket =
+  def apply(header: Map[Long, Value]): MessagePackPacket =
     new MessagePackPacket(header, Map.empty)
 
   def toBuffer(packet: MessagePackPacket): IO[TarantoolError, ByteBuffer] = for {
     os <- ZIO.effectTotal(new ByteArrayOutputStream(InitialRequestSize))
     encodedPacket <- encodePacket(packet)
-    size <- Encoder.longEncoder.encodeM(encodedPacket.bytes.length)
-    sizeMp <- encodeMessagePack(size)
+    size <- Encoder[Long].encodeM(encodedPacket.bytes.length)
+    sizeMp <- encodeValue(size)
     _ <- ZIO.effect(os.write(sizeMp.toByteArray)).refineOrDie(toIOError)
     _ <- ZIO.effect(os.write(encodedPacket.toByteArray)).refineOrDie(toIOError)
   } yield ByteBuffer.wrap(os.toByteArray)
@@ -67,12 +66,12 @@ object MessagePackPacket {
 
   def extractData(
     packet: MessagePackPacket
-  ): IO[TarantoolError.ProtocolError, MessagePack] =
+  ): IO[TarantoolError.ProtocolError, Value] =
     extractByKey(packet, ResponseBodyKey.Data)
 
   def extractSql(
     packet: MessagePackPacket
-  ): IO[TarantoolError.ProtocolError, MessagePack] =
+  ): IO[TarantoolError.ProtocolError, Value] =
     extractByKey(packet, ResponseBodyKey.SqlInfo)
 
   def extractSyncId(packet: MessagePackPacket): IO[TarantoolError, Long] = for {
@@ -96,7 +95,7 @@ object MessagePackPacket {
   private def extractByKey(
     packet: MessagePackPacket,
     key: ResponseBodyKey
-  ): ZIO[Any, TarantoolError.ProtocolError, MessagePack] =
+  ): ZIO[Any, TarantoolError.ProtocolError, Value] =
     for {
       value <- ZIO
         .fromOption(packet.body.get(key.value))
@@ -112,9 +111,9 @@ object MessagePackPacket {
       ZIO.succeed(ResponseCode.Error(~ResponseCode.errorTypeMarker & code))
     }
 
-  private def encodePacket(packet: MessagePackPacket): IO[TarantoolError.CodecError, BitVector] =
+  private def encodePacket(packet: MessagePackPacket): IO[TarantoolError.CodecError, Array[Byte]] =
     ZIO.effect(MessagePackPacketCodec.encode(packet).require).mapError(TarantoolError.CodecError)
 
-  private def encodeMessagePack(mp: MessagePack): IO[TarantoolError.CodecError, BitVector] =
-    IO.effect(MessagePackCodec.encode(mp).require).mapError(TarantoolError.CodecError)
+  private def encodeValue(mp: Value): IO[TarantoolError.CodecError, Array[Byte]] =
+    IO.effect(ValueCodec.encode(mp).require).mapError(TarantoolError.CodecError)
 }

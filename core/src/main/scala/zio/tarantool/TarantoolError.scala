@@ -13,6 +13,8 @@ object TarantoolError {
   final case class InternalError(cause: Throwable)
       extends TarantoolError(cause.getLocalizedMessage, cause)
 
+  final case class NotSupportedUpdateOperation(msg: String) extends TarantoolError(msg, null)
+
   final case class AuthError(message: String) extends TarantoolError(message, null)
 
   final case class SpaceNotFound(space: String) extends TarantoolError(space, null)

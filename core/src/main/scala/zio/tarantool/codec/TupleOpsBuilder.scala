@@ -1,10 +1,10 @@
 package zio.tarantool.codec
 
-import scodec.{Attempt, Err}
 import shapeless._
 import shapeless.ops.hlist.ToTraversable
 import shapeless.ops.record.Keys
 import zio.IO
+import zio.tarantool.TarantoolError
 import zio.tarantool.TarantoolError.CodecError
 import zio.tarantool.protocol.{FieldUpdate, UpdateOperations}
 import zio.tarantool.codec.TupleOpsBuilder.FieldMeta
@@ -12,7 +12,7 @@ import zio.tarantool.codec.TupleOpsBuilder.FieldMeta
 import scala.collection.mutable
 
 final class TupleOpsBuilder[C] private (fields: Map[String, FieldMeta]) {
-  private val buffer = mutable.ListBuffer[Attempt[FieldUpdate]]()
+  private val buffer = mutable.ListBuffer[Either[TarantoolError, FieldUpdate]]()
 
   def plus[A](field: String, value: A)(implicit ops: TupleOps[A]): this.type =
     applyOperation(field, value, (meta, a) => ops.plus(meta.position, a))
@@ -37,33 +37,35 @@ final class TupleOpsBuilder[C] private (fields: Map[String, FieldMeta]) {
   def assign[A](field: String, value: A)(implicit ops: TupleOps[A]): this.type =
     applyOperation(field, value, (meta, a) => ops.assign(meta.position, a))
 
-  def build(): Attempt[UpdateOperations] = {
-    val attempt: Attempt[Vector[FieldUpdate]] =
-      buffer.foldLeft(Attempt.successful(Vector.empty[FieldUpdate])) { case (acc, el) =>
-        acc.flatMap(a => el.map(a :+ _))
-      }
+  // fixme
+  def build(): Either[TarantoolError, UpdateOperations] =
+//    val attempt: Either[TarantoolError, Vector[FieldUpdate]] =
+//      buffer.foldLeft(Either[TarantoolError, Vector[FieldUpdate]](Vector.empty[FieldUpdate])) {
+//        case (acc, el) =>
+//          acc.flatMap(a => el.map(a :+ _))
+//      }
+//
+//    attempt.map(ops => UpdateOperations(ops))
+    ???
 
-    attempt.map(ops => UpdateOperations(ops))
-  }
-
-  def buildM(): IO[CodecError, UpdateOperations] =
-    IO.effect(build().require).mapError(err => CodecError(err))
+  def buildM(): IO[CodecError, UpdateOperations] = ???
+//    IO.effect(build().require).mapError(err => CodecError(err))
 
   def reset(): Unit = buffer.clear()
 
   private def applyOperation[A](
     field: String,
     value: A,
-    f: (FieldMeta, A) => Attempt[FieldUpdate]
-  ): this.type = {
-    val result: Attempt[FieldUpdate] = fields.get(field) match {
-      case Some(meta) => f(meta, value).mapErr(err => Err(s"$field: ${err.message}"))
-      case None       => Attempt.failure(Err(s"Field $field does not exist"))
-    }
-
-    buffer += result
-    this
-  }
+    f: (FieldMeta, A) => Either[TarantoolError, FieldUpdate]
+  ): this.type =
+//    val result: Either[TarantoolError, FieldUpdate] = fields.get(field) match {
+//      case Some(meta) => f(meta, value).mapErr(err => Err(s"$field: ${err.message}"))
+//      case None       => Attempt.failure(Err(s"Field $field does not exist"))
+//    }
+//
+//    buffer += result
+//    this
+    ???
 }
 
 object TupleOpsBuilder {

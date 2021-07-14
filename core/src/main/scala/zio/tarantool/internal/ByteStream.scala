@@ -1,11 +1,9 @@
 package zio.tarantool.internal
 
-import scodec.bits.ByteVector
 import zio.{Chunk, ChunkBuilder, ZRef}
 import zio.stream.ZTransducer
 import zio.tarantool.protocol.MessagePackPacket
 import zio.tarantool.codec.MessagePackPacketCodec
-import zio.tarantool.protocol.Implicits.RichByteVector
 
 private[tarantool] object ByteStream {
   private val MessageSizeLength = 5

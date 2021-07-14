@@ -1,7 +1,7 @@
 package zio.tarantool.protocol
 
-import scodec.bits.ByteVector
-import zio.tarantool.msgpack.{MessagePack, MpArray}
+import org.msgpack.value.Value
+import zio.tarantool.codec.Encoder
 
 object TarantoolRequestBody {
   def selectBody(
@@ -10,110 +10,110 @@ object TarantoolRequestBody {
     limit: Int,
     offset: Int,
     iterator: IteratorCode,
-    key: MpArray
-  ): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
-    RequestBodyKey.Index.value -> Encoder[Int].encodeUnsafe(indexId),
-    RequestBodyKey.Limit.value -> Encoder[Int].encodeUnsafe(limit),
-    RequestBodyKey.Offset.value -> Encoder[Int].encodeUnsafe(offset),
-    RequestBodyKey.Iterator.value -> Encoder[Int].encodeUnsafe(iterator.value),
+    key: Value
+  ): Map[Long, Value] = Map(
+    RequestBodyKey.Space.value -> Encoder[Int].encode(spaceId),
+    RequestBodyKey.Index.value -> Encoder[Int].encode(indexId),
+    RequestBodyKey.Limit.value -> Encoder[Int].encode(limit),
+    RequestBodyKey.Offset.value -> Encoder[Int].encode(offset),
+    RequestBodyKey.Iterator.value -> Encoder[Int].encode(iterator.value),
     RequestBodyKey.Key.value -> key
   )
 
-  def insertBody(spaceId: Int, tuple: MpArray): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
+  def insertBody(spaceId: Int, tuple: Value): Map[Long, Value] = Map(
+    RequestBodyKey.Space.value -> Encoder[Int].encode(spaceId),
     RequestBodyKey.Tuple.value -> tuple
   )
 
   def updateBody(
     spaceId: Int,
     indexId: Int,
-    key: MpArray,
-    tuple: MpArray
-  ): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
-    RequestBodyKey.Index.value -> Encoder[Int].encodeUnsafe(indexId),
+    key: Value,
+    tuple: Value
+  ): Map[Long, Value] = Map(
+    RequestBodyKey.Space.value -> Encoder[Int].encode(spaceId),
+    RequestBodyKey.Index.value -> Encoder[Int].encode(indexId),
     RequestBodyKey.Key.value -> key,
     RequestBodyKey.Tuple.value -> tuple
   )
 
-  def deleteBody(spaceId: Int, indexId: Int, key: MpArray): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
-    RequestBodyKey.Index.value -> Encoder[Int].encodeUnsafe(indexId),
+  def deleteBody(spaceId: Int, indexId: Int, key: Value): Map[Long, Value] = Map(
+    RequestBodyKey.Space.value -> Encoder[Int].encode(spaceId),
+    RequestBodyKey.Index.value -> Encoder[Int].encode(indexId),
     RequestBodyKey.Key.value -> key
   )
 
   def upsertBody(
     spaceId: Int,
     indexId: Int,
-    ops: MpArray,
-    tuple: MpArray
-  ): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
-    RequestBodyKey.Index.value -> Encoder[Int].encodeUnsafe(indexId),
+    ops: Value,
+    tuple: Value
+  ): Map[Long, Value] = Map(
+    RequestBodyKey.Space.value -> Encoder[Int].encode(spaceId),
+    RequestBodyKey.Index.value -> Encoder[Int].encode(indexId),
     RequestBodyKey.UpsertOps.value -> ops,
     RequestBodyKey.Tuple.value -> tuple
   )
 
   def replaceBody(
     spaceId: Int,
-    tuple: MpArray
-  ): Map[Long, MessagePack] =
+    tuple: Value
+  ): Map[Long, Value] =
     Map(
-      RequestBodyKey.Space.value -> Encoder[Int].encodeUnsafe(spaceId),
+      RequestBodyKey.Space.value -> Encoder[Int].encode(spaceId),
       RequestBodyKey.Tuple.value -> tuple
     )
 
   def callBody(
     functionName: String,
-    tuple: MpArray
-  ): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Function.value -> Encoder[String].encodeUnsafe(functionName),
+    tuple: Value
+  ): Map[Long, Value] = Map(
+    RequestBodyKey.Function.value -> Encoder[String].encode(functionName),
     RequestBodyKey.Tuple.value -> tuple
   )
 
   def evalBody(
     expression: String,
-    tuple: MpArray
-  ): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Expression.value -> Encoder[String].encodeUnsafe(expression),
+    tuple: Value
+  ): Map[Long, Value] = Map(
+    RequestBodyKey.Expression.value -> Encoder[String].encode(expression),
     RequestBodyKey.Tuple.value -> tuple
   )
 
   def executeBody(
     statementId: Int,
-    sqlBind: MpArray,
-    options: MpArray
-  ): Map[Long, MessagePack] = Map(
-    RequestSqlBodyKey.StatementId.value -> Encoder[Int].encodeUnsafe(statementId),
+    sqlBind: Value,
+    options: Value
+  ): Map[Long, Value] = Map(
+    RequestSqlBodyKey.StatementId.value -> Encoder[Int].encode(statementId),
     RequestSqlBodyKey.SqlBind.value -> sqlBind,
     RequestSqlBodyKey.Options.value -> options
   )
 
   def executeBody(
     sqlText: String,
-    sqlBind: MpArray,
-    options: MpArray
-  ): Map[Long, MessagePack] = Map(
-    RequestSqlBodyKey.SqlText.value -> Encoder[String].encodeUnsafe(sqlText),
+    sqlBind: Value,
+    options: Value
+  ): Map[Long, Value] = Map(
+    RequestSqlBodyKey.SqlText.value -> Encoder[String].encode(sqlText),
     RequestSqlBodyKey.SqlBind.value -> sqlBind,
     RequestSqlBodyKey.Options.value -> options
   )
 
   def prepareBody(
     statementId: Int
-  ): Map[Long, MessagePack] = Map(
-    RequestSqlBodyKey.StatementId.value -> Encoder[Int].encodeUnsafe(statementId)
+  ): Map[Long, Value] = Map(
+    RequestSqlBodyKey.StatementId.value -> Encoder[Int].encode(statementId)
   )
 
   def prepareBody(
     sqlText: String
-  ): Map[Long, MessagePack] = Map(
-    RequestSqlBodyKey.SqlText.value -> Encoder[String].encodeUnsafe(sqlText)
+  ): Map[Long, Value] = Map(
+    RequestSqlBodyKey.SqlText.value -> Encoder[String].encode(sqlText)
   )
 
-  def authBody(username: String, body: Vector[ByteVector]): Map[Long, MessagePack] = Map(
-    RequestBodyKey.Username.value -> Encoder[String].encodeUnsafe(username),
-    RequestBodyKey.Tuple.value -> Encoder[Vector[ByteVector]].encodeUnsafe(body)
+  def authBody(username: String, body: Vector[Array[Byte]]): Map[Long, Value] = Map(
+    RequestBodyKey.Username.value -> Encoder[String].encode(username),
+    RequestBodyKey.Tuple.value -> Encoder[Vector[Array[Byte]]].encode(body)
   )
 }

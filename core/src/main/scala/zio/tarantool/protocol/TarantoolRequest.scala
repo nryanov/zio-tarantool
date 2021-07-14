@@ -1,21 +1,22 @@
 package zio.tarantool.protocol
 
+import org.msgpack.value.Value
 import zio._
 import zio.tarantool.TarantoolError
-import zio.tarantool.msgpack.MessagePack
+import zio.tarantool.codec.Encoder
 import zio.tarantool.protocol.Implicits._
 
 final case class TarantoolRequest(
   operationCode: RequestCode,
   syncId: Long,
-  body: Map[Long, MessagePack]
+  body: Map[Long, Value]
 )
 
 object TarantoolRequest {
   def createPacket(request: TarantoolRequest): IO[TarantoolError.CodecError, MessagePackPacket] =
     for {
-      sync <- Encoder.longEncoder.encodeM(request.syncId)
-      code <- Encoder.intEncoder.encodeM(request.operationCode.value)
+      sync <- Encoder[Long].encodeM(request.syncId)
+      code <- Encoder[Int].encodeM(request.operationCode.value)
     } yield MessagePackPacket(
       Map(
         Header.Sync.value -> sync,

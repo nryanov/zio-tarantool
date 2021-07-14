@@ -1,40 +1,29 @@
 package zio.tarantool.codec
 
-import scodec.bits.BitVector
-import scodec.{Attempt, Codec, DecodeResult, Err, SizeBound}
-import shapeless.HNil
-import zio.tarantool.msgpack.Codecs.mpMapCodec
-import zio.tarantool.msgpack.Encoder.mapEncoder
-import zio.tarantool.msgpack.{MessagePack, MpMap}
+import org.msgpack.core.MessageUnpacker
+import org.msgpack.value.Value
+import org.msgpack.value.impl.ImmutableArrayValueImpl
 import zio.tarantool.protocol.MessagePackPacket
 
-object MessagePackPacketCodec extends Codec[MessagePackPacket] {
-  private val packetMapEncoder = mapEncoder[Long, MessagePack]
-  private val mpMapCodecWiden: Codec[MessagePack] = mpMapCodec.widen(
-    _.asInstanceOf[MessagePack],
-    {
-      case map: MpMap => Attempt.successful(map)
-      case _          => Attempt.failure(Err("Expected MpMap"))
-    }
-  )
+object MessagePackPacketCodec extends TupleEncoder[MessagePackPacket] {
 
-  private val codec: Codec[MessagePackPacket] =
-    (mpMapCodecWiden :: mpMapCodecWiden).xmap[MessagePackPacket](
-      msg =>
-        MessagePackPacket(
-          packetMapEncoder.decodeUnsafe(msg.head),
-          packetMapEncoder.decodeUnsafe(msg.tail.head)
-        ),
-      value =>
-        packetMapEncoder.encodeUnsafe(value.header) :: packetMapEncoder.encodeUnsafe(
-          value.body
-        ) :: HNil
+  override def encode(v: MessagePackPacket): Vector[Value] =
+    Vector(
+      new ImmutableArrayValueImpl(
+        Array(
+          Encoder[Map[Long, Value]].encode(v.header),
+          Encoder[Map[Long, Value]].encode(v.body)
+        )
+      )
     )
 
-  override def encode(value: MessagePackPacket): Attempt[BitVector] = codec.encode(value)
+  override def decode(unpacker: MessageUnpacker): MessagePackPacket = {
+    val value = unpacker.unpackValue()
+    val map = value.asArrayValue().iterator()
 
-  override def sizeBound: SizeBound = codec.sizeBound
+    val header = Encoder[Map[Long, Value]].decode(map.next())
+    val body = Encoder[Map[Long, Value]].decode(map.next())
 
-  override def decode(bits: BitVector): Attempt[DecodeResult[MessagePackPacket]] =
-    codec.decode(bits)
+    MessagePackPacket(header, body)
+  }
 }
