@@ -39,7 +39,6 @@ private[tarantool] object ByteStream {
   private def decodeByteStream(state: State): (Chunk[MessagePackPacket], State) = {
     def go(state: State, acc: ChunkBuilder[MessagePackPacket]): State =
       if (state.length == 0) {
-        println("HERE!!!!")
         // length part was not read
         if (state.dataChunk.length >= MessageSizeLength) {
           // dataChunk length is enough to decode length part
