@@ -4,7 +4,7 @@ import org.msgpack.core.MessagePack
 import zio.{Chunk, ChunkBuilder, ZRef}
 import zio.stream.ZTransducer
 import zio.tarantool.protocol.MessagePackPacket
-import zio.tarantool.codec.MessagePackPacketCodec
+import zio.tarantool.codec.MessagePackPacketSerDe
 
 private[tarantool] object ByteStream {
   private val MessageSizeLength = 5
@@ -19,7 +19,7 @@ private[tarantool] object ByteStream {
               // length part was read and is ready to be decoded
               case State(length, data) if length != 0 && data.length == length =>
                 (
-                  Chunk.single(MessagePackPacketCodec.decode(data.toArray)),
+                  Chunk.single(MessagePackPacketSerDe.deserialize(data.toArray)),
                   State(0, Chunk.empty)
                 )
               case state => (Chunk.empty, state)
@@ -39,6 +39,7 @@ private[tarantool] object ByteStream {
   private def decodeByteStream(state: State): (Chunk[MessagePackPacket], State) = {
     def go(state: State, acc: ChunkBuilder[MessagePackPacket]): State =
       if (state.length == 0) {
+        println("HERE!!!!")
         // length part was not read
         if (state.dataChunk.length >= MessageSizeLength) {
           // dataChunk length is enough to decode length part
@@ -56,7 +57,7 @@ private[tarantool] object ByteStream {
         if (state.dataChunk.length >= state.length) {
           // dataChunk length is enough to decode packet
           val (dataChunk, remainderChunk) = state.dataChunk.splitAt(state.length)
-          val packet = MessagePackPacketCodec.decode(dataChunk.toArray)
+          val packet = MessagePackPacketSerDe.deserialize(dataChunk.toArray)
           acc += packet
           go(State(0, remainderChunk), acc)
         } else {

@@ -6,8 +6,8 @@ import zio.tarantool.codec.{Encoder, TupleEncoder}
 import org.msgpack.core.MessagePack
 import org.msgpack.value.Value
 
-object Implicits {
-  private[tarantool] implicit class RichEncoder[A](encoder: Encoder[A]) {
+private[tarantool] object Implicits {
+  implicit class RichEncoder[A](encoder: Encoder[A]) {
     def encodeM(v: A): IO[TarantoolError.CodecError, Value] =
       ZIO.effect(encoder.encode(v)).mapError(TarantoolError.CodecError)
 
@@ -15,14 +15,14 @@ object Implicits {
       ZIO.effect(encoder.decode(value)).mapError(TarantoolError.CodecError)
   }
 
-  private[tarantool] implicit class RichTupleEncoder[A](encoder: TupleEncoder[A]) {
+  implicit class RichTupleEncoder[A](encoder: TupleEncoder[A]) {
     def encodeM(v: A): IO[TarantoolError.CodecError, Value] =
       ZIO.effect(encoder.encode(v)).bimap(TarantoolError.CodecError, Encoder[Vector[Value]].encode)
 
     def decodeM(v: Value): IO[TarantoolError.CodecError, A] =
       ZIO.effect(encoder.decode(v.asArrayValue(), 0)).mapError(TarantoolError.CodecError)
 
-    def decodeM(v: Array[Byte]): IO[TarantoolError.CodecError, A] =
+    def deserialize(v: Array[Byte]): IO[TarantoolError.CodecError, A] =
       ZIO.effect {
         val unpacker = MessagePack.newDefaultUnpacker(v)
         val nextValue = unpacker.unpackValue()
@@ -32,6 +32,16 @@ object Implicits {
         }
 
         encoder.decode(nextValue.asArrayValue(), 0)
+      }.mapError(TarantoolError.CodecError)
+  }
+
+  implicit class RichValue(val value: Value) {
+    def serialize(): IO[TarantoolError.CodecError, Array[Byte]] =
+      IO.effect {
+        val packer = MessagePack.newDefaultBufferPacker()
+        packer.packValue(value)
+        packer.close()
+        packer.toByteArray
       }.mapError(TarantoolError.CodecError)
   }
 }

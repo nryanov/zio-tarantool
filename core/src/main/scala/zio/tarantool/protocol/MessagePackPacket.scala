@@ -3,13 +3,12 @@ package zio.tarantool.protocol
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
-import org.msgpack.core.MessagePack
 import org.msgpack.value.Value
 import zio.{IO, ZIO}
 import zio.tarantool.TarantoolError
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.TarantoolError.toIOError
-import zio.tarantool.codec.{Encoder, MessagePackPacketCodec}
+import zio.tarantool.codec.{Encoder, MessagePackPacketSerDe}
 
 final case class MessagePackPacket(header: Map[Long, Value], body: Map[Long, Value])
 
@@ -32,9 +31,9 @@ object MessagePackPacket {
 
   def toBuffer(packet: MessagePackPacket): IO[TarantoolError, ByteBuffer] = for {
     os <- ZIO.effectTotal(new ByteArrayOutputStream(InitialRequestSize))
-    encodedPacket <- MessagePackPacketCodec.encode(packet)
+    encodedPacket <- MessagePackPacketSerDe.serialize(packet)
     size <- Encoder[Long].encodeM(encodedPacket.length)
-    sizeMp <- encodeValue(size)
+    sizeMp <- size.serialize()
     _ <- ZIO.effect(os.write(sizeMp)).refineOrDie(toIOError)
     _ <- ZIO.effect(os.write(encodedPacket)).refineOrDie(toIOError)
   } yield ByteBuffer.wrap(os.toByteArray)
@@ -111,12 +110,4 @@ object MessagePackPacket {
     } else {
       ZIO.succeed(ResponseCode.Error(~ResponseCode.errorTypeMarker & code))
     }
-
-  private def encodeValue(mp: Value): IO[TarantoolError.CodecError, Array[Byte]] =
-    IO.effect {
-      val packer = MessagePack.newDefaultBufferPacker()
-      packer.packValue(mp)
-      packer.close()
-      packer.toByteArray
-    }.mapError(TarantoolError.CodecError)
 }

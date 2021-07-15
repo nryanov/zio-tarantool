@@ -6,9 +6,9 @@ import zio.{IO, ZIO}
 import zio.tarantool.TarantoolError
 import zio.tarantool.protocol.MessagePackPacket
 
-object MessagePackPacketCodec {
+object MessagePackPacketSerDe {
 
-  def encode(packet: MessagePackPacket): IO[TarantoolError.CodecError, Array[Byte]] =
+  def serialize(packet: MessagePackPacket): IO[TarantoolError.CodecError, Array[Byte]] =
     ZIO.effect {
       val packer = MessagePack.newDefaultBufferPacker()
       val header = Encoder[Map[Long, Value]].encode(packet.header)
@@ -19,7 +19,7 @@ object MessagePackPacketCodec {
       packer.toByteArray
     }.mapError(TarantoolError.CodecError)
 
-  def decode(data: Array[Byte]): MessagePackPacket = {
+  def deserialize(data: Array[Byte]): MessagePackPacket = {
     val unpacker = MessagePack.newDefaultUnpacker(data)
     val headerMp = unpacker.unpackValue()
     val bodyMp = unpacker.unpackValue()
