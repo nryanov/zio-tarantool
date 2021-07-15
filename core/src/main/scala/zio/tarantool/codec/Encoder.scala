@@ -8,6 +8,7 @@ import org.msgpack.value.impl._
 import scala.jdk.CollectionConverters._
 
 trait Encoder[A] extends Serializable { self =>
+  // todo: Return IO[Error, Value/A] ?
   def encode(v: A): Value
 
   def decode(value: Value): A
@@ -31,31 +32,31 @@ object Encoder {
   implicit val byteEncoder: Encoder[Byte] = new Encoder[Byte] {
     override def encode(v: Byte): Value = new ImmutableLongValueImpl(v.toLong)
 
-    override def decode(value: Value): Byte = value.asNumberValue().toByte
+    override def decode(value: Value): Byte = value.asIntegerValue().toByte
   }
 
   implicit val shortEncoder: Encoder[Short] = new Encoder[Short] {
     override def encode(v: Short): Value = new ImmutableLongValueImpl(v.toLong)
 
-    override def decode(value: Value): Short = value.asNumberValue().toShort
+    override def decode(value: Value): Short = value.asIntegerValue().toShort
   }
 
   implicit val characterEncoder: Encoder[Char] = new Encoder[Char] {
     override def encode(v: Char): Value = new ImmutableLongValueImpl(v.toLong)
 
-    override def decode(value: Value): Char = value.asNumberValue().toInt.toChar
+    override def decode(value: Value): Char = value.asIntegerValue().toInt.toChar
   }
 
   implicit val intEncoder: Encoder[Int] = new Encoder[Int] {
     override def encode(v: Int): Value = new ImmutableLongValueImpl(v.toLong)
 
-    override def decode(value: Value): Int = value.asNumberValue().toInt
+    override def decode(value: Value): Int = value.asIntegerValue().toInt
   }
 
   implicit val longEncoder: Encoder[Long] = new Encoder[Long] {
     override def encode(v: Long): Value = new ImmutableLongValueImpl(v)
 
-    override def decode(value: Value): Long = value.asNumberValue().toLong
+    override def decode(value: Value): Long = value.asIntegerValue().toLong
   }
 
   implicit val floatEncoder: Encoder[Float] = new Encoder[Float] {

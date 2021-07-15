@@ -109,7 +109,7 @@ private[tarantool] trait LowestPriorityInstances {
   implicit val hnilOptionEncoder: TupleEncoder[Option[HNil]] = new TupleEncoder[Option[HNil]] {
     override def encode(v: Option[HNil]): Vector[Value] = Vector.empty
 
-    override def decode(v: ArrayValue, idx: Int): Option[HNil] = None
+    override def decode(v: ArrayValue, idx: Int): Option[HNil] = Some(HNil)
   }
 
   implicit def hlistOptionEncoder1[K <: Symbol, H, T <: HList](implicit

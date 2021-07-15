@@ -558,7 +558,7 @@ object TarantoolClient {
       iterator: IteratorCode,
       key: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedKey <- TupleEncoder[A].encodeToValueM(key)
+      encodedKey <- TupleEncoder[A].encodeM(key)
       response <- select(spaceId, indexId, limit, offset, iterator, encodedKey)
     } yield response
 
@@ -599,7 +599,7 @@ object TarantoolClient {
       spaceId: Int,
       tuple: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedTuple <- TupleEncoder[A].encodeToValueM(tuple)
+      encodedTuple <- TupleEncoder[A].encodeM(tuple)
       response <- insert(spaceId, encodedTuple)
     } yield response
 
@@ -637,8 +637,8 @@ object TarantoolClient {
       key: A,
       updateOps: UpdateOperations
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedKey <- TupleEncoder[A].encodeToValueM(key)
-      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeToValueM(updateOps)
+      encodedKey <- TupleEncoder[A].encodeM(key)
+      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeM(updateOps)
       response <- update(spaceId, indexId, encodedKey, encodedUpdateOps)
     } yield response
 
@@ -676,7 +676,7 @@ object TarantoolClient {
       indexId: Int,
       key: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedKey <- TupleEncoder[A].encodeToValueM(key)
+      encodedKey <- TupleEncoder[A].encodeM(key)
       response <- delete(spaceId, indexId, encodedKey)
     } yield response
 
@@ -716,8 +716,8 @@ object TarantoolClient {
       ops: UpdateOperations,
       tuple: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedTuple <- TupleEncoder[A].encodeToValueM(tuple)
-      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeToValueM(ops)
+      encodedTuple <- TupleEncoder[A].encodeM(tuple)
+      encodedUpdateOps <- TupleEncoder[UpdateOperations].encodeM(ops)
       response <- upsert(spaceId, indexId, encodedUpdateOps, encodedTuple)
     } yield response
 
@@ -754,7 +754,7 @@ object TarantoolClient {
       spaceId: Int,
       tuple: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedTuple <- TupleEncoder[A].encodeToValueM(tuple)
+      encodedTuple <- TupleEncoder[A].encodeM(tuple)
       response <- replace(spaceId, encodedTuple)
     } yield response
 
@@ -793,7 +793,7 @@ object TarantoolClient {
       args: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
       for {
-        encodedArgs <- TupleEncoder[A].encodeToValueM(args)
+        encodedArgs <- TupleEncoder[A].encodeM(args)
         response <- call(functionName, encodedArgs)
       } yield response
 
@@ -815,7 +815,7 @@ object TarantoolClient {
       expression: String,
       args: A
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      encodedArgs <- TupleEncoder[A].encodeToValueM(args)
+      encodedArgs <- TupleEncoder[A].encodeM(args)
       response <- eval(expression, encodedArgs)
     } yield response
 
