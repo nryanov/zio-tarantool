@@ -68,7 +68,11 @@ private[tarantool] object AsyncSocketChannelProvider {
   private val ProtocolVersionLength: Int = 64
   private val SaltLength: Int = 44
 
-  final case class OpenChannel(version: String, salt: String, channel: AsyncSocketChannelProvider)
+  final case class OpenChannel(
+    version: String,
+    salt: Array[Byte],
+    channel: AsyncSocketChannelProvider
+  )
 
   def connect(
     cfg: TarantoolConfig
@@ -95,7 +99,7 @@ private[tarantool] object AsyncSocketChannelProvider {
 
       (version, salt) = greeting.toArray.splitAt(ProtocolVersionLength)
 
-    } yield OpenChannel(new String(version), new String(salt.take(SaltLength)), provider))
+    } yield OpenChannel(new String(version), salt.take(SaltLength), provider))
       .mapError(TarantoolError.IOError)
 
   def openChannel(

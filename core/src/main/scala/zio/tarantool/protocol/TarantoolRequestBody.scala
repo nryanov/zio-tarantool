@@ -112,8 +112,11 @@ object TarantoolRequestBody {
     RequestSqlBodyKey.SqlText.value -> Encoder[String].encode(sqlText)
   )
 
-  def authBody(username: String, body: Vector[Array[Byte]]): Map[Long, Value] = Map(
-    RequestBodyKey.Username.value -> Encoder[String].encode(username),
-    RequestBodyKey.Tuple.value -> Encoder[Vector[Array[Byte]]].encode(body)
-  )
+  def authBody(username: String, authMechanism: String, scramble: Array[Byte]): Map[Long, Value] =
+    Map(
+      RequestBodyKey.Username.value -> Encoder[String].encode(username),
+      RequestBodyKey.Tuple.value -> Encoder[Vector[Array[Byte]]].encode(
+        Vector(authMechanism.getBytes, scramble)
+      )
+    )
 }

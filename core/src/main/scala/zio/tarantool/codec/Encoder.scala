@@ -100,11 +100,9 @@ object Encoder {
   }
 
   implicit val binaryEncoder: Encoder[Array[Byte]] = new Encoder[Array[Byte]] {
-    override def encode(v: Array[Byte]): Value =
-      new ImmutableArrayValueImpl(v.map(b => new ImmutableLongValueImpl(b.toLong)))
+    override def encode(v: Array[Byte]): Value = new ImmutableBinaryValueImpl(v)
 
-    override def decode(value: Value): Array[Byte] =
-      value.asArrayValue().list().asScala.map(_.asNumberValue().toByte).toArray
+    override def decode(value: Value): Array[Byte] = value.asBinaryValue().asByteArray()
   }
 
   implicit def vectorEncoder[A: Encoder]: Encoder[Vector[A]] = new Encoder[Vector[A]] {

@@ -2,7 +2,7 @@ package zio.tarantool
 
 import java.io.IOException
 
-import zio.tarantool.protocol.{MessagePackPacket, RequestCode}
+import zio.tarantool.protocol.{MessagePackPacket, RequestCode, ResponseCode}
 
 sealed abstract class TarantoolError(message: String, cause: Throwable)
     extends Exception(message, cause)
@@ -15,7 +15,8 @@ object TarantoolError {
 
   final case class NotSupportedUpdateOperation(msg: String) extends TarantoolError(msg, null)
 
-  final case class AuthError(message: String) extends TarantoolError(message, null)
+  final case class AuthError(message: String, code: ResponseCode)
+      extends TarantoolError(s"$message. Code: $code", null)
 
   final case class SpaceNotFound(space: String) extends TarantoolError(space, null)
   final case class IndexNotFound(space: String, index: String)

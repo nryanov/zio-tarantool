@@ -120,7 +120,7 @@ private[tarantool] object TarantoolConnection {
 
   private def auth(
     authInfo: AuthInfo,
-    salt: String,
+    salt: Array[Byte],
     openedConnection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service
   ): ZIO[Any, TarantoolError, Unit] = for {
@@ -137,13 +137,13 @@ private[tarantool] object TarantoolConnection {
     _ <- ZIO.when(code != ResponseCode.Success)(
       MessagePackPacket
         .extractError(response)
-        .flatMap(error => ZIO.fail(TarantoolError.AuthError(error)))
+        .flatMap(error => ZIO.fail(TarantoolError.AuthError(error, code)))
     )
   } yield ()
 
   private def createAuthRequest(
     authInfo: AuthInfo,
-    encodedSalt: String,
+    encodedSalt: Array[Byte],
     syncId: Long
   ): ZIO[Any, Throwable, TarantoolRequest] =
     IO.effect {
@@ -160,7 +160,7 @@ private[tarantool] object TarantoolConnection {
       }
 
       val body =
-        TarantoolRequestBody.authBody(authInfo.username, Vector("chap-sha1".getBytes, auth1))
+        TarantoolRequestBody.authBody(authInfo.username, "chap-sha1", auth1)
 
       TarantoolRequest(RequestCode.Auth, syncId, body)
     }
