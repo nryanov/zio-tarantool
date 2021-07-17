@@ -129,7 +129,7 @@ lazy val examples =
 lazy val benchmarks =
   project
     .in(file("benchmarks"))
+    .enablePlugins(JmhPlugin)
     .settings(allSettings)
     .settings(noPublish)
-    .enablePlugins(JmhPlugin)
     .dependsOn(core)
