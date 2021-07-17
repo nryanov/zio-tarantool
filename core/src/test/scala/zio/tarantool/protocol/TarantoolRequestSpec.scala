@@ -11,7 +11,7 @@ object TarantoolRequestSpec extends DefaultRunnableSpec {
         val expected = MessagePackPacket(
           Map(
             Header.Sync.value -> new ImmutableLongValueImpl(1),
-            Header.Code.value -> new ImmutableLongValueImpl(RequestCode.Ping.value)
+            Header.Code.value -> new ImmutableLongValueImpl(RequestCode.Ping.value.toLong)
           )
         )
         val request = TarantoolRequest(RequestCode.Ping, 1, Map.empty)

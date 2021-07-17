@@ -32,7 +32,7 @@ object MessagePackPacket {
   def toBuffer(packet: MessagePackPacket): IO[TarantoolError, ByteBuffer] = for {
     os <- ZIO.effectTotal(new ByteArrayOutputStream(InitialRequestSize))
     encodedPacket <- MessagePackPacketSerDe.serialize(packet)
-    size <- Encoder[Long].encodeM(encodedPacket.length)
+    size <- Encoder[Int].encodeM(encodedPacket.length)
     sizeMp <- size.serialize()
     _ <- ZIO.effect(os.write(sizeMp)).refineOrDie(toIOError)
     _ <- ZIO.effect(os.write(encodedPacket)).refineOrDie(toIOError)

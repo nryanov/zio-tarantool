@@ -20,7 +20,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
     testM("should extract code") {
       val packet =
         MessagePackPacket(
-          Map(Header.Code.value -> new ImmutableLongValueImpl(ResponseCode.Success.value))
+          Map(Header.Code.value -> new ImmutableLongValueImpl(ResponseCode.Success.value.toLong))
         )
       val result = MessagePackPacket.extractCode(packet)
       assertM(result)(equalTo(ResponseCode.Success))

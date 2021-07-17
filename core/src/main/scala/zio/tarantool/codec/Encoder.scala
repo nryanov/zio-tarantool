@@ -5,10 +5,9 @@ import java.util.UUID
 import org.msgpack.value.Value
 import org.msgpack.value.impl._
 
-import scala.jdk.CollectionConverters._
+import scala.collection.JavaConverters._
 
 trait Encoder[A] extends Serializable { self =>
-  // todo: Return IO[Error, Value/A] ?
   def encode(v: A): Value
 
   def decode(value: Value): A
