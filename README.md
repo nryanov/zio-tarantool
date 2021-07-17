@@ -22,8 +22,6 @@ libraryDependencies ++= Seq(
 )
 ```
 
-The only dependencies are [zio](https://github.com/zio/zio) and [scodec](https://github.com/scodec/scodec).
-
 ## Getting started
 ```scala
 import zio._
@@ -127,33 +125,28 @@ But you always can create your own `TupleEncoder[_]`:
 final case class TestTuple(f1: String, f2: Int, f3: Long)
 
   implicit val tupleEncoder: TupleEncoder[TestTuple] = new TupleEncoder[TestTuple] {
-    override def encode(v: TestTuple): Attempt[MpArray] =
-      for {
-        f1Mp <- Encoder[String].encode(v.f1)
-        f2Mp <- Encoder[Int].encode(v.f2)
-        f3Mp <- Encoder[Long].encode(v.f3)
 
-        tupleMp <- Encoder[Vector[MessagePack]].encode(Vector(f1Mp, f2Mp, f3Mp))
-      } yield tupleMp.asInstanceOf[MpArray]
+    override def decode(v: ArrayValue, idx: Int): TestTuple = {
+      val f1Mp = Encoder[String].decode(v.get(idx))
+      val f2Mp = Encoder[Int].decode(v.get(idx + 1))
+      val f3Mp = Encoder[Long].decode(v.get(idx + 2))
+      TestTuple(f1Mp, f2Mp, f3Mp)
+    }
 
-    override def decode(v: MpArray, idx: Int): Attempt[TestTuple] = {
-      val vector = v.value
+    override def encode(v: TestTuple): Vector[Value] = {
+      val f1Mp = Encoder[String].encode(v.f1)
+      val f2Mp = Encoder[Int].encode(v.f2)
+      val f3Mp = Encoder[Long].encode(v.f3)
 
-      val f1Mp = Encoder[String].decode(vector(idx)) // decode the first field
-      val f2Mp = Encoder[Int].decode(vector(idx + 1)) // second
-      val f3Mp = Encoder[Long].decode(vector(idx + 2)) // third
-
-      for {
-        f1 <- f1Mp
-        f2 <- f2Mp
-        f3 <- f3Mp
-      } yield TestTuple(f1, f2, f3)
+      Vector(f1Mp, f2Mp, f3Mp)
     }
   }
 ``` 
 
 ## Update operations
-There is also an implicit update operation builder for any case class:
+**EXPERIMENTAL**
+
+Instead of manual construction of update operation you can generate it from special implicit builder:
 
 ```scala
 import zio.tarantool.codec.auto._

@@ -1,11 +1,12 @@
 package zio.tarantool.protocol
 
+import org.msgpack.value.Value
+import org.msgpack.value.impl._
 import zio._
 import zio.tarantool.TarantoolError
 import zio.tarantool.TarantoolError.{CodecError, EmptyResultSet}
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.data.TestTuple
-import zio.tarantool.msgpack.{MessagePack, MpFixArray, MpPositiveFixInt}
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.protocol.TarantoolResponse.{TarantoolDataResponse, TarantoolEvalResponse}
 import zio.test._
@@ -26,7 +27,7 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
 
   private val tarantoolEvalResponseEmptyResultSet =
     testM("TarantoolEvalResponse should return empty resultSet") {
-      val response = TarantoolEvalResponse(MpFixArray(Vector.empty))
+      val response = TarantoolEvalResponse(new ImmutableArrayValueImpl(Array.empty))
       for {
         resultSet <- response.resultSet[TestTuple]
       } yield assert(resultSet)(equalTo(Vector.empty))
@@ -56,7 +57,7 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
 
   private val tarantoolEvalResponseHeadEmptyResultSet =
     testM("TarantoolEvalResponse should fail when head is called on an empty result set") {
-      val response = TarantoolEvalResponse(MpFixArray(Vector.empty))
+      val response = TarantoolEvalResponse(new ImmutableArrayValueImpl(Array.empty))
       for {
         resultSet <- response.head[TestTuple].run
       } yield assert(resultSet)(fails(equalTo(EmptyResultSet)))
@@ -64,7 +65,8 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
 
   private val tarantoolEvalResponseFailOnIncorrectMessagePack =
     testM("TarantoolEvalResponse should fail on incorrect message pack type") {
-      val response = TarantoolEvalResponse(MpFixArray(Vector(MpPositiveFixInt(1))))
+      val response =
+        TarantoolEvalResponse(new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1))))
       for {
         resultSet <- response.resultSet[TestTuple].run
       } yield assert(resultSet)(fails(isSubtype[CodecError](anything)))
@@ -76,14 +78,14 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
 
       for {
         encodedTuple <- encodeTuple(tuple)
-        response = TarantoolDataResponse(MpFixArray(Vector(encodedTuple)))
+        response = TarantoolDataResponse(new ImmutableArrayValueImpl(Array(encodedTuple)))
         resultSet <- response.resultSet[TestTuple]
       } yield assert(resultSet)(equalTo(Vector(tuple)))
     }
 
   private val tarantoolDataResponseEmptyResultSet =
     testM("TarantoolDataResponse should return empty resultSet") {
-      val response = TarantoolDataResponse(MpFixArray(Vector.empty))
+      val response = TarantoolDataResponse(new ImmutableArrayValueImpl(Array.empty))
       for {
         resultSet <- response.resultSet[TestTuple]
       } yield assert(resultSet)(equalTo(Vector.empty))
@@ -95,7 +97,7 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
 
       for {
         encodedTuple <- encodeTuple(tuple)
-        response = TarantoolDataResponse(MpFixArray(Vector(encodedTuple)))
+        response = TarantoolDataResponse(new ImmutableArrayValueImpl(Array(encodedTuple)))
         resultSet <- response.headOption[TestTuple]
       } yield assert(resultSet)(isSome(equalTo(tuple)))
     }
@@ -106,14 +108,14 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
 
       for {
         encodedTuple <- encodeTuple(tuple)
-        response = TarantoolDataResponse(MpFixArray(Vector(encodedTuple)))
+        response = TarantoolDataResponse(new ImmutableArrayValueImpl(Array(encodedTuple)))
         resultSet <- response.head[TestTuple]
       } yield assert(resultSet)(equalTo(tuple))
     }
 
   private val tarantoolDataResponseHeadEmptyResultSet =
     testM("TarantoolDataResponse should fail when head is called on an empty result set") {
-      val response = TarantoolDataResponse(MpFixArray(Vector.empty))
+      val response = TarantoolDataResponse(new ImmutableArrayValueImpl(Array.empty))
       for {
         resultSet <- response.head[TestTuple].run
       } yield assert(resultSet)(fails(equalTo(EmptyResultSet)))
@@ -122,7 +124,11 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
   private val tarantoolDataResponseFailOnIncorrectMessagePack =
     testM("TarantoolDataResponse should fail on incorrect message pack type") {
       val response =
-        TarantoolDataResponse(MpFixArray(Vector(MpFixArray(Vector(MpPositiveFixInt(1))))))
+        TarantoolDataResponse(
+          new ImmutableArrayValueImpl(
+            Array(new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1))))
+          )
+        )
       for {
         resultSet <- response.resultSet[TestTuple].run
       } yield assert(resultSet)(fails(isSubtype[CodecError](anything)))
@@ -146,5 +152,5 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
 
   private def encodeTuple(tuple: TestTuple)(implicit
     encoder: TupleEncoder[TestTuple]
-  ): IO[TarantoolError.CodecError, MessagePack] = encoder.encodeM(tuple)
+  ): IO[TarantoolError.CodecError, Value] = encoder.encodeM(tuple)
 }

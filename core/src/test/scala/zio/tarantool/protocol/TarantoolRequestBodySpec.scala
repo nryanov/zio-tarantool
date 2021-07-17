@@ -1,6 +1,10 @@
 package zio.tarantool.protocol
 
-import zio.tarantool.msgpack.{MpFixArray, MpFixString, MpPositiveFixInt}
+import org.msgpack.value.impl.{
+  ImmutableArrayValueImpl,
+  ImmutableLongValueImpl,
+  ImmutableStringValueImpl
+}
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect.sequential
@@ -13,18 +17,20 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
       limit = 1,
       offset = 1,
       iterator = IteratorCode.All,
-      key = MpFixArray(Vector(MpPositiveFixInt(1)))
+      key = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1)))
     )
 
     assert(body)(
       equalTo(
         Map(
-          RequestBodyKey.Space.value -> MpPositiveFixInt(1),
-          RequestBodyKey.Index.value -> MpPositiveFixInt(1),
-          RequestBodyKey.Limit.value -> MpPositiveFixInt(1),
-          RequestBodyKey.Offset.value -> MpPositiveFixInt(1),
-          RequestBodyKey.Iterator.value -> MpPositiveFixInt(2),
-          RequestBodyKey.Key.value -> MpFixArray(Vector(MpPositiveFixInt(1)))
+          RequestBodyKey.Space.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.Index.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.Limit.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.Offset.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.Iterator.value -> new ImmutableLongValueImpl(2),
+          RequestBodyKey.Key.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          )
         )
       )
     )
@@ -33,14 +39,16 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
   private val createInsertBody = test("create insert body") {
     val body = TarantoolRequestBody.insertBody(
       spaceId = 1,
-      tuple = MpFixArray(Vector(MpPositiveFixInt(1)))
+      tuple = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1)))
     )
 
     assert(body)(
       equalTo(
         Map(
-          RequestBodyKey.Space.value -> MpPositiveFixInt(1),
-          RequestBodyKey.Tuple.value -> MpFixArray(Vector(MpPositiveFixInt(1)))
+          RequestBodyKey.Space.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.Tuple.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          )
         )
       )
     )
@@ -50,17 +58,21 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
     val body = TarantoolRequestBody.updateBody(
       spaceId = 1,
       indexId = 1,
-      key = MpFixArray(Vector(MpPositiveFixInt(1))),
-      tuple = MpFixArray(Vector(MpPositiveFixInt(1)))
+      key = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1))),
+      tuple = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1)))
     )
 
     assert(body)(
       equalTo(
         Map(
-          RequestBodyKey.Space.value -> MpPositiveFixInt(1),
-          RequestBodyKey.Index.value -> MpPositiveFixInt(1),
-          RequestBodyKey.Key.value -> MpFixArray(Vector(MpPositiveFixInt(1))),
-          RequestBodyKey.Tuple.value -> MpFixArray(Vector(MpPositiveFixInt(1)))
+          RequestBodyKey.Space.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.Index.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.Key.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          ),
+          RequestBodyKey.Tuple.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          )
         )
       )
     )
@@ -70,15 +82,17 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
     val body = TarantoolRequestBody.deleteBody(
       spaceId = 1,
       indexId = 1,
-      key = MpFixArray(Vector(MpPositiveFixInt(1)))
+      key = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1)))
     )
 
     assert(body)(
       equalTo(
         Map(
-          RequestBodyKey.Space.value -> MpPositiveFixInt(1),
-          RequestBodyKey.Index.value -> MpPositiveFixInt(1),
-          RequestBodyKey.Key.value -> MpFixArray(Vector(MpPositiveFixInt(1)))
+          RequestBodyKey.Space.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.Index.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.Key.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          )
         )
       )
     )
@@ -88,17 +102,21 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
     val body = TarantoolRequestBody.upsertBody(
       spaceId = 1,
       indexId = 1,
-      ops = MpFixArray(Vector(MpPositiveFixInt(1))),
-      tuple = MpFixArray(Vector(MpPositiveFixInt(1)))
+      ops = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1))),
+      tuple = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1)))
     )
 
     assert(body)(
       equalTo(
         Map(
-          RequestBodyKey.Space.value -> MpPositiveFixInt(1),
-          RequestBodyKey.Index.value -> MpPositiveFixInt(1),
-          RequestBodyKey.UpsertOps.value -> MpFixArray(Vector(MpPositiveFixInt(1))),
-          RequestBodyKey.Tuple.value -> MpFixArray(Vector(MpPositiveFixInt(1)))
+          RequestBodyKey.Space.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.Index.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.UpsertOps.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          ),
+          RequestBodyKey.Tuple.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          )
         )
       )
     )
@@ -107,14 +125,16 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
   private val createReplaceBody = test("create replace body") {
     val body = TarantoolRequestBody.replaceBody(
       spaceId = 1,
-      tuple = MpFixArray(Vector(MpPositiveFixInt(1)))
+      tuple = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1)))
     )
 
     assert(body)(
       equalTo(
         Map(
-          RequestBodyKey.Space.value -> MpPositiveFixInt(1),
-          RequestBodyKey.Tuple.value -> MpFixArray(Vector(MpPositiveFixInt(1)))
+          RequestBodyKey.Space.value -> new ImmutableLongValueImpl(1),
+          RequestBodyKey.Tuple.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          )
         )
       )
     )
@@ -123,14 +143,16 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
   private val createCallBody = test("create call body") {
     val body = TarantoolRequestBody.callBody(
       functionName = "test",
-      tuple = MpFixArray(Vector(MpPositiveFixInt(1)))
+      tuple = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1)))
     )
 
     assert(body)(
       equalTo(
         Map(
-          RequestBodyKey.Function.value -> MpFixString("test"),
-          RequestBodyKey.Tuple.value -> MpFixArray(Vector(MpPositiveFixInt(1)))
+          RequestBodyKey.Function.value -> new ImmutableStringValueImpl("test"),
+          RequestBodyKey.Tuple.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          )
         )
       )
     )
@@ -139,14 +161,16 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
   private val createEvalBody = test("create eval body") {
     val body = TarantoolRequestBody.evalBody(
       expression = "test",
-      tuple = MpFixArray(Vector(MpPositiveFixInt(1)))
+      tuple = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1)))
     )
 
     assert(body)(
       equalTo(
         Map(
-          RequestBodyKey.Expression.value -> MpFixString("test"),
-          RequestBodyKey.Tuple.value -> MpFixArray(Vector(MpPositiveFixInt(1)))
+          RequestBodyKey.Expression.value -> new ImmutableStringValueImpl("test"),
+          RequestBodyKey.Tuple.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          )
         )
       )
     )
@@ -155,16 +179,20 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
   private val createExecuteBodyStatementId = test("create execute body -- statement id") {
     val body = TarantoolRequestBody.executeBody(
       statementId = 1,
-      sqlBind = MpFixArray(Vector(MpPositiveFixInt(1))),
-      options = MpFixArray(Vector(MpPositiveFixInt(1)))
+      sqlBind = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1))),
+      options = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1)))
     )
 
     assert(body)(
       equalTo(
         Map(
-          RequestSqlBodyKey.StatementId.value -> MpPositiveFixInt(1),
-          RequestSqlBodyKey.SqlBind.value -> MpFixArray(Vector(MpPositiveFixInt(1))),
-          RequestSqlBodyKey.Options.value -> MpFixArray(Vector(MpPositiveFixInt(1)))
+          RequestSqlBodyKey.StatementId.value -> new ImmutableLongValueImpl(1),
+          RequestSqlBodyKey.SqlBind.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          ),
+          RequestSqlBodyKey.Options.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          )
         )
       )
     )
@@ -173,16 +201,20 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
   private val createExecuteBodySqlText = test("create execute body -- sql text") {
     val body = TarantoolRequestBody.executeBody(
       sqlText = "test",
-      sqlBind = MpFixArray(Vector(MpPositiveFixInt(1))),
-      options = MpFixArray(Vector(MpPositiveFixInt(1)))
+      sqlBind = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1))),
+      options = new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1)))
     )
 
     assert(body)(
       equalTo(
         Map(
-          RequestSqlBodyKey.SqlText.value -> MpFixString("test"),
-          RequestSqlBodyKey.SqlBind.value -> MpFixArray(Vector(MpPositiveFixInt(1))),
-          RequestSqlBodyKey.Options.value -> MpFixArray(Vector(MpPositiveFixInt(1)))
+          RequestSqlBodyKey.SqlText.value -> new ImmutableStringValueImpl("test"),
+          RequestSqlBodyKey.SqlBind.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          ),
+          RequestSqlBodyKey.Options.value -> new ImmutableArrayValueImpl(
+            Array(new ImmutableLongValueImpl(1))
+          )
         )
       )
     )
@@ -196,7 +228,7 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
     assert(body)(
       equalTo(
         Map(
-          RequestSqlBodyKey.StatementId.value -> MpPositiveFixInt(1)
+          RequestSqlBodyKey.StatementId.value -> new ImmutableLongValueImpl(1)
         )
       )
     )
@@ -210,7 +242,7 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
     assert(body)(
       equalTo(
         Map(
-          RequestSqlBodyKey.SqlText.value -> MpFixString("test")
+          RequestSqlBodyKey.SqlText.value -> new ImmutableStringValueImpl("test")
         )
       )
     )
@@ -219,16 +251,13 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
   private val createAuthBody = test("create auth body") {
     val body = TarantoolRequestBody.authBody(
       username = "test",
-      body = Vector.empty
+      "value",
+      scramble = Array.empty
     )
 
-    assert(body)(
-      equalTo(
-        Map(
-          RequestBodyKey.Username.value -> MpFixString("test"),
-          RequestBodyKey.Tuple.value -> MpFixArray(Vector.empty)
-        )
-      )
+    // ImmutableBinaryValueImpl uses ref equality to compare Array[Byte]
+    assert(body.get(RequestBodyKey.Username.value))(
+      isSome(equalTo(new ImmutableStringValueImpl("test")))
     )
   }
 

@@ -1,5 +1,7 @@
 package zio.tarantool
 
+import java.util.UUID
+
 import zio.test._
 import zio.random.Random
 
@@ -33,4 +35,11 @@ object Generators {
   def float(): Gen[Random, Float] = Gen.anyFloat
 
   def double(): Gen[Random, Double] = Gen.anyDouble
+
+  def uuid(): Gen[Random, UUID] = Gen.anyUUID
+
+  def bigInt(): Gen[Random, BigInt] = Gen.bigInt(BigInt(Long.MinValue), BigInt(Long.MaxValue))
+
+  def bigDecimal(): Gen[Random, BigDecimal] =
+    Gen.bigDecimal(BigDecimal(Double.MinValue), BigDecimal(Double.MaxValue))
 }

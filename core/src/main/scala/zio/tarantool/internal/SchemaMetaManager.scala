@@ -1,11 +1,12 @@
 package zio.tarantool.internal
 
+import org.msgpack.value.Value
+import org.msgpack.value.impl.ImmutableArrayValueImpl
 import zio._
 import zio.duration._
 import zio.clock.Clock
 import zio.tarantool.protocol._
 import zio.tarantool.internal.schema.SchemaEncoder._
-import zio.tarantool.msgpack.MpArray16
 import zio.tarantool.internal.schema.{IndexMeta, SpaceMeta}
 import zio.tarantool.TarantoolError.{IndexNotFound, SpaceNotFound}
 import zio.tarantool.internal.SyncIdProvider.SyncIdProvider
@@ -102,7 +103,7 @@ private[tarantool] object SchemaMetaManager {
   private[this] val VIndexId = 289
   private[this] val VIndexIdIndexId = 0
 
-  private[this] val EmptyMpArray: MpArray16 = MpArray16(Vector.empty)
+  private[this] val EmptyMpArray: Value = new ImmutableArrayValueImpl(Array.empty)
   private[this] val Offset = 0
 
   private[tarantool] class Live(

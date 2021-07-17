@@ -1,5 +1,6 @@
 val zioVersion = "1.0.3"
-val scodecVersion = "1.11.7"
+val shapelessVersion = "2.3.7"
+val msgpackVersion = "0.9.0"
 val testContainersVersion = "0.39.5"
 val logbackVersion = "1.2.3"
 
@@ -111,7 +112,8 @@ lazy val core = project
   .settings(
     moduleName := "zio-tarantool-core",
     libraryDependencies ++= Seq(
-      "org.scodec" %% "scodec-core" % scodecVersion,
+      "org.msgpack" % "msgpack-core" % msgpackVersion,
+      "com.chuusai" %% "shapeless" % shapelessVersion,
       "dev.zio" %% "zio-streams" % zioVersion,
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
@@ -123,3 +125,11 @@ lazy val core = project
 
 lazy val examples =
   project.in(file("examples")).settings(allSettings).settings(noPublish).dependsOn(core)
+
+lazy val benchmarks =
+  project
+    .in(file("benchmarks"))
+    .enablePlugins(JmhPlugin)
+    .settings(allSettings)
+    .settings(noPublish)
+    .dependsOn(core)

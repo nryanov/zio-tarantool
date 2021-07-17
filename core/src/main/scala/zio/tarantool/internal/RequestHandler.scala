@@ -1,8 +1,8 @@
 package zio.tarantool.internal
 
+import org.msgpack.value.Value
 import zio._
 import zio.tarantool.TarantoolError
-import zio.tarantool.msgpack.MessagePack
 import zio.tarantool.protocol.TarantoolResponse.{TarantoolDataResponse, TarantoolEvalResponse}
 import zio.tarantool.protocol.{RequestCode, TarantoolOperation, TarantoolRequest, TarantoolResponse}
 
@@ -16,7 +16,7 @@ private[tarantool] object RequestHandler {
 
     def submitRequest(request: TarantoolRequest): IO[TarantoolError, TarantoolOperation]
 
-    def complete(syncId: Long, response: MessagePack): IO[TarantoolError, Unit]
+    def complete(syncId: Long, response: Value): IO[TarantoolError, Unit]
 
     def fail(syncId: Long, reason: String, errorCode: Int): IO[TarantoolError, Unit]
 
@@ -30,7 +30,7 @@ private[tarantool] object RequestHandler {
 
   def complete(
     syncId: Long,
-    response: MessagePack
+    response: Value
   ): ZIO[RequestHandler, TarantoolError, Unit] =
     ZIO.accessM[RequestHandler](_.get.complete(syncId, response))
 
@@ -70,7 +70,7 @@ private[tarantool] object RequestHandler {
         _ <- ZIO.when(notEmpty)(ZIO.fail(TarantoolError.DuplicateOperation(request.syncId)))
       } yield operation
 
-    override def complete(syncId: Long, response: MessagePack): IO[TarantoolError, Unit] =
+    override def complete(syncId: Long, response: Value): IO[TarantoolError, Unit] =
       for {
         operation <- ZIO
           .fromOption(awaitingRequestMap.remove(syncId))

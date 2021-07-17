@@ -1,34 +1,47 @@
 package zio.tarantool.protocol
 
 import zio.{IO, ZIO}
-import scodec.bits.ByteVector
-import zio.tarantool.msgpack._
 import zio.tarantool.TarantoolError
-import zio.tarantool.codec.TupleEncoder
+import zio.tarantool.codec.{Encoder, TupleEncoder}
+import org.msgpack.core.MessagePack
+import org.msgpack.value.Value
 
-object Implicits {
-  private[tarantool] implicit class RichEncoder[A](encoder: Encoder[A]) {
-    def encodeM(v: A): IO[TarantoolError.CodecError, MessagePack] =
-      ZIO.effect(encoder.encode(v).require).mapError(TarantoolError.CodecError)
+private[tarantool] object Implicits {
+  implicit class RichEncoder[A](encoder: Encoder[A]) {
+    def encodeM(v: A): IO[TarantoolError.CodecError, Value] =
+      ZIO.effect(encoder.encode(v)).mapError(TarantoolError.CodecError)
 
-    def decodeM(v: MessagePack): IO[TarantoolError.CodecError, A] =
-      ZIO.effect(encoder.decode(v).require).mapError(TarantoolError.CodecError)
+    def decodeM(value: Value): IO[TarantoolError.CodecError, A] =
+      ZIO.effect(encoder.decode(value)).mapError(TarantoolError.CodecError)
   }
 
-  private[tarantool] implicit class RichTupleEncoder[A](encoder: TupleEncoder[A]) {
-    def encodeM(v: A): IO[TarantoolError.CodecError, MpArray] =
-      ZIO.effect(encoder.encode(v).require).mapError(TarantoolError.CodecError)
+  implicit class RichTupleEncoder[A](encoder: TupleEncoder[A]) {
+    def encodeM(v: A): IO[TarantoolError.CodecError, Value] =
+      ZIO.effect(encoder.encode(v)).bimap(TarantoolError.CodecError, Encoder[Vector[Value]].encode)
 
-    def decodeM(v: MpArray, idx: Int): IO[TarantoolError.CodecError, A] =
-      ZIO.effect(encoder.decodeUnsafe(v, idx)).mapError(TarantoolError.CodecError)
+    def decodeM(v: Value): IO[TarantoolError.CodecError, A] =
+      ZIO.effect(encoder.decode(v.asArrayValue(), 0)).mapError(TarantoolError.CodecError)
+
+    def deserialize(v: Array[Byte]): IO[TarantoolError.CodecError, A] =
+      ZIO.effect {
+        val unpacker = MessagePack.newDefaultUnpacker(v)
+        val nextValue = unpacker.unpackValue()
+
+        if (!nextValue.isArrayValue) {
+          throw new IllegalArgumentException(s"Expected ArrayType, but got: $nextValue")
+        }
+
+        encoder.decode(nextValue.asArrayValue(), 0)
+      }.mapError(TarantoolError.CodecError)
   }
 
-  private[tarantool] implicit class RichByteVector(v: ByteVector) {
-    def decodeM(): IO[TarantoolError.CodecError, MessagePack] =
-      IO.effect(MessagePackCodec.decodeValue(v.toBitVector).require)
-        .mapError(TarantoolError.CodecError)
-
-    def decodeUnsafe(): MessagePack =
-      MessagePackCodec.decodeValue(v.toBitVector).require
+  implicit class RichValue(val value: Value) {
+    def serialize(): IO[TarantoolError.CodecError, Array[Byte]] =
+      IO.effect {
+        val packer = MessagePack.newDefaultBufferPacker()
+        packer.packValue(value)
+        packer.close()
+        packer.toByteArray
+      }.mapError(TarantoolError.CodecError)
   }
 }

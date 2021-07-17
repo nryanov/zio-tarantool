@@ -8,7 +8,13 @@ import zio.tarantool.TarantoolContainer.Tarantool
 import zio.tarantool.TarantoolError.AuthError
 import zio.tarantool.internal.TarantoolConnection.TarantoolConnection
 import zio.tarantool.{AuthInfo, BaseLayers, TarantoolConfig, TarantoolError}
-import zio.tarantool.protocol.{MessagePackPacket, RequestCode, ResponseType, TarantoolRequest}
+import zio.tarantool.protocol.{
+  MessagePackPacket,
+  RequestCode,
+  ResponseCode,
+  ResponseType,
+  TarantoolRequest
+}
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect.{sequential, timeout}
@@ -32,7 +38,7 @@ object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
     } yield ()
 
     assertM(task.provideLayer(layer).run)(
-      fails(equalTo(AuthError("User 'random' is not found")))
+      fails(equalTo(AuthError("User 'random' is not found", ResponseCode.Error(45))))
     )
   }
 

@@ -1,16 +1,17 @@
 package zio.tarantool.internal
 
+import org.msgpack.value.Value
+import org.msgpack.value.impl.ImmutableNilValueImpl
 import zio._
 import zio.tarantool._
 import zio.tarantool.internal.RequestHandler.RequestHandler
 import zio.tarantool.internal.TarantoolConnection.TarantoolConnection
-import zio.tarantool.msgpack.MpFixArray
 import zio.tarantool.protocol.{MessagePackPacket, ResponseCode, ResponseType}
 
 private[tarantool] object ResponseHandler {
   type ResponseHandler = Has[Service]
 
-  private val PingData = MpFixArray(Vector.empty)
+  private val PingData: Value = ImmutableNilValueImpl.get()
 
   trait Service extends Serializable {
     def start(): ZIO[Any, TarantoolError, Unit]
@@ -55,7 +56,7 @@ private[tarantool] object ResponseHandler {
         .receive()
         .foreach(mp =>
           complete(mp).onError(err =>
-            sys.error(s"Error happened while trying to complete operation. Packet: $mp. $err")
+            sys.error(s"Error happened while trying to complete operation: $err \n Packet: $mp")
           )
         )
         .forever

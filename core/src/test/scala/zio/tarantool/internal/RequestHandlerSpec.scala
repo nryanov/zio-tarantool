@@ -1,9 +1,9 @@
 package zio.tarantool.internal
 
+import org.msgpack.value.impl._
 import zio.test._
 import zio.duration._
 import zio.test.Assertion._
-import zio.tarantool.msgpack.MpPositiveFixInt
 import zio.test.TestAspect.{sequential, timeout}
 import zio.tarantool.{BaseLayers, TarantoolError}
 import zio.tarantool.protocol.{Header, RequestCode, TarantoolRequest}
@@ -13,8 +13,8 @@ object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
     RequestCode.Ping,
     1L,
     Map(
-      Header.Sync.value -> MpPositiveFixInt(1),
-      Header.SchemaId.value -> MpPositiveFixInt(1)
+      Header.Sync.value -> new ImmutableLongValueImpl(1),
+      Header.SchemaId.value -> new ImmutableLongValueImpl(1)
     )
   )
 
@@ -41,7 +41,7 @@ object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
       testM("should complete request") {
         val result = for {
           operation <- RequestHandler.submitRequest(request)
-          _ <- RequestHandler.complete(1L, MpPositiveFixInt(1))
+          _ <- RequestHandler.complete(1L, new ImmutableLongValueImpl(1))
           isDone <- operation.isDone
         } yield assert(isDone)(isTrue)
 
@@ -58,7 +58,7 @@ object RequestHandlerSpec extends DefaultRunnableSpec with BaseLayers {
       },
       testM("should throw error on completing request if request does not exist") {
         val result = for {
-          _ <- RequestHandler.complete(1L, MpPositiveFixInt(1))
+          _ <- RequestHandler.complete(1L, new ImmutableLongValueImpl(1))
         } yield ()
 
         assertM(result.provideLayer(requestHandlerLayer).run)(
