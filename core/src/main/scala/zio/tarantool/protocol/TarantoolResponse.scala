@@ -1,14 +1,15 @@
 package zio.tarantool.protocol
 
+import org.msgpack.value.Value
 import zio._
-import scodec.{Attempt, Err}
 import zio.tarantool.TarantoolError
 import zio.tarantool.TarantoolError.{CodecError, EmptyResultSet, ProtocolError}
 import zio.tarantool.codec.TupleEncoder
-import zio.tarantool.msgpack.{MessagePack, MpArray}
+
+import scala.collection.mutable
 
 sealed trait TarantoolResponse {
-  def raw: MessagePack
+  def raw: Value
 
   def resultSet[A: TupleEncoder]: IO[TarantoolError, Vector[A]]
 
@@ -21,51 +22,60 @@ sealed trait TarantoolResponse {
 
 object TarantoolResponse {
   // Returned data: [tuple]
-  final case class TarantoolEvalResponse(messagePack: MessagePack) extends TarantoolResponse {
-    override val raw: MessagePack = messagePack
+  final case class TarantoolEvalResponse(messagePack: Value) extends TarantoolResponse {
+    override val raw: Value = messagePack
 
     override def resultSet[A](implicit encoder: TupleEncoder[A]): IO[TarantoolError, Vector[A]] =
-      messagePack match {
-        case v: MpArray =>
-          if (v.value.nonEmpty) {
-            IO.effect(encoder.decode(v, 0).require)
-              .bimap(err => CodecError(err), value => Vector(value))
-          } else {
-            IO.succeed(Vector.empty)
-          }
-        case v =>
-          IO.fail(
-            ProtocolError(s"Unexpected tuple type. Expected MpArray, but got: ${v.typeName()}")
+      if (messagePack.isArrayValue) {
+        val array = messagePack.asArrayValue()
+        if (array.size() != 0) {
+          IO.effect(encoder.decode(array, 0)).bimap(err => CodecError(err), value => Vector(value))
+        } else {
+          IO.succeed(Vector.empty)
+        }
+      } else {
+        IO.fail(
+          ProtocolError(
+            s"Unexpected tuple type. Expected MpArray, but got: ${messagePack.getValueType.name()}"
           )
+        )
       }
   }
 
   // Returned data: [ [tuple1], [tuple2], ..., [tupleN] ]
-  final case class TarantoolDataResponse(messagePack: MessagePack) extends TarantoolResponse {
-    override val raw: MessagePack = messagePack
+  final case class TarantoolDataResponse(messagePack: Value) extends TarantoolResponse {
+    override val raw: Value = messagePack
 
     override def resultSet[A](implicit encoder: TupleEncoder[A]): IO[TarantoolError, Vector[A]] =
-      messagePack match {
-        case v: MpArray =>
-          IO.effect(
-            v.value
-              .foldLeft(Attempt.successful(Vector.empty[A])) {
-                case (acc, value: MpArray) =>
-                  for {
-                    a <- acc
-                    decodedValue <- encoder.decode(value, 0)
-                  } yield a :+ decodedValue
-                case (_, value) =>
-                  Attempt.failure(
-                    Err(s"Unexpected tuple type. Expected MpArray, but got: ${value.typeName()}")
-                  )
-              }
-              .require
-          ).mapError(CodecError)
-        case v =>
-          IO.fail(
-            ProtocolError(s"Unexpected tuple type. Expected MpArray, but got: ${v.typeName()}")
+      if (messagePack.isArrayValue) {
+        val array = messagePack.asArrayValue()
+        val buffer = mutable.ListBuffer[A]()
+
+        IO.effect {
+          val iter = array.iterator()
+
+          while (iter.hasNext) {
+            val next = iter.next()
+
+            if (next.isArrayValue) {
+              val decoded = encoder.decode(next.asArrayValue(), 0)
+              buffer.+=(decoded)
+            } else {
+              throw ProtocolError(
+                s"Unexpected tuple type. Expected MpArray, but got: ${next.getValueType.name()}"
+              )
+            }
+          }
+
+          buffer.toVector
+        }.mapError(CodecError)
+      } else {
+        IO.fail(
+          ProtocolError(
+            s"Unexpected tuple type. Expected MpArray, but got: ${messagePack.getValueType.name()}"
           )
+        )
       }
+
   }
 }

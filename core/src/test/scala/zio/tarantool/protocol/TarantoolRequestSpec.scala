@@ -1,8 +1,8 @@
 package zio.tarantool.protocol
 
+import org.msgpack.value.impl.ImmutableLongValueImpl
 import zio.test._
 import zio.test.Assertion._
-import zio.tarantool.msgpack.MpPositiveFixInt
 
 object TarantoolRequestSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
@@ -10,8 +10,8 @@ object TarantoolRequestSpec extends DefaultRunnableSpec {
       testM("should create packet") {
         val expected = MessagePackPacket(
           Map(
-            Header.Sync.value -> MpPositiveFixInt(1),
-            Header.Code.value -> MpPositiveFixInt(RequestCode.Ping.value)
+            Header.Sync.value -> new ImmutableLongValueImpl(1),
+            Header.Code.value -> new ImmutableLongValueImpl(RequestCode.Ping.value.toLong)
           )
         )
         val request = TarantoolRequest(RequestCode.Ping, 1, Map.empty)

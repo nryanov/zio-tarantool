@@ -1,59 +1,56 @@
 package zio.tarantool.codec
 
-import scodec.{Attempt, Err}
-import zio.tarantool.msgpack.{Encoder, MpArray, MpFixArray, MpNil}
+import org.msgpack.value.{ArrayValue, Value}
+import org.msgpack.value.impl.ImmutableNilValueImpl
+import zio.tarantool.TarantoolError.CodecError
 
 trait TupleEncoder[A] extends Serializable {
-  def encode(v: A): Attempt[MpArray]
+  def encode(v: A): Vector[Value]
 
-  def decode(v: MpArray, idx: Int): Attempt[A]
-
-  final def encodeUnsafe(v: A): MpArray = encode(v).require
-
-  final def decodeUnsafe(v: MpArray, idx: Int): A = decode(v, idx).require
+  def decode(v: ArrayValue, idx: Int): A
 }
 
 object TupleEncoder {
   def apply[A](implicit instance: TupleEncoder[A]): instance.type = instance
 
   implicit val unitEncoder: TupleEncoder[Unit] = new TupleEncoder[Unit] {
-    override def encode(v: Unit): Attempt[MpArray] = Attempt.successful(MpFixArray(Vector.empty))
+    override def encode(v: Unit): Vector[Value] = Vector(ImmutableNilValueImpl.get())
 
-    override def decode(v: MpArray, idx: Int): Attempt[Unit] =
-      if (v.value.isEmpty) Attempt.successful(())
-      else Attempt.failure(Err("Non empty vector for unit value"))
+    override def decode(v: ArrayValue, idx: Int): Unit = {
+      val value = v.get(idx)
+      if (!value.isNilValue) {
+        throw CodecError(new IllegalArgumentException(s"Expect MPNil, got: $value"))
+      }
+    }
   }
 
-  implicit val mpArrayEncoder: TupleEncoder[MpArray] = new TupleEncoder[MpArray] {
-    override def encode(v: MpArray): Attempt[MpArray] = Attempt.successful(v)
+  implicit val valueEncoder: TupleEncoder[Value] = new TupleEncoder[Value] {
+    override def encode(v: Value): Vector[Value] = Vector(v)
 
-    override def decode(v: MpArray, idx: Int): Attempt[MpArray] = Attempt.successful(v)
+    override def decode(v: ArrayValue, idx: Int): Value = v.get(idx)
   }
 
   implicit def fromEncoder[A](implicit encoder: Encoder[A]): TupleEncoder[A] = new TupleEncoder[A] {
-    override def encode(v: A): Attempt[MpArray] =
-      encoder.encode(v).map(res => MpFixArray(Vector(res)))
+    override def encode(v: A): Vector[Value] = Vector(encoder.encode(v))
 
-    override def decode(v: MpArray, idx: Int): Attempt[A] = encoder.decode(v.value(idx))
+    override def decode(v: ArrayValue, idx: Int): A = encoder.decode(v.get(idx))
   }
 
   implicit def fromEncoderOption[A](implicit encoder: Encoder[A]): TupleEncoder[Option[A]] =
     new TupleEncoder[Option[A]] {
-      override def encode(v: Option[A]): Attempt[MpArray] = v match {
-        case Some(value) => encoder.encode(value).map(value => MpFixArray(Vector(value)))
-        case None        => Attempt.successful(MpFixArray(Vector(MpNil)))
-      }
-
-      override def decode(v: MpArray, idx: Int): Attempt[Option[A]] =
-        if (v.value.nonEmpty) {
-          val mp = v.value(idx)
-
-          mp match {
-            case MpNil => Attempt.successful(None)
-            case _     => encoder.decode(mp).map(Some(_))
-          }
-        } else {
-          Attempt.successful(None)
+      override def encode(v: Option[A]): Vector[Value] =
+        v match {
+          case Some(value) => Vector(encoder.encode(value))
+          case None        => Vector(ImmutableNilValueImpl.get())
         }
+
+      override def decode(v: ArrayValue, idx: Int): Option[A] = {
+        val value = v.get(idx)
+        if (value.isNilValue) {
+          None
+        } else {
+          Some(encoder.decode(value))
+        }
+      }
     }
 }

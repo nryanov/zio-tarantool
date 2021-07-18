@@ -1,6 +1,6 @@
 package zio.tarantool.protocol
 
-import zio.tarantool.msgpack.Encoder
+import zio.tarantool.codec.Encoder
 
 sealed abstract class OperatorCode(val value: String)
 

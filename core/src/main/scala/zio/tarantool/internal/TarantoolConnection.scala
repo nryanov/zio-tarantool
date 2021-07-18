@@ -16,7 +16,6 @@ import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.Base64
 
-import scodec.bits.ByteVector
 import zio.tarantool.internal.RequestHandler.RequestHandler
 import zio.tarantool.internal.SyncIdProvider.SyncIdProvider
 
@@ -121,7 +120,7 @@ private[tarantool] object TarantoolConnection {
 
   private def auth(
     authInfo: AuthInfo,
-    salt: String,
+    salt: Array[Byte],
     openedConnection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service
   ): ZIO[Any, TarantoolError, Unit] = for {
@@ -138,13 +137,13 @@ private[tarantool] object TarantoolConnection {
     _ <- ZIO.when(code != ResponseCode.Success)(
       MessagePackPacket
         .extractError(response)
-        .flatMap(error => ZIO.fail(TarantoolError.AuthError(error)))
+        .flatMap(error => ZIO.fail(TarantoolError.AuthError(error, code)))
     )
   } yield ()
 
   private def createAuthRequest(
     authInfo: AuthInfo,
-    encodedSalt: String,
+    encodedSalt: Array[Byte],
     syncId: Long
   ): ZIO[Any, Throwable, TarantoolRequest] =
     IO.effect {
@@ -160,10 +159,8 @@ private[tarantool] object TarantoolConnection {
         auth1.update(i, auth1(i).^(scramble(i)).toByte)
       }
 
-      val body = TarantoolRequestBody.authBody(
-        authInfo.username,
-        Vector(ByteVector.view("chap-sha1".getBytes), ByteVector.view(auth1))
-      )
+      val body =
+        TarantoolRequestBody.authBody(authInfo.username, "chap-sha1", auth1)
 
       TarantoolRequest(RequestCode.Auth, syncId, body)
     }
