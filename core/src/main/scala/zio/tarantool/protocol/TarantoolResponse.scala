@@ -29,7 +29,7 @@ object TarantoolResponse {
       if (messagePack.isArrayValue) {
         val array = messagePack.asArrayValue()
         if (array.size() != 0) {
-          IO.effect(encoder.decode(array, 0)).bimap(err => CodecError(err), value => Vector(value))
+          IO.effect(encoder.decode(array, 0)).mapBoth(err => CodecError(err), value => Vector(value))
         } else {
           IO.succeed(Vector.empty)
         }

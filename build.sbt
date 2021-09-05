@@ -1,4 +1,4 @@
-val zioVersion = "1.0.3"
+val zioVersion = "1.0.11"
 val shapelessVersion = "2.3.7"
 val msgpackVersion = "0.9.0"
 val testContainersVersion = "0.39.6"
@@ -127,9 +127,4 @@ lazy val examples =
   project.in(file("examples")).settings(allSettings).settings(noPublish).dependsOn(core)
 
 lazy val benchmarks =
-  project
-    .in(file("benchmarks"))
-    .enablePlugins(JmhPlugin)
-    .settings(allSettings)
-    .settings(noPublish)
-    .dependsOn(core)
+  project.in(file("benchmarks")).enablePlugins(JmhPlugin).settings(allSettings).settings(noPublish).dependsOn(core)
