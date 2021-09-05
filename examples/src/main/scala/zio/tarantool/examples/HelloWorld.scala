@@ -17,10 +17,7 @@ object HelloWorld extends zio.App {
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = (for {
     _ <- TarantoolClient.insert("users", User(1, "Name1", 10, Address("street1", 1)))
 
-    user <- TarantoolClient
-      .select("users", "primary", 1, 0, IteratorCode.Eq, 1L)
-      .flatMap(_.await)
-      .flatMap(_.head[User])
+    user <- TarantoolClient.select("users", "primary", 1, 0, IteratorCode.Eq, 1L).flatMap(_.await).flatMap(_.head[User])
 
     _ <- zio.console.putStrLn(s"User: $user")
   } yield ExitCode.success).provideLayer(tarantoolLayer()).orDie

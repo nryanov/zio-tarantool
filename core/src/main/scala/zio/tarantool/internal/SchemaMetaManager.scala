@@ -160,14 +160,10 @@ private[tarantool] object SchemaMetaManager {
       spaces <- spacesOp.resultSet[SpaceMeta]
       indexes <- indexesOp.resultSet[IndexMeta]
       groupedIndexes = indexes.groupBy(_.spaceId)
-      mappedSpaceMeta = spaces.map(meta => meta.spaceId -> meta).toMap.map {
-        case (spaceId, spaceMeta) =>
-          spaceMeta.spaceName -> spaceMeta.withIndexes(
-            groupedIndexes
-              .getOrElse(spaceId, Vector.empty)
-              .map(indexMeta => indexMeta.indexName -> indexMeta)
-              .toMap
-          )
+      mappedSpaceMeta = spaces.map(meta => meta.spaceId -> meta).toMap.map { case (spaceId, spaceMeta) =>
+        spaceMeta.spaceName -> spaceMeta.withIndexes(
+          groupedIndexes.getOrElse(spaceId, Vector.empty).map(indexMeta => indexMeta.indexName -> indexMeta).toMap
+        )
       }
       _ <- spaceMetaMap.set(mappedSpaceMeta)
     } yield ()
@@ -180,9 +176,7 @@ private[tarantool] object SchemaMetaManager {
       spaceId,
       indexId
     ).flatMap(
-      _.response.await
-        .timeout(cfg.clientConfig.schemaRequestTimeoutMillis.milliseconds)
-        .flatMap(ZIO.fromOption(_))
+      _.response.await.timeout(cfg.clientConfig.schemaRequestTimeoutMillis.milliseconds).flatMap(ZIO.fromOption(_))
     ).orElseFail(
       TarantoolError.Timeout(s"Schema request timeout. SpaceId: $spaceId, indexId: $indexId")
     ).provide(clock)
@@ -195,8 +189,7 @@ private[tarantool] object SchemaMetaManager {
         syncId <- syncIdProvider.syncId()
         body <- ZIO
           .effect(
-            TarantoolRequestBody
-              .selectBody(spaceId, indexId, Int.MaxValue, Offset, IteratorCode.All, EmptyMpArray)
+            TarantoolRequestBody.selectBody(spaceId, indexId, Int.MaxValue, Offset, IteratorCode.All, EmptyMpArray)
           )
           .mapError(TarantoolError.CodecError)
         request = TarantoolRequest(RequestCode.Select, syncId, body)

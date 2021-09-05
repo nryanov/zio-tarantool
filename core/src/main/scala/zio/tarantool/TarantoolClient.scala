@@ -8,13 +8,7 @@ import org.msgpack.value.impl.ImmutableArrayValueImpl
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.protocol.TarantoolRequestBody._
-import zio.tarantool.protocol.{
-  IteratorCode,
-  RequestCode,
-  TarantoolRequest,
-  TarantoolResponse,
-  UpdateOperations
-}
+import zio.tarantool.protocol.{IteratorCode, RequestCode, TarantoolRequest, TarantoolResponse, UpdateOperations}
 
 object TarantoolClient {
   type TarantoolClient = Has[Service]
@@ -704,9 +698,7 @@ object TarantoolClient {
       ops: Value,
       tuple: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      body <- ZIO
-        .effect(upsertBody(spaceId, indexId, ops, tuple))
-        .mapError(TarantoolError.CodecError)
+      body <- ZIO.effect(upsertBody(spaceId, indexId, ops, tuple)).mapError(TarantoolError.CodecError)
       response <- send(RequestCode.Upsert, body)
     } yield response
 
@@ -824,9 +816,7 @@ object TarantoolClient {
       sqlBind: Value,
       options: Value
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]] = for {
-      body <- ZIO
-        .effect(executeBody(statementId, sqlBind, options))
-        .mapError(TarantoolError.CodecError)
+      body <- ZIO.effect(executeBody(statementId, sqlBind, options)).mapError(TarantoolError.CodecError)
       response <- send(RequestCode.Execute, body)
     } yield response
 

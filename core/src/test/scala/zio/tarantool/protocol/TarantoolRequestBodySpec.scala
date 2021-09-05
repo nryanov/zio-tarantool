@@ -1,10 +1,6 @@
 package zio.tarantool.protocol
 
-import org.msgpack.value.impl.{
-  ImmutableArrayValueImpl,
-  ImmutableLongValueImpl,
-  ImmutableStringValueImpl
-}
+import org.msgpack.value.impl.{ImmutableArrayValueImpl, ImmutableLongValueImpl, ImmutableStringValueImpl}
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect.sequential

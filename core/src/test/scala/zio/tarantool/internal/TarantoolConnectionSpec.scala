@@ -8,13 +8,7 @@ import zio.tarantool.TarantoolContainer.Tarantool
 import zio.tarantool.TarantoolError.AuthError
 import zio.tarantool.internal.TarantoolConnection.TarantoolConnection
 import zio.tarantool.{AuthInfo, BaseLayers, TarantoolConfig, TarantoolError}
-import zio.tarantool.protocol.{
-  MessagePackPacket,
-  RequestCode,
-  ResponseCode,
-  ResponseType,
-  TarantoolRequest
-}
+import zio.tarantool.protocol.{MessagePackPacket, RequestCode, ResponseCode, ResponseType, TarantoolRequest}
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect.{sequential, timeout}

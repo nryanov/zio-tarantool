@@ -84,13 +84,9 @@ private[tarantool] object TarantoolConnection {
       requestHandler.submitRequest(request).flatMap { operation =>
         TarantoolRequest
           .createPacket(request)
-          .flatMap(packet =>
-            MessagePackPacket.toBuffer(packet).flatMap(buffer => requestQueue.offer(buffer))
-          )
+          .flatMap(packet => MessagePackPacket.toBuffer(packet).flatMap(buffer => requestQueue.offer(buffer)))
           .as(operation)
-          .tapError(_ =>
-            requestHandler.fail(operation.request.syncId, "Error happened while sending request", 0)
-          )
+          .tapError(_ => requestHandler.fail(operation.request.syncId, "Error happened while sending request", 0))
       }
 
     override private[tarantool] def forceSendRequest(
@@ -101,9 +97,7 @@ private[tarantool] object TarantoolConnection {
         .flatMap(packet =>
           MessagePackPacket
             .toBuffer(packet)
-            .flatMap(buffer =>
-              channel.write(Chunk.fromByteBuffer(buffer)).mapError(TarantoolError.IOError)
-            )
+            .flatMap(buffer => channel.write(Chunk.fromByteBuffer(buffer)).mapError(TarantoolError.IOError))
         )
 
     // used by ResponseHandler fiber
@@ -125,19 +119,13 @@ private[tarantool] object TarantoolConnection {
     syncIdProvider: SyncIdProvider.Service
   ): ZIO[Any, TarantoolError, Unit] = for {
     syncId <- syncIdProvider.syncId()
-    authRequest <- createAuthRequest(authInfo, salt, syncId).mapError(err =>
-      TarantoolError.InternalError(err)
-    )
+    authRequest <- createAuthRequest(authInfo, salt, syncId).mapError(err => TarantoolError.InternalError(err))
     _ <- openedConnection.forceSendRequest(authRequest)
     responseOpt <- openedConnection.receive().take(1).runHead
-    response <- ZIO
-      .fromOption(responseOpt)
-      .orElseFail(TarantoolError.ProtocolError("Something went wrong during auth"))
+    response <- ZIO.fromOption(responseOpt).orElseFail(TarantoolError.ProtocolError("Something went wrong during auth"))
     code <- MessagePackPacket.extractCode(response)
     _ <- ZIO.when(code != ResponseCode.Success)(
-      MessagePackPacket
-        .extractError(response)
-        .flatMap(error => ZIO.fail(TarantoolError.AuthError(error, code)))
+      MessagePackPacket.extractError(response).flatMap(error => ZIO.fail(TarantoolError.AuthError(error, code)))
     )
   } yield ()
 
