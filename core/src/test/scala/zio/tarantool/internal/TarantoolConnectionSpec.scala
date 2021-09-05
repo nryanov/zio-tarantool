@@ -51,7 +51,7 @@ object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
     suite("TarantoolConnection")(
       unsecuredSpecs,
       securedSpecs
-    ) @@ sequential @@ timeout(5 seconds)
+    ) @@ sequential @@ timeout(60 seconds)
 
   private def createTestSpecificLayer(
     authInfo: Option[AuthInfo] = None
