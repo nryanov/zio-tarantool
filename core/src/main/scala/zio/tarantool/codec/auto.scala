@@ -14,7 +14,7 @@ object auto extends LowPriorityInstances {
   }
 }
 
-private[tarantool] trait LowPriorityInstances extends LowestPriorityInstances {
+trait LowPriorityInstances extends LowestPriorityInstances {
   final implicit def genericFamilyEncoder[A, H <: Coproduct](implicit
     gen: LabelledGeneric.Aux[A, H],
     hEncoder: Lazy[TupleEncoder[H]],
@@ -92,7 +92,7 @@ private[tarantool] trait LowPriorityInstances extends LowestPriorityInstances {
   }
 }
 
-private[tarantool] trait LowestPriorityInstances {
+trait LowestPriorityInstances {
   implicit def genericOptionEncoder[A, H <: HList](implicit
     gen: LabelledGeneric.Aux[A, H],
     hEncoder: Lazy[TupleEncoder[Option[H]]]
