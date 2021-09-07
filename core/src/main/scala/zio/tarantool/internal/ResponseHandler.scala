@@ -55,9 +55,8 @@ private[tarantool] object ResponseHandler {
       connection
         .receive()
         .foreach(mp =>
-          complete(mp).onError(err =>
-            sys.error(s"Error happened while trying to complete operation: $err \n Packet: $mp")
-          )
+          complete(mp)
+            .onError(err => sys.error(s"Error happened while trying to complete operation: $err \n Packet: $mp"))
         )
         .forever
 
@@ -86,13 +85,9 @@ private[tarantool] object ResponseHandler {
       responseType <- MessagePackPacket.responseType(packet)
       _ <- responseType match {
         case ResponseType.DataResponse =>
-          MessagePackPacket
-            .extractData(packet)
-            .flatMap(data => requestHandler.complete(syncId, data))
+          MessagePackPacket.extractData(packet).flatMap(data => requestHandler.complete(syncId, data))
         case ResponseType.SqlResponse =>
-          MessagePackPacket
-            .extractSql(packet)
-            .flatMap(data => requestHandler.complete(syncId, data))
+          MessagePackPacket.extractSql(packet).flatMap(data => requestHandler.complete(syncId, data))
         case ResponseType.PingResponse =>
           requestHandler.complete(syncId, PingData)
         case ResponseType.ErrorResponse =>
@@ -106,9 +101,7 @@ private[tarantool] object ResponseHandler {
       packet: MessagePackPacket,
       errorCode: Int
     ): IO[TarantoolError, Unit] =
-      MessagePackPacket
-        .extractError(packet)
-        .flatMap(error => requestHandler.fail(syncId, error, errorCode))
+      MessagePackPacket.extractError(packet).flatMap(error => requestHandler.fail(syncId, error, errorCode))
   }
 
 }

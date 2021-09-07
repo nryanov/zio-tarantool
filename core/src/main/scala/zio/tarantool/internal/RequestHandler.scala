@@ -92,8 +92,7 @@ private[tarantool] object RequestHandler {
 
     override def close(): UIO[Unit] = ZIO
       .foreach_(awaitingRequestMap.values)(op =>
-        op.response
-          .fail(TarantoolError.DeclinedOperation(op.request.syncId, op.request.operationCode))
+        op.response.fail(TarantoolError.DeclinedOperation(op.request.syncId, op.request.operationCode))
       )
       .zipLeft(IO.effectTotal(awaitingRequestMap.clear()))
   }

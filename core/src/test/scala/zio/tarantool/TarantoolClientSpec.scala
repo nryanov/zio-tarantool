@@ -132,9 +132,7 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
       spaceId <- getSpaceId()
     } yield spaceId)
       .timeout(Duration.ofSeconds(5))
-      .flatMap(opt =>
-        ZIO.require(new RuntimeException("Error while getting space id"))(ZIO.succeed(opt))
-      )
+      .flatMap(opt => ZIO.require(new RuntimeException("Error while getting space id"))(ZIO.succeed(opt)))
       .toLayer
       .orDie
 

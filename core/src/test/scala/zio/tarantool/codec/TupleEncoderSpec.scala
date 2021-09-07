@@ -116,7 +116,7 @@ object TupleEncoderSpec extends DefaultRunnableSpec {
   private def checkTupleEncoder[A](
     value: A,
     tupleEncoder: TupleEncoder[A]
-  ): ZIO[Any, TarantoolError.CodecError, BoolAlgebra[FailureDetails]] =
+  ): ZIO[Any, TarantoolError.CodecError, TestResult] =
     for {
       encoded <- tupleEncoder.encodeM(value)
       decoded <- tupleEncoder.decodeM(encoded)

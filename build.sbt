@@ -1,4 +1,4 @@
-val zioVersion = "1.0.3"
+val zioVersion = "1.0.11"
 val shapelessVersion = "2.3.7"
 val msgpackVersion = "0.9.0"
 val testContainersVersion = "0.39.6"
@@ -96,6 +96,13 @@ lazy val buildSettings = Seq(
   Test / parallelExecution := false
 )
 
+lazy val macroSettings: Seq[Setting[_]] = Seq(
+  libraryDependencies ++= Seq(
+    scalaOrganization.value % "scala-compiler" % scalaVersion.value % Provided,
+    scalaOrganization.value % "scala-reflect" % scalaVersion.value % Provided
+  )
+)
+
 lazy val allSettings = buildSettings
 
 lazy val zioTarantool =
@@ -109,6 +116,7 @@ lazy val zioTarantool =
 lazy val core = project
   .in(file("core"))
   .settings(allSettings)
+  .settings(macroSettings)
   .settings(
     moduleName := "zio-tarantool-core",
     libraryDependencies ++= Seq(
@@ -127,9 +135,4 @@ lazy val examples =
   project.in(file("examples")).settings(allSettings).settings(noPublish).dependsOn(core)
 
 lazy val benchmarks =
-  project
-    .in(file("benchmarks"))
-    .enablePlugins(JmhPlugin)
-    .settings(allSettings)
-    .settings(noPublish)
-    .dependsOn(core)
+  project.in(file("benchmarks")).enablePlugins(JmhPlugin).settings(allSettings).settings(noPublish).dependsOn(core)
