@@ -96,6 +96,13 @@ lazy val buildSettings = Seq(
   Test / parallelExecution := false
 )
 
+lazy val macroSettings: Seq[Setting[_]] = Seq(
+  libraryDependencies ++= Seq(
+    scalaOrganization.value % "scala-compiler" % scalaVersion.value % Provided,
+    scalaOrganization.value % "scala-reflect" % scalaVersion.value % Provided
+  )
+)
+
 lazy val allSettings = buildSettings
 
 lazy val zioTarantool =
@@ -109,6 +116,7 @@ lazy val zioTarantool =
 lazy val core = project
   .in(file("core"))
   .settings(allSettings)
+  .settings(macroSettings)
   .settings(
     moduleName := "zio-tarantool-core",
     libraryDependencies ++= Seq(
