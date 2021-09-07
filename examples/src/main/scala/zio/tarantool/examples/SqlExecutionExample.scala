@@ -11,9 +11,7 @@ object SqlExecutionExample extends zio.App {
       "CREATE TABLE table1 (column1 INTEGER PRIMARY KEY, column2 VARCHAR(100))"
     )
     _ <- TarantoolClient.execute("INSERT INTO table1 VALUES (1, 'A'), (2, 'B'), (3, 'C')")
-    resultSet <- TarantoolClient
-      .execute("SELECT * FROM table1")
-      .flatMap(_.await.flatMap(_.resultSet[(Int, String)]))
+    resultSet <- TarantoolClient.execute("SELECT * FROM table1").flatMap(_.await.flatMap(_.resultSet[(Int, String)]))
     _ <- zio.console.putStrLn(s"Result set: $resultSet")
   } yield ExitCode.success).provideLayer(tarantoolLayer()).orDie
 

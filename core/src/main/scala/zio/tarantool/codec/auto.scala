@@ -14,7 +14,7 @@ object auto extends LowPriorityInstances {
   }
 }
 
-private[tarantool] trait LowPriorityInstances extends LowestPriorityInstances {
+trait LowPriorityInstances extends LowestPriorityInstances {
   final implicit def genericFamilyEncoder[A, H <: Coproduct](implicit
     gen: LabelledGeneric.Aux[A, H],
     hEncoder: Lazy[TupleEncoder[H]],
@@ -92,7 +92,7 @@ private[tarantool] trait LowPriorityInstances extends LowestPriorityInstances {
   }
 }
 
-private[tarantool] trait LowestPriorityInstances {
+trait LowestPriorityInstances {
   implicit def genericOptionEncoder[A, H <: HList](implicit
     gen: LabelledGeneric.Aux[A, H],
     hEncoder: Lazy[TupleEncoder[Option[H]]]
@@ -118,9 +118,9 @@ private[tarantool] trait LowestPriorityInstances {
     notOption: H <:!< Option[Z] forSome { type Z }
   ): TupleEncoder[Option[FieldType[K, H] :: T]] = new TupleEncoder[Option[FieldType[K, H] :: T]] {
     override def encode(v: Option[FieldType[K, H] :: T]): Vector[Value] = {
-      def split[A](v: Option[H :: T])(f: (Option[H], Option[T]) => A): A = v.fold(f(None, None))({
-        case h :: t => f(Some(h), Some(t))
-      })
+      def split[A](v: Option[H :: T])(f: (Option[H], Option[T]) => A): A = v.fold(f(None, None)) { case h :: t =>
+        f(Some(h), Some(t))
+      }
 
       split(v) { case (head, tail) =>
         val encodedHead: Vector[Value] = hEncoder.value.encode(head)
@@ -146,7 +146,7 @@ private[tarantool] trait LowestPriorityInstances {
     new TupleEncoder[Option[FieldType[K, Option[H]] :: T]] {
       override def encode(v: Option[FieldType[K, Option[H]] :: T]): Vector[Value] = {
         def split[A](v: Option[Option[H] :: T])(f: (Option[H], Option[T]) => A): A =
-          v.fold(f(None, None))({ case h :: t => f(h, Some(t)) })
+          v.fold(f(None, None)) { case h :: t => f(h, Some(t)) }
 
         split(v) { case (head, tail) =>
           val encodedHead: Vector[Value] = hEncoder.value.encode(head)

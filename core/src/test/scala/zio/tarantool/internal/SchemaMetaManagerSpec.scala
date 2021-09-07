@@ -2,7 +2,7 @@ package zio.tarantool.internal
 
 import zio.duration._
 import zio.tarantool.{BaseLayers, TarantoolError}
-import zio.test.{DefaultRunnableSpec, ZSpec, assert, assertM, suite, testM}
+import zio.test.{DefaultRunnableSpec, ZSpec, assert, assertM}
 import zio.test.Assertion._
 import zio.test.TestAspect._
 

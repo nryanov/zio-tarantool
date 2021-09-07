@@ -17,7 +17,7 @@ private[tarantool] object Implicits {
 
   implicit class RichTupleEncoder[A](encoder: TupleEncoder[A]) {
     def encodeM(v: A): IO[TarantoolError.CodecError, Value] =
-      ZIO.effect(encoder.encode(v)).bimap(TarantoolError.CodecError, Encoder[Vector[Value]].encode)
+      ZIO.effect(encoder.encode(v)).mapBoth(TarantoolError.CodecError, Encoder[Vector[Value]].encode)
 
     def decodeM(v: Value): IO[TarantoolError.CodecError, A] =
       ZIO.effect(encoder.decode(v.asArrayValue(), 0)).mapError(TarantoolError.CodecError)

@@ -6,6 +6,8 @@ import zio.stream.ZTransducer
 import zio.tarantool.protocol.MessagePackPacket
 import zio.tarantool.codec.MessagePackPacketSerDe
 
+import scala.annotation.tailrec
+
 private[tarantool] object ByteStream {
   private val MessageSizeLength = 5
 
@@ -37,6 +39,7 @@ private[tarantool] object ByteStream {
    * @return - decoded packets and new state
    */
   private def decodeByteStream(state: State): (Chunk[MessagePackPacket], State) = {
+    @tailrec
     def go(state: State, acc: ChunkBuilder[MessagePackPacket]): State =
       if (state.length == 0) {
         // length part was not read

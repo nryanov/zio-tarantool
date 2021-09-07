@@ -5,8 +5,7 @@ import org.msgpack.value.Value
 sealed trait FieldUpdate
 
 object FieldUpdate {
-  final case class SimpleFieldUpdate(position: Int, operatorCode: OperatorCode, value: Value)
-      extends FieldUpdate
+  final case class SimpleFieldUpdate(position: Int, operatorCode: OperatorCode, value: Value) extends FieldUpdate
 
   final case class SpliceFieldUpdate(
     position: Int,
