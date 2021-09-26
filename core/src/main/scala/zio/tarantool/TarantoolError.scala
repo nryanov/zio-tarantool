@@ -11,7 +11,7 @@ object TarantoolError {
       extends TarantoolError(exception.getLocalizedMessage, Some(exception))
   final case class InternalError(cause: Throwable) extends TarantoolError(cause.getLocalizedMessage, Some(cause))
 
-  final case class NotSupportedUpdateOperation(msg: String) extends TarantoolError(msg, None)
+  final case class UpdateOperationError(msg: String) extends TarantoolError(msg, None)
 
   final case class AuthError(message: String, code: ResponseCode) extends TarantoolError(s"$message. Code: $code", None)
 

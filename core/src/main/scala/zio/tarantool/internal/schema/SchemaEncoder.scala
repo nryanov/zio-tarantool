@@ -61,7 +61,7 @@ private[tarantool] object SchemaEncoder {
       }
     }
 
-  private def decodeFieldMeta(vector: Vector[Map[String, Value]]): List[FieldMeta] =
+  private def decodeFieldMeta(vector: Vector[Map[String, Value]]): Vector[FieldMeta] =
     vector.map { map =>
       val fieldNameMp = Encoder[String].decode(map("name"))
       val fieldTypeMp = Encoder[String].decode(map("type"))
@@ -73,7 +73,7 @@ private[tarantool] object SchemaEncoder {
         fieldTypeMp,
         isNullableMp
       )
-    }.foldLeft(Vector.empty[FieldMeta])((acc, value) => acc :+ value).toList
+    }.foldLeft(Vector.empty[FieldMeta])((acc, value) => acc :+ value)
 
   private def decodeIndexOptions(map: Map[String, Value]): IndexOptions =
     if (map.isEmpty) IndexOptions(isUnique = false)

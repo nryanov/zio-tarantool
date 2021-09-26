@@ -5,17 +5,17 @@ import zio.tarantool.codec.Encoder
 
 object TarantoolRequestBody {
   def selectBody(
-    spaceId: Int,
-    indexId: Int,
-    limit: Int,
-    offset: Int,
+    spaceId: Long,
+    indexId: Long,
+    limit: Long,
+    offset: Long,
     iterator: IteratorCode,
     key: Value
   ): Map[Long, Value] = Map(
-    RequestBodyKey.Space.value -> Encoder[Int].encode(spaceId),
-    RequestBodyKey.Index.value -> Encoder[Int].encode(indexId),
-    RequestBodyKey.Limit.value -> Encoder[Int].encode(limit),
-    RequestBodyKey.Offset.value -> Encoder[Int].encode(offset),
+    RequestBodyKey.Space.value -> Encoder[Long].encode(spaceId),
+    RequestBodyKey.Index.value -> Encoder[Long].encode(indexId),
+    RequestBodyKey.Limit.value -> Encoder[Long].encode(limit),
+    RequestBodyKey.Offset.value -> Encoder[Long].encode(offset),
     RequestBodyKey.Iterator.value -> Encoder[Int].encode(iterator.value),
     RequestBodyKey.Key.value -> key
   )
@@ -26,13 +26,13 @@ object TarantoolRequestBody {
   )
 
   def updateBody(
-    spaceId: Int,
-    indexId: Int,
+    spaceId: Long,
+    indexId: Long,
     key: Value,
     tuple: Value
   ): Map[Long, Value] = Map(
-    RequestBodyKey.Space.value -> Encoder[Int].encode(spaceId),
-    RequestBodyKey.Index.value -> Encoder[Int].encode(indexId),
+    RequestBodyKey.Space.value -> Encoder[Long].encode(spaceId),
+    RequestBodyKey.Index.value -> Encoder[Long].encode(indexId),
     RequestBodyKey.Key.value -> key,
     RequestBodyKey.Tuple.value -> tuple
   )
@@ -56,11 +56,11 @@ object TarantoolRequestBody {
   )
 
   def replaceBody(
-    spaceId: Int,
+    spaceId: Long,
     tuple: Value
   ): Map[Long, Value] =
     Map(
-      RequestBodyKey.Space.value -> Encoder[Int].encode(spaceId),
+      RequestBodyKey.Space.value -> Encoder[Long].encode(spaceId),
       RequestBodyKey.Tuple.value -> tuple
     )
 
