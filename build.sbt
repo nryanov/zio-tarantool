@@ -4,7 +4,7 @@ val msgpackVersion = "0.9.0"
 val testContainersVersion = "0.39.7"
 val logbackVersion = "1.2.5"
 
-val scala2_12 = "2.12.13"
+val scala2_12 = "2.12.15"
 val scala2_13 = "2.13.5"
 
 val compileAndTest = "compile->compile;test->test"
