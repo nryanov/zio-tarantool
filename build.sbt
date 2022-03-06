@@ -5,7 +5,7 @@ val testContainersVersion = "0.40.2"
 val logbackVersion = "1.2.10"
 
 val scala2_12 = "2.12.15"
-val scala2_13 = "2.13.7"
+val scala2_13 = "2.13.8"
 
 val compileAndTest = "compile->compile;test->test"
 
