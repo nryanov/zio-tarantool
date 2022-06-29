@@ -1,6 +1,6 @@
 val zioVersion = "1.0.15"
 val shapelessVersion = "2.3.9"
-val msgpackVersion = "0.9.2"
+val msgpackVersion = "0.9.3"
 val testContainersVersion = "0.40.8"
 val logbackVersion = "1.2.11"
 
