@@ -5,7 +5,7 @@ private[tarantool] final case class SpaceMeta(
   spaceName: String,
   engine: String,
   spaceOptions: SpaceOptions,
-  fieldFormat: List[FieldMeta],
+  fieldFormat: Vector[FieldMeta],
   indexes: Map[String, IndexMeta]
 ) {
   def withIndexes(indexes: Map[String, IndexMeta]): SpaceMeta = this.copy(indexes = indexes)
@@ -17,6 +17,6 @@ private[tarantool] object SpaceMeta {
     spaceName: String,
     engine: String,
     spaceOptions: SpaceOptions,
-    fieldFormat: List[FieldMeta]
+    fieldFormat: Vector[FieldMeta]
   ): SpaceMeta = new SpaceMeta(spaceId, spaceName, engine, spaceOptions, fieldFormat, Map.empty)
 }
