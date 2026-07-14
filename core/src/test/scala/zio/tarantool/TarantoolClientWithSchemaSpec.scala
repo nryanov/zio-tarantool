@@ -2,6 +2,7 @@ package zio.tarantool
 
 import java.time.Duration
 
+import zio.ZIO
 import zio.test._
 import zio.clock.Clock
 import zio.test.Assertion._
@@ -88,7 +89,11 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
     val prepare = (for {
       _ <- createSpace()
       _ <- TarantoolClient.refreshMeta()
-    } yield ()).timeout(Duration.ofSeconds(5)).unit.toLayer.orDie
+    } yield ())
+      .timeout(Duration.ofSeconds(30))
+      .flatMap(opt => ZIO.require(new RuntimeException("Error while preparing schema suite"))(ZIO.succeed(opt)))
+      .toLayer
+      .orDie
 
     ((client ++ clock) >>> prepare) ++ client
   }

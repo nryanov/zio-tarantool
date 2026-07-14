@@ -8,7 +8,7 @@ object TarantoolContainer {
   type Tarantool = Has[GenericContainer]
 
   def tarantool(
-    imageName: String = "tarantool/tarantool:2.6"
+    imageName: String = "tarantool/tarantool:2.11-ubuntu20.04"
   ): ZLayer[Blocking, Nothing, Tarantool] =
     ZManaged.make {
       effectBlocking {

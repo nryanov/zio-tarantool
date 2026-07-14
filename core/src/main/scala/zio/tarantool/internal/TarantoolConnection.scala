@@ -44,9 +44,16 @@ private[tarantool] object TarantoolConnection {
   def receive(): ZStream[TarantoolConnection, TarantoolError, MessagePackPacket] =
     ZStream.access[TarantoolConnection](_.get.receive()).flatten
 
-  val live: ZLayer[Clock with SyncIdProvider with RequestHandler with Has[
-    TarantoolConfig
-  ], TarantoolError, Has[Service]] =
+  val live: ZLayer[
+    Clock
+      with SyncIdProvider
+      with RequestHandler
+      with Has[
+        TarantoolConfig
+      ],
+    TarantoolError,
+    Has[Service]
+  ] =
     ZLayer.fromServicesManaged[
       TarantoolConfig,
       SyncIdProvider.Service,
