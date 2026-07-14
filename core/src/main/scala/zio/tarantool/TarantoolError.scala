@@ -18,6 +18,7 @@ object TarantoolError {
   final case class IndexNotFound(space: String, index: String) extends TarantoolError(s"$space:$index", null)
 
   final case class ProtocolError(message: String) extends TarantoolError(message, null)
+  final case class IncompleteRequest(message: String) extends TarantoolError(message, null)
   final case class CodecError(exception: Throwable) extends TarantoolError(exception.getLocalizedMessage, exception)
   case object EmptyResultSet extends TarantoolError("Empty result set", null)
   final case class Timeout(message: String) extends TarantoolError(message, null)

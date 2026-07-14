@@ -25,23 +25,24 @@ trait TarantoolBaseSpec extends DefaultRunnableSpec with BaseLayers {
     awaitResponse(operation).flatMap(_.resultSet[A])
 
   def createSpace(): ZIO[TarantoolClient, Throwable, Unit] =
-    TarantoolClient
-      .eval("""
+    TarantoolClient.eval
+      .expression("""
         box.schema.create_space('test', {if_not_exists = true})
         box.space.test:create_index('primary', {if_not_exists = true, unique = true, parts = {1, 'string'}})
       """)
+      .run
       .flatMap(_.await.unit)
 
   def createFunction() = for {
-    r1 <- TarantoolClient.eval(
-      "box.schema.func.create('sum', {body = [[function(a, b) return a + b end]]})"
-    )
+    r1 <- TarantoolClient.eval
+      .expression("box.schema.func.create('sum', {body = [[function(a, b) return a + b end]]})")
+      .run
     _ <- r1.await
   } yield ()
 
   def getSpaceId(): ZIO[Clock with TarantoolClient, Throwable, Int] =
-    TarantoolClient.eval("return box.space.test.id").flatMap(_.await.flatMap(_.head[Int]))
+    TarantoolClient.eval.expression("return box.space.test.id").run.flatMap(_.await.flatMap(_.head[Int]))
 
   def truncateSpace(): ZIO[TarantoolClient, Throwable, Unit] =
-    TarantoolClient.eval("if box.space.test then box.space.test:truncate() end").flatMap(_.await.unit)
+    TarantoolClient.eval.expression("if box.space.test then box.space.test:truncate() end").run.flatMap(_.await.unit)
 }
