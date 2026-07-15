@@ -245,16 +245,23 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
   }
 
   private val createAuthBody = test("create auth body") {
+    val scramble = Array[Byte](1, 2, 3)
     val body = TarantoolRequestBody.authBody(
       username = "test",
-      "value",
-      scramble = Array.empty
+      authMechanism = "chap-sha1",
+      scramble = scramble
     )
 
-    // ImmutableBinaryValueImpl uses ref equality to compare Array[Byte]
+    val tuple = body(RequestBodyKey.Tuple.value).asArrayValue()
+
     assert(body.get(RequestBodyKey.Username.value))(
       isSome(equalTo(new ImmutableStringValueImpl("test")))
-    )
+    ) &&
+    assert(tuple.size())(equalTo(2)) &&
+    assert(tuple.get(0).isStringValue)(isTrue) &&
+    assert(tuple.get(0).asStringValue().asString())(equalTo("chap-sha1")) &&
+    assert(tuple.get(1).isBinaryValue)(isTrue) &&
+    assert(tuple.get(1).asBinaryValue().asByteArray().toSeq)(equalTo(scramble.toSeq))
   }
 
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
