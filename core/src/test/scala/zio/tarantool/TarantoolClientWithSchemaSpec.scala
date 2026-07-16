@@ -7,7 +7,6 @@ import zio.test._
 import zio.clock.Clock
 import zio.test.Assertion._
 import zio.tarantool.codec.auto._
-import zio.tarantool.protocol.IteratorCode
 import zio.tarantool.codec.TupleOpsBuilder
 import zio.test.TestAspect.{after, sequential}
 import zio.tarantool.data.{TestTuple, TestTupleKey}
@@ -19,19 +18,19 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
   private val insertAndSelect =
     testM("insert and select record") {
       for {
-        _ <- TarantoolClient.insert("test", tuple)
-        select <- TarantoolClient.select("test", "primary", 1, 0, IteratorCode.Eq, key)
+        _ <- TarantoolClient.insert.into("test").tuple(tuple).run
+        select <- TarantoolClient.select.from("test").index("primary").key(key).limit(1).run
         result <- awaitResponseData[TestTuple](select)
       } yield assert(result)(equalTo(Vector(tuple)))
     }
 
   private val update = testM("update record") {
     for {
-      insert <- TarantoolClient.insert("test", tuple)
+      insert <- TarantoolClient.insert.into("test").tuple(tuple).run
       inserted <- awaitResponseData[TestTuple](insert)
       ops <- TupleOpsBuilder[TestTuple].assign("f2", 2).assign("f3", 3).buildM()
-      _ <- TarantoolClient.update("test", "primary", key, ops)
-      selectAfterUpdate <- TarantoolClient.select("test", "primary", 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.update.in("test").index("primary").key(key).ops(ops).run
+      selectAfterUpdate <- TarantoolClient.select.from("test").index("primary").key(key).limit(1).run
       afterUpdate <- awaitResponseData[TestTuple](selectAfterUpdate)
     } yield assert(inserted)(equalTo(Vector(tuple))) && assert(afterUpdate)(
       equalTo(Vector(tuple.copy(f2 = 2, f3 = 3)))
@@ -40,10 +39,10 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
 
   private val delete = testM("delete record") {
     for {
-      insert <- TarantoolClient.insert("test", tuple)
+      insert <- TarantoolClient.insert.into("test").tuple(tuple).run
       inserted <- awaitResponseHeadOption[TestTuple](insert)
-      _ <- TarantoolClient.delete("test", "primary", key)
-      selectDeleted <- TarantoolClient.select("test", "primary", 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.delete.from("test").index("primary").key(key).run
+      selectDeleted <- TarantoolClient.select.from("test").index("primary").key(key).limit(1).run
       none <- awaitResponseHeadOption[TestTuple](selectDeleted)
     } yield assert(inserted)(isSome(equalTo(tuple))) && assert(none)(isNone)
   }
@@ -51,11 +50,11 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
   private val upsert = testM("upsert record") {
     for {
       ops <- TupleOpsBuilder[TestTuple].assign("f2", 2).assign("f3", 3).buildM()
-      _ <- TarantoolClient.upsert("test", "primary", ops, tuple)
-      selectInserted <- TarantoolClient.select("test", "primary", 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.upsert.into("test").index("primary").ops(ops).tuple(tuple).run
+      selectInserted <- TarantoolClient.select.from("test").index("primary").key(key).limit(1).run
       inserted <- awaitResponseHeadOption[TestTuple](selectInserted)
-      _ <- TarantoolClient.upsert("test", "primary", ops, tuple)
-      selectUpdated <- TarantoolClient.select("test", "primary", 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.upsert.into("test").index("primary").ops(ops).tuple(tuple).run
+      selectUpdated <- TarantoolClient.select.from("test").index("primary").key(key).limit(1).run
       updated <- awaitResponseHeadOption[TestTuple](selectUpdated)
     } yield assert(inserted)(isSome(equalTo(tuple))) && assert(updated)(
       isSome(equalTo(tuple.copy(f2 = 2, f3 = 3)))
@@ -64,9 +63,9 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
 
   private val replace = testM("replace record") {
     for {
-      insert <- TarantoolClient.insert("test", tuple)
+      insert <- TarantoolClient.insert.into("test").tuple(tuple).run
       inserted <- awaitResponseHeadOption[TestTuple](insert)
-      replace <- TarantoolClient.replace("test", tuple.copy(f2 = 2, f3 = 3))
+      replace <- TarantoolClient.replace.into("test").tuple(tuple.copy(f2 = 2, f3 = 3)).run
       replaced <- awaitResponseHeadOption[TestTuple](replace)
     } yield assert(inserted)(isSome(equalTo(tuple))) && assert(replaced)(
       isSome(equalTo(tuple.copy(f2 = 2, f3 = 3)))

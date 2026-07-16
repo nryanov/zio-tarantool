@@ -115,8 +115,12 @@ object TarantoolRequestBody {
   def authBody(username: String, authMechanism: String, scramble: Array[Byte]): Map[Long, Value] =
     Map(
       RequestBodyKey.Username.value -> Encoder[String].encode(username),
-      RequestBodyKey.Tuple.value -> Encoder[Vector[Array[Byte]]].encode(
-        Vector(authMechanism.getBytes, scramble)
+      // Protocol: tuple is [MP_STRING mechanism, MP_BIN scramble]
+      RequestBodyKey.Tuple.value -> Encoder[Vector[Value]].encode(
+        Vector(
+          Encoder[String].encode(authMechanism),
+          Encoder[Array[Byte]].encode(scramble)
+        )
       )
     )
 }

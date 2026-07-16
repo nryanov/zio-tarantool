@@ -28,13 +28,13 @@ class TarantoolClientBenchmark extends BenchmarkBase {
   @Setup(Level.Trial)
   def setup(): Unit = {
     val init: ZIO[TarantoolClient, TarantoolError, Int] = for {
-      space <- TarantoolClient.eval("box.schema.create_space('A', {if_not_exists = true})")
-      ids <- TarantoolClient.eval("box.schema.sequence.create('ids', {if_not_exists = true})")
-      index <- TarantoolClient.eval(
-        "box.space.A:create_index('primary', {if_not_exists = true, sequence='ids'})"
-      )
+      space <- TarantoolClient.eval.expression("box.schema.create_space('A', {if_not_exists = true})").run
+      ids <- TarantoolClient.eval.expression("box.schema.sequence.create('ids', {if_not_exists = true})").run
+      index <- TarantoolClient.eval
+        .expression("box.space.A:create_index('primary', {if_not_exists = true, sequence='ids'})")
+        .run
 
-      spaceIdReq <- TarantoolClient.eval("return box.space.A.id")
+      spaceIdReq <- TarantoolClient.eval.expression("return box.space.A.id").run
       spaceId <- spaceIdReq.await.flatMap(_.head[Int])
       _ <- space.await
       _ <- ids.await
@@ -59,14 +59,14 @@ class TarantoolClientBenchmark extends BenchmarkBase {
   @TearDown
   def tearDown(): Unit =
     zioUnsafeRun(
-      TarantoolClient.eval("box.space.A:truncate()").flatMap(_.await.unit)
+      TarantoolClient.eval.expression("box.space.A:truncate()").run.flatMap(_.await.unit)
     )
 
   @Benchmark
   def insertMsgpackValues(): Unit =
     zioUnsafeRun(
       ZIO
-        .foreach(msgpackValues)(v => TarantoolClient.insert(spaceId, v))
+        .foreach(msgpackValues)(v => TarantoolClient.insert.into(spaceId).tuple(v).run)
         .flatMap(promises => ZIO.foreach_(promises)(_.await))
     )
 
@@ -76,7 +76,7 @@ class TarantoolClientBenchmark extends BenchmarkBase {
 
     zioUnsafeRun(
       ZIO
-        .foreach(notEncodedValues)(v => TarantoolClient.insert(spaceId, v))
+        .foreach(notEncodedValues)(v => TarantoolClient.insert.into(spaceId).tuple(v).run)
         .flatMap(promises => ZIO.foreach_(promises)(_.await))
     )
   }

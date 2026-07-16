@@ -4,7 +4,6 @@ import zio._
 import zio.clock.Clock
 import zio.tarantool._
 import zio.tarantool.codec.auto._
-import zio.tarantool.protocol.IteratorCode
 
 /**
  * Example: Tarantool 2.6
@@ -20,10 +19,14 @@ object CrudExample extends zio.App {
   final case class User(id: Long, name: String, age: Int, address: Address)
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = (for {
-    _ <- TarantoolClient.insert("users", User(1, "Name1", 10, Address("street1", 1)))
+    _ <- TarantoolClient.insert.into("users").tuple(User(1, "Name1", 10, Address("street1", 1))).run
 
-    user <- TarantoolClient
-      .select("users", "primary", 1, 0, IteratorCode.Eq, Tuple1(1L))
+    user <- TarantoolClient.select
+      .from("users")
+      .index("primary")
+      .key(Tuple1(1L))
+      .limit(1)
+      .run
       .flatMap(_.await)
       .flatMap(_.head[User])
 
@@ -33,27 +36,35 @@ object CrudExample extends zio.App {
     // currently, only primitive types supported
     updates <- user.builder.assign("name", "John").plus("age", 5).buildM()
 
-    _ <- TarantoolClient.update("users", "primary", Tuple1(1), updates)
+    _ <- TarantoolClient.update.in("users").index("primary").key(Tuple1(1)).ops(updates).run
 
-    user <- TarantoolClient
-      .select("users", "primary", 1, 0, IteratorCode.Eq, Tuple1(1L))
+    user <- TarantoolClient.select
+      .from("users")
+      .index("primary")
+      .key(Tuple1(1L))
+      .limit(1)
+      .run
       .flatMap(_.await)
       .flatMap(_.head[User])
 
     // User: User(1,John,15,Address(street1,1))
     _ <- zio.console.putStrLn(s"Updated user: $user")
 
-    _ <- TarantoolClient.replace("users", User(1, "John Smith", 20, Address("newAddress", 10)))
+    _ <- TarantoolClient.replace.into("users").tuple(User(1, "John Smith", 20, Address("newAddress", 10))).run
 
-    user <- TarantoolClient
-      .select("users", "primary", 1, 0, IteratorCode.Eq, Tuple1(1L))
+    user <- TarantoolClient.select
+      .from("users")
+      .index("primary")
+      .key(Tuple1(1L))
+      .limit(1)
+      .run
       .flatMap(_.await)
       .flatMap(_.head[User])
 
     // User: User(1,John Smith,20,Address(newAddress,10))
     _ <- zio.console.putStrLn(s"Replaced user: $user")
 
-    _ <- TarantoolClient.delete("users", "primary", Tuple1(1))
+    _ <- TarantoolClient.delete.from("users").index("primary").key(Tuple1(1)).run
   } yield ExitCode.success).provideLayer(tarantoolLayer()).orDie
 
   def tarantoolLayer() = {

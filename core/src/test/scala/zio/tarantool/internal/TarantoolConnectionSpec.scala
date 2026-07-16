@@ -31,8 +31,13 @@ object TarantoolConnectionSpec extends DefaultRunnableSpec with BaseLayers {
       _ <- TarantoolConnection.sendRequest(TarantoolRequest(RequestCode.Ping, 1, Map.empty))
     } yield ()
 
+    // Tarantool 2.11+ uses a generic message to avoid user enumeration (was Error(45) "User '...' is not found" in 2.6)
     assertM(task.provideLayer(layer).run)(
-      fails(equalTo(AuthError("User 'random' is not found", ResponseCode.Error(45))))
+      fails(
+        equalTo(
+          AuthError("User not found or supplied credentials are invalid", ResponseCode.Error(47))
+        )
+      )
     )
   }
 

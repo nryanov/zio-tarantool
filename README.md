@@ -28,7 +28,6 @@ import zio._
 import zio.clock.Clock
 import zio.tarantool._
 import zio.tarantool.codec.auto._
-import zio.tarantool.protocol.IteratorCode
 
 /**
  * > box.schema.create_space('users', {if_not_exists = true})
@@ -39,10 +38,15 @@ object HelloWorld extends zio.App {
   final case class User(id: Long, name: String, age: Int, address: Address)
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = (for {
-    _ <- TarantoolClient.insert("users", User(1, "Name1", 10, Address("street1", 1)))
+    _ <- TarantoolClient.insert.into("users").tuple(User(1, "Name1", 10, Address("street1", 1))).run
 
-    user <- TarantoolClient
-      .select("users", "primary", 1, 0, IteratorCode.Eq, Tuple1(1L)) // response is Promise[TarantoolError, TarantoolResponse]
+    // response is Promise[TarantoolError, TarantoolResponse]
+    user <- TarantoolClient.select
+      .from("users")
+      .index("primary")
+      .key(Tuple1(1L))
+      .limit(1)
+      .run
       .flatMap(_.await)
       .flatMap(_.head[User])
 
@@ -82,18 +86,21 @@ TarantoolConfig(host, port, AuthInfo(username, password))
 ```
 
 ## API reference
-- `Ping` -- ping
-- `Insert` -- insert a tuple
-- `Select` -- search for a tuple or a set of tuples in the given space
-- `Update` -- update tuple
-- `Upsert` -- insert or update tuple
-- `Replace` -- replace tuple
-- `Delete` -- delete a tuple
-- `Eval` -- evaluates and executes the expression in Lua-string, which may be any statement or series of statements
-- `Call` -- remote stored-procedure call
-- `Execute` -- execute the SQL statement contained in the sql-statement parameter
-- `Prepare` -- prepare the SQL statement contained in the sql-statement parameter
-- `RefreshMeta` -- force schema cache update
+Operations use fluent builders ending in `.run`:
+- `ping` -- ping
+- `insert.into(...).tuple(...).run` -- insert a tuple
+- `select.from(...).index(...).key(...).limit(...).run` -- search for a tuple or a set of tuples
+- `update.in(...).index(...).key(...).ops(...).run` -- update tuple
+- `upsert.into(...).index(...).ops(...).tuple(...).run` -- insert or update tuple
+- `replace.into(...).tuple(...).run` -- replace tuple
+- `delete.from(...).index(...).key(...).run` -- delete a tuple
+- `eval.expression(...).run` -- evaluate and execute a Lua expression
+- `call.function(...).args(...).run` -- remote stored-procedure call
+- `execute.sql(...).run` / `execute.statementId(...).run` -- execute an SQL statement
+- `prepare.sql(...).run` / `prepare.statementId(...).run` -- prepare an SQL statement
+- `refreshMeta` -- force schema cache update
+
+Space and index can be referenced by name (schema cache) or by numeric id. Select defaults: `offset = 0`, `iterator = Eq`.
 
 All operations return `Promise[TarantoolError, TarantoolResponse]`. `TarantoolResponse` has methods for accessing the actual data:
 - `resultSet[A]`

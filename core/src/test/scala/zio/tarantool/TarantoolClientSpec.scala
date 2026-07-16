@@ -11,7 +11,6 @@ import zio.tarantool.codec.auto._
 import zio.tarantool.codec.TupleOpsBuilder
 import zio.tarantool.data.{TestTuple, TestTupleKey}
 import zio.tarantool.data.TestTuple._
-import zio.tarantool.protocol.IteratorCode
 
 object TarantoolClientSpec extends TarantoolBaseSpec {
   private val tuple = TestTuple("key1", 1, 1)
@@ -21,14 +20,14 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
 
   private val eval = testM("eval") {
     for {
-      operation <- TarantoolClient.eval("return 123")
+      operation <- TarantoolClient.eval.expression("return 123").run
       result <- awaitResponse(operation).flatMap(_.head[Int])
     } yield assert(result)(equalTo(123))
   }
 
   private val call = testM("call") {
     for {
-      operation <- TarantoolClient.call("sum", SumFunctionArgs(2, 5))
+      operation <- TarantoolClient.call.function("sum").args(SumFunctionArgs(2, 5)).run
       result <- awaitResponse(operation).flatMap(_.head[Int])
     } yield assert(result)(equalTo(7))
   }
@@ -36,8 +35,8 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
   private val insert = testM("insert") {
     for {
       spaceId <- ZIO.service[Int]
-      _ <- TarantoolClient.insert(spaceId, tuple)
-      operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.insert.into(spaceId).tuple(tuple).run
+      operation <- TarantoolClient.select.from(spaceId).index(0).key(key).limit(1).run
       result <- awaitResponseData[TestTuple](operation)
     } yield assert(result)(equalTo(Vector(tuple)))
   }
@@ -46,11 +45,11 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
     for {
       spaceId <- ZIO.service[Int]
       ops <- TupleOpsBuilder[TestTuple].assign("f2", 321).assign("f3", 11).buildM()
-      _ <- TarantoolClient.upsert(spaceId, 0, ops, tuple)
-      operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.upsert.into(spaceId).index(0).ops(ops).tuple(tuple).run
+      operation <- TarantoolClient.select.from(spaceId).index(0).key(key).limit(1).run
       initialValue <- awaitResponseData[TestTuple](operation)
-      _ <- TarantoolClient.upsert(spaceId, 0, ops, tuple)
-      operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.upsert.into(spaceId).index(0).ops(ops).tuple(tuple).run
+      operation <- TarantoolClient.select.from(spaceId).index(0).key(key).limit(1).run
       updatedValue <- awaitResponseData[TestTuple](operation)
     } yield assert(initialValue)(equalTo(Vector(tuple))) &&
       assert(updatedValue)(equalTo(Vector(tuple.copy(f2 = 321, f3 = 11))))
@@ -59,11 +58,11 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
   private val delete = testM("delete") {
     for {
       spaceId <- ZIO.service[Int]
-      _ <- TarantoolClient.insert(spaceId, tuple)
-      operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.insert.into(spaceId).tuple(tuple).run
+      operation <- TarantoolClient.select.from(spaceId).index(0).key(key).limit(1).run
       insertedValue <- awaitResponseData[TestTuple](operation)
-      _ <- TarantoolClient.delete(spaceId, 0, key)
-      operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.delete.from(spaceId).index(0).key(key).run
+      operation <- TarantoolClient.select.from(spaceId).index(0).key(key).limit(1).run
       deletedValue <- awaitResponseData[TestTuple](operation)
     } yield assert(insertedValue)(equalTo(Vector(tuple))) &&
       assert(deletedValue)(equalTo(Vector.empty))
@@ -73,11 +72,11 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
     for {
       spaceId <- ZIO.service[Int]
       ops <- TupleOpsBuilder[TestTuple].assign("f2", 123).assign("f3", 321).buildM()
-      _ <- TarantoolClient.insert(spaceId, tuple)
-      operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.insert.into(spaceId).tuple(tuple).run
+      operation <- TarantoolClient.select.from(spaceId).index(0).key(key).limit(1).run
       initialValue <- awaitResponseData[TestTuple](operation)
-      _ <- TarantoolClient.update(spaceId, 0, key, ops)
-      operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.update.in(spaceId).index(0).key(key).ops(ops).run
+      operation <- TarantoolClient.select.from(spaceId).index(0).key(key).limit(1).run
       updatedValue <- awaitResponseData[TestTuple](operation)
     } yield assert(initialValue)(equalTo(Vector(tuple))) &&
       assert(updatedValue)(equalTo(Vector(tuple.copy(f2 = 123, f3 = 321))))
@@ -86,11 +85,11 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
   private val replace = testM("replace") {
     for {
       spaceId <- ZIO.service[Int]
-      _ <- TarantoolClient.insert(spaceId, tuple)
-      operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.insert.into(spaceId).tuple(tuple).run
+      operation <- TarantoolClient.select.from(spaceId).index(0).key(key).limit(1).run
       initialValue <- awaitResponseData[TestTuple](operation)
-      _ <- TarantoolClient.replace(spaceId, tuple.copy(f2 = 12345))
-      operation <- TarantoolClient.select(spaceId, 0, 1, 0, IteratorCode.Eq, key)
+      _ <- TarantoolClient.replace.into(spaceId).tuple(tuple.copy(f2 = 12345)).run
+      operation <- TarantoolClient.select.from(spaceId).index(0).key(key).limit(1).run
       replacedValue <- awaitResponseData[TestTuple](operation)
     } yield assert(initialValue)(equalTo(Vector(tuple))) && assert(replacedValue)(
       equalTo(Vector(tuple.copy(f2 = 12345)))
@@ -99,11 +98,11 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
 
   private val executeSqlStatement = testM("execute sql statement") {
     for {
-      query1 <- TarantoolClient.execute(
-        "CREATE TABLE table1 (column1 INTEGER PRIMARY KEY, column2 VARCHAR(100))"
-      )
-      query2 <- TarantoolClient.execute("INSERT INTO table1 VALUES (1, 'A')")
-      query3 <- TarantoolClient.execute("SELECT * FROM table1 WHERE column1 = 1")
+      query1 <- TarantoolClient.execute
+        .sql("CREATE TABLE table1 (column1 INTEGER PRIMARY KEY, column2 VARCHAR(100))")
+        .run
+      query2 <- TarantoolClient.execute.sql("INSERT INTO table1 VALUES (1, 'A')").run
+      query3 <- TarantoolClient.execute.sql("SELECT * FROM table1 WHERE column1 = 1").run
       _ <- awaitResponse(query1)
       _ <- awaitResponse(query2)
       _ <- awaitResponse(query3)
