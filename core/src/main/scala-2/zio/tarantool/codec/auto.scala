@@ -8,7 +8,7 @@ import zio.tarantool.TarantoolError.CodecError
 
 import scala.util.Try
 
-object auto extends LowPriorityInstances {
+object auto extends LowPriorityInstances with TupleOpsBuilderDerivation {
   implicit class TupleUpdateBuilder[A <: Product](val value: A) {
     def builder(implicit opsBuilder: TupleOpsBuilder[A]): TupleOpsBuilder[A] = opsBuilder
   }

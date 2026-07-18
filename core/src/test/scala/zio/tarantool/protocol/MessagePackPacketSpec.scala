@@ -4,31 +4,31 @@ import java.util.UUID
 
 import org.msgpack.value.Value
 import org.msgpack.value.impl._
-import zio.test._
-import zio.test.Assertion._
+import _root_.zio.test._
+import _root_.zio.test.Assertion._
 import zio.tarantool.Generators._
 import zio.tarantool.TarantoolError
 import zio.tarantool.TarantoolError.UnknownResponseCode
 import zio.tarantool.codec.Encoder
-import zio.test.TestAspect.sequential
+import _root_.zio.test.TestAspect.sequential
 
-object MessagePackPacketSpec extends DefaultRunnableSpec {
+object MessagePackPacketSpec extends ZIOSpecDefault {
   private def createPacket(body: Value): MessagePackPacket =
     MessagePackPacket(Map.empty[Long, Value], Map(RequestBodyKey.Key.value -> body))
 
   private val messagePackPacketProcessingSuite = suite("process message pack packet internals")(
-    testM("should extract code") {
+    test("should extract code") {
       val packet =
         MessagePackPacket(
           Map(Header.Code.value -> new ImmutableLongValueImpl(ResponseCode.Success.value.toLong))
         )
       val result = MessagePackPacket.extractCode(packet)
-      assertM(result)(equalTo(ResponseCode.Success))
+      assertZIO(result)(equalTo(ResponseCode.Success))
     },
-    testM("should fail with ProtocolError when trying to extract not existing code") {
+    test("should fail with ProtocolError when trying to extract not existing code") {
       val packet = MessagePackPacket(Map.empty)
       val result = MessagePackPacket.extractCode(packet)
-      assertM(result.run)(
+      assertZIO(result.exit)(
         fails(
           equalTo(
             TarantoolError.ProtocolError(s"Packet has no Code in header (${packet.header})")
@@ -36,84 +36,84 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
         )
       )
     },
-    testM("should extract error code") {
+    test("should extract error code") {
       val packet = MessagePackPacket(Map(Header.Code.value -> new ImmutableLongValueImpl(0x8123)))
       val result = MessagePackPacket.extractCode(packet)
-      assertM(result)(equalTo(ResponseCode.Error(0x0123)))
+      assertZIO(result)(equalTo(ResponseCode.Error(0x0123)))
     },
-    testM("should fail with ProtocolError when trying to extract incorrect error code") {
+    test("should fail with ProtocolError when trying to extract incorrect error code") {
       val packet = MessagePackPacket(Map(Header.Code.value -> new ImmutableLongValueImpl(0x1234)))
       val result = MessagePackPacket.extractCode(packet)
-      assertM(result.run)(
+      assertZIO(result.exit)(
         fails(
           equalTo(TarantoolError.ProtocolError(s"Code ${0x1234} does not follow 0x8XXX format"))
         )
       )
     },
-    testM("should extract data response type") {
+    test("should extract data response type") {
       val packet =
         MessagePackPacket(
           Map.empty[Long, Value],
           Some(Map(ResponseBodyKey.Data.value -> new ImmutableLongValueImpl(0)))
         )
       val result = MessagePackPacket.responseType(packet)
-      assertM(result)(equalTo(ResponseType.DataResponse))
+      assertZIO(result)(equalTo(ResponseType.DataResponse))
     },
-    testM("should extract sql response type") {
+    test("should extract sql response type") {
       val packet =
         MessagePackPacket(
           Map.empty[Long, Value],
           Some(Map(ResponseBodyKey.SqlInfo.value -> new ImmutableLongValueImpl(0)))
         )
       val result = MessagePackPacket.responseType(packet)
-      assertM(result)(equalTo(ResponseType.SqlResponse))
+      assertZIO(result)(equalTo(ResponseType.SqlResponse))
     },
-    testM("should extract error24 response type") {
+    test("should extract error24 response type") {
       val packet =
         MessagePackPacket(
           Map.empty[Long, Value],
           Some(Map(ResponseBodyKey.Error24.value -> new ImmutableLongValueImpl(0)))
         )
       val result = MessagePackPacket.responseType(packet)
-      assertM(result)(equalTo(ResponseType.ErrorResponse))
+      assertZIO(result)(equalTo(ResponseType.ErrorResponse))
     },
-    testM("should extract error response type") {
+    test("should extract error response type") {
       val packet =
         MessagePackPacket(
           Map.empty[Long, Value],
           Some(Map(ResponseBodyKey.Error.value -> new ImmutableLongValueImpl(0)))
         )
       val result = MessagePackPacket.responseType(packet)
-      assertM(result)(equalTo(ResponseType.ErrorResponse))
+      assertZIO(result)(equalTo(ResponseType.ErrorResponse))
     },
-    testM("should extract ping response type") {
+    test("should extract ping response type") {
       val packet =
         MessagePackPacket(Map.empty[Long, Value], Some(Map.empty[Long, Value]))
       val result = MessagePackPacket.responseType(packet)
-      assertM(result)(equalTo(ResponseType.PingResponse))
+      assertZIO(result)(equalTo(ResponseType.PingResponse))
     },
-    testM("should fail if packet has unknown response type") {
+    test("should fail if packet has unknown response type") {
       val packet =
         MessagePackPacket(
           Map.empty[Long, Value],
           Some(Map(100500L -> new ImmutableLongValueImpl(1)))
         )
-      assertM(MessagePackPacket.responseType(packet).run)(
+      assertZIO(MessagePackPacket.responseType(packet).exit)(
         fails(equalTo(UnknownResponseCode(packet)))
       )
     },
-    testM("should extract data") {
+    test("should extract data") {
       val packet = MessagePackPacket(
         Map.empty[Long, Value],
         Some(Map(ResponseBodyKey.Data.value -> new ImmutableLongValueImpl(123)))
       )
-      assertM(MessagePackPacket.extractData(packet))(equalTo(new ImmutableLongValueImpl(123)))
+      assertZIO(MessagePackPacket.extractData(packet))(equalTo(new ImmutableLongValueImpl(123)))
     },
-    testM("should fail with ProtocolError when trying to extract not existing data") {
+    test("should fail with ProtocolError when trying to extract not existing data") {
       val packet =
         MessagePackPacket(Map.empty[Long, Value], Some(Map.empty[Long, Value]))
       val result = MessagePackPacket.extractData(packet)
-      assertM(result.run)(
+      assertZIO(result.exit)(
         fails(
           equalTo(
             TarantoolError.ProtocolError(
@@ -123,15 +123,15 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
         )
       )
     },
-    testM("should extract syncId") {
+    test("should extract syncId") {
       val packet = MessagePackPacket(Map(Header.Sync.value -> new ImmutableLongValueImpl(1)))
       val result = MessagePackPacket.extractSyncId(packet)
-      assertM(result)(equalTo(1.toLong))
+      assertZIO(result)(equalTo(1.toLong))
     },
-    testM("should fail with ProtocolError when trying to extract not existing syncId") {
+    test("should fail with ProtocolError when trying to extract not existing syncId") {
       val packet = MessagePackPacket(Map.empty[Long, Value])
       val result = MessagePackPacket.extractSyncId(packet)
-      assertM(result.run)(
+      assertZIO(result.exit)(
         fails(
           equalTo(
             TarantoolError.ProtocolError(s"Packet has no SyncId in header (${packet.header})")
@@ -139,15 +139,15 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
         )
       )
     },
-    testM("should extract schemaId") {
+    test("should extract schemaId") {
       val packet = MessagePackPacket(Map(Header.SchemaId.value -> new ImmutableLongValueImpl(2)))
       val result = MessagePackPacket.extractSchemaId(packet)
-      assertM(result)(equalTo(2.toLong))
+      assertZIO(result)(equalTo(2.toLong))
     },
-    testM("should fail with ProtocolError when trying to extract not existing schemaId") {
+    test("should fail with ProtocolError when trying to extract not existing schemaId") {
       val packet = MessagePackPacket(Map.empty[Long, Value])
       val result = MessagePackPacket.extractSchemaId(packet)
-      assertM(result.run)(
+      assertZIO(result.exit)(
         fails(
           equalTo(
             TarantoolError.ProtocolError(s"Packet has no SchemaId in header (${packet.header})")
@@ -158,86 +158,86 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
   )
 
   private val messagePackPacketToBufferSuite = suite("convert packet into byte buffer")(
-    testM("convert Byte") {
-      checkM(byte()) { value =>
+    test("convert Byte") {
+      check(byte()) { value =>
         val encoded = Encoder[Byte].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert Short") {
-      checkM(short()) { value =>
+    test("convert Short") {
+      check(short()) { value =>
         val encoded = Encoder[Short].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert Int") {
-      checkM(int()) { value =>
+    test("convert Int") {
+      check(int()) { value =>
         val encoded = Encoder[Int].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert Long") {
-      checkM(long()) { value =>
+    test("convert Long") {
+      check(long()) { value =>
         val encoded = Encoder[Long].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert Float") {
-      checkM(float()) { value =>
+    test("convert Float") {
+      check(float()) { value =>
         val encoded = Encoder[Float].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert Double") {
-      checkM(double()) { value =>
+    test("convert Double") {
+      check(double()) { value =>
         val encoded = Encoder[Double].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert string") {
-      checkM(nonEmptyString(64)) { value =>
+    test("convert string") {
+      check(nonEmptyString(64)) { value =>
         val encoded = Encoder[String].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert Boolean") {
-      checkM(bool()) { value =>
+    test("convert Boolean") {
+      check(bool()) { value =>
         val encoded = Encoder[Boolean].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert UUID") {
-      checkM(uuid()) { value =>
+    test("convert UUID") {
+      check(uuid()) { value =>
         val encoded = Encoder[UUID].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert BigInt") {
-      checkM(bigInt()) { value =>
+    test("convert BigInt") {
+      check(bigInt()) { value =>
         val encoded = Encoder[BigInt].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert BigDecimal") {
-      checkM(bigDecimal()) { value =>
+    test("convert BigDecimal") {
+      check(bigDecimal()) { value =>
         val encoded = Encoder[BigDecimal].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert Array[Byte]") {
-      checkM(listOf(10, byte())) { value =>
+    test("convert Array[Byte]") {
+      check(listOf(10, byte())) { value =>
         val encoded = Encoder[Array[Byte]].encode(value.toArray)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert Vector") {
-      checkM(listOf(32, nonEmptyString(64))) { value =>
+    test("convert Vector") {
+      check(listOf(32, nonEmptyString(64))) { value =>
         val encoded = Encoder[Vector[String]].encode(value.toVector)
         successfullyConvertPacketToBuffer(encoded)
       }
     },
-    testM("convert Map") {
-      checkM(mapOf(32, int(), int())) { value =>
+    test("convert Map") {
+      check(mapOf(32, int(), int())) { value =>
         val encoded = Encoder[Map[Int, Int]].encode(value)
         successfullyConvertPacketToBuffer(encoded)
       }
@@ -249,7 +249,7 @@ object MessagePackPacketSpec extends DefaultRunnableSpec {
       _ <- MessagePackPacket.toBuffer(createPacket(mp))
     } yield assertCompletes
 
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+  override def spec: Spec[TestEnvironment, Any] =
     suite("MessagePackPacket")(
       messagePackPacketProcessingSuite,
       messagePackPacketToBufferSuite

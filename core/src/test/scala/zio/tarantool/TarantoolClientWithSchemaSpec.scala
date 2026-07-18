@@ -3,12 +3,12 @@ package zio.tarantool
 import java.time.Duration
 
 import zio.ZIO
-import zio.test._
-import zio.clock.Clock
-import zio.test.Assertion._
+import _root_.zio.test._
+import _root_.zio.Clock
+import _root_.zio.test.Assertion._
 import zio.tarantool.codec.auto._
 import zio.tarantool.codec.TupleOpsBuilder
-import zio.test.TestAspect.{after, sequential}
+import _root_.zio.test.TestAspect.{after, sequential}
 import zio.tarantool.data.{TestTuple, TestTupleKey}
 
 object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
@@ -16,7 +16,7 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
   private val key = TestTupleKey("key1")
 
   private val insertAndSelect =
-    testM("insert and select record") {
+    test("insert and select record") {
       for {
         _ <- TarantoolClient.insert.into("test").tuple(tuple).run
         select <- TarantoolClient.select.from("test").index("primary").key(key).limit(1).run
@@ -24,7 +24,7 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
       } yield assert(result)(equalTo(Vector(tuple)))
     }
 
-  private val update = testM("update record") {
+  private val update = test("update record") {
     for {
       insert <- TarantoolClient.insert.into("test").tuple(tuple).run
       inserted <- awaitResponseData[TestTuple](insert)
@@ -37,7 +37,7 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
     )
   }
 
-  private val delete = testM("delete record") {
+  private val delete = test("delete record") {
     for {
       insert <- TarantoolClient.insert.into("test").tuple(tuple).run
       inserted <- awaitResponseHeadOption[TestTuple](insert)
@@ -47,7 +47,7 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
     } yield assert(inserted)(isSome(equalTo(tuple))) && assert(none)(isNone)
   }
 
-  private val upsert = testM("upsert record") {
+  private val upsert = test("upsert record") {
     for {
       ops <- TupleOpsBuilder[TestTuple].assign("f2", 2).assign("f3", 3).buildM()
       _ <- TarantoolClient.upsert.into("test").index("primary").ops(ops).tuple(tuple).run
@@ -61,7 +61,7 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
     )
   }
 
-  private val replace = testM("replace record") {
+  private val replace = test("replace record") {
     for {
       insert <- TarantoolClient.insert.into("test").tuple(tuple).run
       inserted <- awaitResponseHeadOption[TestTuple](insert)
@@ -72,14 +72,14 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
     )
   }
 
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+  override def spec: Spec[TestEnvironment, Any] =
     (suite("TarantoolClient with schema meta cache")(
       insertAndSelect,
       update,
       delete,
       upsert,
       replace
-    ) @@ sequential @@ after(truncateSpace())).provideCustomLayerShared(createSharedLayer())
+    ) @@ sequential @@ after(truncateSpace())).provideLayerShared(createSharedLayer())
 
   private def createSharedLayer() = {
     val client = tarantoolClientLayer
@@ -90,7 +90,7 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
       _ <- TarantoolClient.refreshMeta()
     } yield ())
       .timeout(Duration.ofSeconds(30))
-      .flatMap(opt => ZIO.require(new RuntimeException("Error while preparing schema suite"))(ZIO.succeed(opt)))
+      .flatMap(opt => ZIO.fromOption(opt).orElseFail(new RuntimeException("Error while preparing schema suite")))
       .toLayer
       .orDie
 

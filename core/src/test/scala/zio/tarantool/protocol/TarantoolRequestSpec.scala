@@ -1,13 +1,13 @@
 package zio.tarantool.protocol
 
 import org.msgpack.value.impl.ImmutableLongValueImpl
-import zio.test._
-import zio.test.Assertion._
+import _root_.zio.test._
+import _root_.zio.test.Assertion._
 
-object TarantoolRequestSpec extends DefaultRunnableSpec {
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+object TarantoolRequestSpec extends ZIOSpecDefault {
+  override def spec: Spec[TestEnvironment, Any] =
     suite("TarantoolRequest")(
-      testM("should create packet") {
+      test("should create packet") {
         val expected = MessagePackPacket(
           Map(
             Header.Sync.value -> new ImmutableLongValueImpl(1),
@@ -16,7 +16,7 @@ object TarantoolRequestSpec extends DefaultRunnableSpec {
         )
         val request = TarantoolRequest(RequestCode.Ping, 1, Map.empty)
         val result = TarantoolRequest.createPacket(request)
-        assertM(result)(equalTo(expected))
+        assertZIO(result)(equalTo(expected))
       }
     )
 }

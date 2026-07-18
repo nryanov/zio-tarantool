@@ -5,10 +5,8 @@ import java.io.{EOFException, IOException}
 import java.net.{ConnectException, InetSocketAddress, SocketAddress, StandardSocketOptions}
 import java.nio.channels.{AsynchronousSocketChannel, Channel, CompletionHandler}
 
-import zio._
-import zio.duration._
-import zio.clock.Clock
-import zio.stream.ZStream
+import _root_.zio._
+import _root_.zio.stream.ZStream
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 import AsyncSocketChannelProvider._
 
@@ -18,13 +16,13 @@ private[tarantool] class AsyncSocketChannelProvider(
   channel: AsynchronousSocketChannel
 ) {
   val read: ZStream[Any, IOException, Byte] =
-    ZStream.repeatEffectChunkOption {
+    ZStream.repeatZIOChunkOption {
       val receive =
         for {
-          _ <- IO.effectTotal(readBuffer.clear())
+          _ <- ZIO.succeed(readBuffer.clear())
           _ <- completeWith[Integer](channel)(channel.read(readBuffer, null, _))
             .filterOrFail(_ >= 0)(new EOFException())
-          chunk <- IO.effectTotal {
+          chunk <- ZIO.succeed {
             readBuffer.flip()
             val count = readBuffer.remaining()
             val array = Array.ofDim[Byte](count)
@@ -40,8 +38,8 @@ private[tarantool] class AsyncSocketChannelProvider(
     }
 
   def write(chunk: Chunk[Byte]): IO[IOException, Unit] =
-    IO.when(chunk.nonEmpty) {
-      IO.effectSuspendTotal {
+    ZIO.when(chunk.nonEmpty) {
+      ZIO.suspendSucceed {
         writeBuffer.clear()
         val (c, remainder) = chunk.splitAt(writeBuffer.capacity())
         writeBuffer.put(c.toArray)
@@ -51,7 +49,7 @@ private[tarantool] class AsyncSocketChannelProvider(
           .repeatWhile(_ => writeBuffer.hasRemaining)
           .zipRight(write(remainder))
       }
-    }
+    }.unit
 }
 
 private[tarantool] object AsyncSocketChannelProvider {
@@ -76,24 +74,22 @@ private[tarantool] object AsyncSocketChannelProvider {
 
   def connect(
     cfg: TarantoolConfig
-  ): ZManaged[Clock, TarantoolError, OpenChannel] =
+  ): ZIO[Scope with Clock, TarantoolError, OpenChannel] =
     (for {
-      address <- UIO(
-        new InetSocketAddress(cfg.connectionConfig.host, cfg.connectionConfig.port)
-      ).toManaged_
-      makeBuffer = IO.effectTotal(ByteBuffer.allocateDirect(1024))
-      readBuffer <- makeBuffer.toManaged_
-      writeBuffer <- makeBuffer.toManaged_
+      address <- ZIO.succeed(new InetSocketAddress(cfg.connectionConfig.host, cfg.connectionConfig.port))
+      makeBuffer = ZIO.succeed(ByteBuffer.allocateDirect(1024))
+      readBuffer <- makeBuffer
+      writeBuffer <- makeBuffer
       channel <- openChannel(address)
-        .timeout(cfg.connectionConfig.connectionTimeoutMillis.milliseconds)
+        .timeout(cfg.connectionConfig.connectionTimeoutMillis.millis)
         .retry(
           Schedule.recurs(cfg.connectionConfig.retries) && Schedule
-            .spaced(cfg.connectionConfig.retryTimeoutMillis.milliseconds)
+            .spaced(cfg.connectionConfig.retryTimeoutMillis.millis)
         )
-        .flatMap(opt => ZManaged.fromEither(opt.toRight(new ConnectException("Connection time out"))))
+        .flatMap(opt => ZIO.fromEither(opt.toRight(new ConnectException("Connection time out"))))
 
       provider = new AsyncSocketChannelProvider(readBuffer, writeBuffer, channel)
-      greeting <- provider.read.take(GreetingLength).runCollect.toManaged_
+      greeting <- provider.read.take(GreetingLength).runCollect
 
       (version, salt) = greeting.toArray.splitAt(ProtocolVersionLength)
 
@@ -101,35 +97,37 @@ private[tarantool] object AsyncSocketChannelProvider {
 
   def openChannel(
     address: SocketAddress
-  ): ZManaged[Any, IOException, AsynchronousSocketChannel] =
-    Managed.fromAutoCloseable {
-      for {
-        channel <- IO.effect {
-          val channel = AsynchronousSocketChannel.open()
-          channel.setOption(StandardSocketOptions.SO_KEEPALIVE, Boolean.box(true))
-          channel.setOption(StandardSocketOptions.TCP_NODELAY, Boolean.box(true))
-          channel
-        }
-        _ <- completeWith[Void](channel)(channel.connect(address, null, _))
-      } yield channel
-    }.refineToOrDie[IOException]
+  ): ZIO[Scope, IOException, AsynchronousSocketChannel] =
+    ZIO
+      .fromAutoCloseable {
+        for {
+          channel <- ZIO.attempt {
+            val channel = AsynchronousSocketChannel.open()
+            channel.setOption(StandardSocketOptions.SO_KEEPALIVE, Boolean.box(true))
+            channel.setOption(StandardSocketOptions.TCP_NODELAY, Boolean.box(true))
+            channel
+          }
+          _ <- completeWith[Void](channel)(channel.connect(address, null, _))
+        } yield channel
+      }
+      .refineToOrDie[IOException]
 
   def completeWith[A](
     channel: Channel
   )(op: CompletionHandler[A, Any] => Any): IO[IOException, A] =
-    IO.effectAsyncInterrupt { register =>
+    ZIO.asyncInterrupt { register =>
       op(completionHandler(register))
-      Left(IO.effect(channel.close()).ignore)
+      Left(ZIO.attempt(channel.close()).ignore)
     }
 
   def completionHandler[A](register: IO[IOException, A] => Unit): CompletionHandler[A, Any] =
     new CompletionHandler[A, Any] {
-      def completed(result: A, attachment: Any): Unit = register(IO.succeedNow(result))
+      def completed(result: A, attachment: Any): Unit = register(ZIO.succeed(result))
 
       def failed(error: Throwable, attachment: Any): Unit =
         error match {
-          case e: IOException => register(IO.fail(e))
-          case _              => register(IO.die(error))
+          case e: IOException => register(ZIO.fail(e))
+          case _              => register(ZIO.die(error))
         }
     }
 }

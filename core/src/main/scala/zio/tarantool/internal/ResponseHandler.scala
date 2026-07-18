@@ -2,47 +2,37 @@ package zio.tarantool.internal
 
 import org.msgpack.value.Value
 import org.msgpack.value.impl.ImmutableNilValueImpl
-import zio._
+import _root_.zio._
 import zio.tarantool._
-import zio.tarantool.internal.RequestHandler.RequestHandler
-import zio.tarantool.internal.TarantoolConnection.TarantoolConnection
 import zio.tarantool.protocol.{MessagePackPacket, ResponseCode, ResponseType}
 
 private[tarantool] object ResponseHandler {
-  type ResponseHandler = Has[Service]
-
   private val PingData: Value = ImmutableNilValueImpl.get()
 
   trait Service extends Serializable {
     def start(): ZIO[Any, TarantoolError, Unit]
   }
 
-  def start(): ZIO[ResponseHandler, TarantoolError, Unit] =
-    ZIO.accessM[ResponseHandler](_.get.start())
+  def start(): ZIO[Service, TarantoolError, Unit] =
+    ZIO.serviceWithZIO(_.start())
 
-  val live: ZLayer[
-    TarantoolConnection with RequestHandler,
-    TarantoolError.IOError,
-    ResponseHandler
-  ] = ZLayer.fromServicesManaged[
-    TarantoolConnection.Service,
-    RequestHandler.Service,
-    Any,
-    TarantoolError.IOError,
-    Service
-  ]((connection, requestHandler) => make(connection, requestHandler))
+  val live: ZLayer[TarantoolConnection.Service with RequestHandler.Service, Nothing, Service] =
+    ZLayer.scoped {
+      for {
+        connection <- ZIO.service[TarantoolConnection.Service]
+        requestHandler <- ZIO.service[RequestHandler.Service]
+        service <- make(connection, requestHandler)
+      } yield service
+    }
 
   def make(
     connection: TarantoolConnection.Service,
     requestHandler: RequestHandler.Service
-  ): ZManaged[Any, TarantoolError.IOError, Service] = {
-    val live = new Live(
-      connection,
-      requestHandler
-    )
+  ): ZIO[Scope, Nothing, Service] = {
+    val live = new Live(connection, requestHandler)
 
     for {
-      _ <- live.start().forkManaged
+      _ <- live.start().forkScoped
     } yield live
   }
 

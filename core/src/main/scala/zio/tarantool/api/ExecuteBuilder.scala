@@ -2,8 +2,8 @@ package zio.tarantool.api
 
 import org.msgpack.value.Value
 import org.msgpack.value.impl.ImmutableArrayValueImpl
-import zio.{Promise, ZIO}
-import zio.tarantool.TarantoolClient.TarantoolClient
+import _root_.zio.{Promise, ZIO}
+import zio.tarantool.TarantoolClient
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.protocol.TarantoolResponse
 import zio.tarantool.TarantoolError
@@ -26,7 +26,7 @@ final case class ExecuteBuilder private[api] (
 
   def options[A: TupleEncoder](options: A): ExecuteBuilder = copy(options = MpValue.typed(options))
 
-  def run: ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
+  def run: ZIO[TarantoolClient.Service, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     for {
       target <- BuilderOps.require(target, "sql or statementId")
       response <- BuilderOps.run(BuiltRequest.Execute(target, sqlBind, options))

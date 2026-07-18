@@ -1,21 +1,17 @@
 package zio.tarantool
 
-import zio.{BootstrapRuntime, ZIO, ZLayer}
-import zio.tarantool.TarantoolClient.TarantoolClient
-import zio.clock.Clock
-import zio.internal.Platform
+import _root_.zio.{Unsafe, ZIO, ZLayer}
+import _root_.zio.Clock
 
-trait BenchmarkBase extends BootstrapRuntime {
-
-  override val platform: Platform = Platform.benchmark
-
-  def zioUnsafeRun[A](fa: ZIO[TarantoolClient, TarantoolError, A]): A = unsafeRun(
-    fa.provideLayer(BenchmarkBase.layer)
-  )
+trait BenchmarkBase {
+  def zioUnsafeRun[A](fa: ZIO[TarantoolClient.Service, TarantoolError, A]): A =
+    Unsafe.unsafe { implicit u =>
+      Runtime.default.unsafe.run(fa.provideLayer(BenchmarkBase.layer)).getOrThrowFiberFailure()
+    }
 }
 
 object BenchmarkBase {
-  private final val layer: ZLayer[Any, TarantoolError, TarantoolClient] =
+  private final val layer: ZLayer[Any, TarantoolError, TarantoolClient.Service] =
     (Clock.live ++ ZLayer.succeed(
       TarantoolConfig(
         connectionConfig = ConnectionConfig(host = "localhost", port = 3301),

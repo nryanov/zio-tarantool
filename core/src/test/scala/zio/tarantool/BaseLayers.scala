@@ -1,69 +1,68 @@
 package zio.tarantool
 
-import zio.{Has, ZLayer}
-import zio.blocking.Blocking
-import zio.clock.Clock
+import com.dimafeng.testcontainers.GenericContainer
+import _root_.zio.{ZIO, ZLayer}
+import _root_.zio.Clock
 import zio.tarantool.internal._
-import zio.tarantool.TarantoolClient.TarantoolClient
-import zio.tarantool.TarantoolContainer.Tarantool
-import zio.tarantool.internal.RequestHandler.RequestHandler
-import zio.tarantool.internal.ResponseHandler.ResponseHandler
-import zio.tarantool.internal.SchemaMetaManager.SchemaMetaManager
-import zio.tarantool.internal.SyncIdProvider.SyncIdProvider
-import zio.tarantool.internal.TarantoolConnection.TarantoolConnection
 
 trait BaseLayers {
-  val tarantoolLayer: ZLayer[Any, Nothing, Tarantool] =
-    Blocking.live >>> TarantoolContainer.tarantool()
+  val tarantoolLayer: ZLayer[Any, Nothing, GenericContainer] =
+    TarantoolContainer.tarantool()
 
-  val tarantoolSecuredLayer: ZLayer[Any, Nothing, Tarantool] =
-    Blocking.live >>> TarantoolSecuredContainer.tarantool()
+  val tarantoolSecuredLayer: ZLayer[Any, Nothing, GenericContainer] =
+    TarantoolSecuredContainer.tarantool()
 
-  val configLayer: ZLayer[Any, Nothing, Has[TarantoolConfig]] =
-    tarantoolLayer >>> ZLayer.fromService(container =>
-      TarantoolConfig(
-        host = container.container.getHost,
-        port = container.container.getMappedPort(3301)
-      )
-    )
-
-  val configSecuredLayer: ZLayer[Any, Nothing, Has[TarantoolConfig]] =
-    tarantoolSecuredLayer >>> ZLayer.fromService(container =>
-      TarantoolConfig(
-        host = container.container.getHost,
-        port = container.container.getMappedPort(3301),
-        authInfo = AuthInfo("username", "password")
-      )
-    )
-
-  val configNoMetaCacheLayer: ZLayer[Any, Nothing, Has[TarantoolConfig]] =
-    tarantoolLayer >>> ZLayer.fromService(container =>
-      TarantoolConfig(
-        connectionConfig = ConnectionConfig(
+  val configLayer: ZLayer[Any, Nothing, TarantoolConfig] =
+    tarantoolLayer >>> ZLayer {
+      ZIO.serviceWith[GenericContainer] { container =>
+        TarantoolConfig(
           host = container.container.getHost,
           port = container.container.getMappedPort(3301)
-        ),
-        clientConfig = ClientConfig(useSchemaMetaCache = false),
-        authInfo = None
-      )
-    )
+        )
+      }
+    }
 
-  val syncIdProviderLayer: ZLayer[Any, Nothing, SyncIdProvider] = SyncIdProvider.live
+  val configSecuredLayer: ZLayer[Any, Nothing, TarantoolConfig] =
+    tarantoolSecuredLayer >>> ZLayer {
+      ZIO.serviceWith[GenericContainer] { container =>
+        TarantoolConfig(
+          host = container.container.getHost,
+          port = container.container.getMappedPort(3301),
+          authInfo = AuthInfo("username", "password")
+        )
+      }
+    }
 
-  val requestHandlerLayer: ZLayer[Any, TarantoolError, RequestHandler] = RequestHandler.live
+  val configNoMetaCacheLayer: ZLayer[Any, Nothing, TarantoolConfig] =
+    tarantoolLayer >>> ZLayer {
+      ZIO.serviceWith[GenericContainer] { container =>
+        TarantoolConfig(
+          connectionConfig = ConnectionConfig(
+            host = container.container.getHost,
+            port = container.container.getMappedPort(3301)
+          ),
+          clientConfig = ClientConfig(useSchemaMetaCache = false),
+          authInfo = None
+        )
+      }
+    }
 
-  val tarantoolConnectionLayer: ZLayer[Any, Throwable, TarantoolConnection] =
+  val syncIdProviderLayer: ZLayer[Any, Nothing, SyncIdProvider.Service] = SyncIdProvider.live
+
+  val requestHandlerLayer: ZLayer[Any, Nothing, RequestHandler.Service] = RequestHandler.live
+
+  val tarantoolConnectionLayer: ZLayer[Any, Throwable, TarantoolConnection.Service] =
     (Clock.live ++ configLayer ++ syncIdProviderLayer ++ requestHandlerLayer) >>> TarantoolConnection.live
 
-  val schemaMetaManagerLayer: ZLayer[Any, Throwable, SchemaMetaManager] =
+  val schemaMetaManagerLayer: ZLayer[Any, Throwable, SchemaMetaManager.Service] =
     (configLayer ++ tarantoolConnectionLayer ++ syncIdProviderLayer ++ Clock.live) >>> SchemaMetaManager.live
 
-  val responseHandlerLayer: ZLayer[Any, Throwable, ResponseHandler] =
+  val responseHandlerLayer: ZLayer[Any, Throwable, ResponseHandler.Service] =
     (tarantoolConnectionLayer ++ requestHandlerLayer) >>> ResponseHandler.live
 
-  val tarantoolClientLayer: ZLayer[Any, Nothing, TarantoolClient] =
+  val tarantoolClientLayer: ZLayer[Any, Nothing, TarantoolClient.Service] =
     ((Clock.live ++ configLayer) >>> TarantoolClient.live).orDie
 
-  val tarantoolClientNotMetaCacheLayer: ZLayer[Any, Nothing, TarantoolClient] =
+  val tarantoolClientNotMetaCacheLayer: ZLayer[Any, Nothing, TarantoolClient.Service] =
     ((Clock.live ++ configNoMetaCacheLayer) >>> TarantoolClient.live).orDie
 }

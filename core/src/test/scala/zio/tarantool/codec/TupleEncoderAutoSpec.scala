@@ -4,10 +4,10 @@ import org.msgpack.value.impl._
 import zio.tarantool.TarantoolError.CodecError
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.codec.auto._
-import zio.test.Assertion._
-import zio.test._
+import _root_.zio.test.Assertion._
+import _root_.zio.test._
 
-object TupleEncoderAutoSpec extends DefaultRunnableSpec {
+object TupleEncoderAutoSpec extends ZIOSpecDefault {
   final case class A(f1: Int, f2: Long, f3: String)
   final case class C(f1: Int, f2: Long, f3: String, f4: Vector[Int], f5: Map[String, String])
   final case class D(f1: Option[Int], f2: Option[Long], f3: Option[String])
@@ -15,9 +15,9 @@ object TupleEncoderAutoSpec extends DefaultRunnableSpec {
   final case class Child(f1: Int, f2: String)
   final case class Parent(f1: Vector[Int], f2: Option[String], f3: Child)
 
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+  override def spec: Spec[TestEnvironment, Any] =
     suite("TupleEncoder")(
-      testM("encode/decode nested types") {
+      test("encode/decode nested types") {
         val value = Parent(Vector(1, 2, 3), None, Child(1, "child"))
         val encoder = TupleEncoder[Parent]
         for {
@@ -42,7 +42,7 @@ object TupleEncoderAutoSpec extends DefaultRunnableSpec {
           )
         ) && assert(decoded)(equalTo(value))
       },
-      testM("encode/decode A") {
+      test("encode/decode A") {
         val value = A(1, 2L, "3")
         val encoder = TupleEncoder[A]
         for {
@@ -60,7 +60,7 @@ object TupleEncoderAutoSpec extends DefaultRunnableSpec {
           )
         ) && assert(decoded)(equalTo(value))
       },
-      testM("encode/decode D") {
+      test("encode/decode D") {
         val value = D(Some(1), None, Some("3"))
         val encoder = TupleEncoder[D]
         for {
@@ -78,7 +78,7 @@ object TupleEncoderAutoSpec extends DefaultRunnableSpec {
           )
         ) && assert(decoded)(equalTo(value))
       },
-      testM(
+      test(
         "should fail if some non-optional fields are MpNil when decode Type"
       ) {
         val value = new ImmutableArrayValueImpl(
@@ -93,7 +93,7 @@ object TupleEncoderAutoSpec extends DefaultRunnableSpec {
           result <- encoder.decodeM(value).run
         } yield assert(result)(fails(isSubtype[CodecError](anything)))
       },
-      testM(
+      test(
         "should not fail and return None if some non-optional fields are MpNil when decode Option[Type]"
       ) {
         val value = new ImmutableArrayValueImpl(
@@ -108,7 +108,7 @@ object TupleEncoderAutoSpec extends DefaultRunnableSpec {
           decoded <- encoder.decodeM(value)
         } yield assert(decoded)(isNone)
       },
-      testM(
+      test(
         "should not fail and return Some(_) if some optional fields are MpNil when decode Option[Type]"
       ) {
         val value = new ImmutableArrayValueImpl(
@@ -123,7 +123,7 @@ object TupleEncoderAutoSpec extends DefaultRunnableSpec {
           decoded <- encoder.decodeM(value)
         } yield assert(decoded)(isSome(equalTo(D(Some(1), None, Some("3")))))
       },
-      testM("encode/decode Option[A]") {
+      test("encode/decode Option[A]") {
         val value: Option[A] = Some(A(1, 2L, "3"))
         val encoder = TupleEncoder[Option[A]]
         for {
@@ -141,7 +141,7 @@ object TupleEncoderAutoSpec extends DefaultRunnableSpec {
           )
         ) && assert(decoded)(equalTo(value))
       },
-      testM("encode/decode C") {
+      test("encode/decode C") {
         val value = C(1, 2L, "3", Vector(4), Map("5" -> "value"))
         val encoder = TupleEncoder[C]
         for {

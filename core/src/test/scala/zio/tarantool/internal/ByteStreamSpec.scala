@@ -2,23 +2,23 @@ package zio.tarantool.internal
 
 import java.nio.ByteBuffer
 
-import zio.test._
-import zio.stream.ZStream
-import zio.test.Assertion._
-import zio.test.TestAspect.sequential
+import _root_.zio.test._
+import _root_.zio.stream.ZStream
+import _root_.zio.test.Assertion._
+import _root_.zio.test.TestAspect.sequential
 import zio.tarantool.internal.ByteStream.decoder
 import zio.tarantool.codec.MessagePackPacketSerDe
 import zio.tarantool.protocol.{RequestCode, TarantoolRequest}
 
-object ByteStreamSpec extends DefaultRunnableSpec {
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+object ByteStreamSpec extends ZIOSpecDefault {
+  override def spec: Spec[TestEnvironment, Any] =
     suite("ByteStream")(
-      testM("read empty chunk and return none") {
+      test("read empty chunk and return none") {
         for {
           result <- ZStream().transduce(decoder).runHead
         } yield assert(result)(isNone)
       },
-      testM("read non empty chunk and return MessagePackPacket") {
+      test("read non empty chunk and return MessagePackPacket") {
         for {
           packet <- TarantoolRequest.createPacket(
             TarantoolRequest(RequestCode.Ping, 1, Map.empty)

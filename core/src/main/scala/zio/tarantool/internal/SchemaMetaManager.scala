@@ -2,20 +2,14 @@ package zio.tarantool.internal
 
 import org.msgpack.value.Value
 import org.msgpack.value.impl.ImmutableArrayValueImpl
-import zio._
-import zio.duration._
-import zio.clock.Clock
+import _root_.zio._
 import zio.tarantool.protocol._
 import zio.tarantool.internal.schema.SchemaEncoder._
 import zio.tarantool.internal.schema.{IndexMeta, SpaceMeta}
 import zio.tarantool.TarantoolError.{IndexNotFound, SpaceNotFound}
-import zio.tarantool.internal.SyncIdProvider.SyncIdProvider
-import zio.tarantool.internal.TarantoolConnection.TarantoolConnection
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 
 private[tarantool] object SchemaMetaManager {
-  type SchemaMetaManager = Has[Service]
-
   trait Service {
     def getSpaceMeta(spaceName: String): IO[TarantoolError, SpaceMeta]
 
@@ -26,50 +20,50 @@ private[tarantool] object SchemaMetaManager {
     def schemaId: UIO[Option[Long]]
   }
 
-  def getSpaceMeta(spaceName: String): ZIO[SchemaMetaManager, TarantoolError, SpaceMeta] =
-    ZIO.accessM[SchemaMetaManager](_.get.getSpaceMeta(spaceName))
+  def getSpaceMeta(spaceName: String): ZIO[Service, TarantoolError, SpaceMeta] =
+    ZIO.serviceWithZIO(_.getSpaceMeta(spaceName))
 
   def getIndexMeta(
     spaceName: String,
     indexName: String
-  ): ZIO[SchemaMetaManager, TarantoolError, IndexMeta] =
-    ZIO.accessM[SchemaMetaManager](_.get.getIndexMeta(spaceName, indexName))
+  ): ZIO[Service, TarantoolError, IndexMeta] =
+    ZIO.serviceWithZIO(_.getIndexMeta(spaceName, indexName))
 
-  def refresh(): ZIO[SchemaMetaManager, TarantoolError, Unit] =
-    ZIO.accessM[SchemaMetaManager](_.get.refresh)
+  def refresh(): ZIO[Service, TarantoolError, Unit] =
+    ZIO.serviceWithZIO(_.refresh)
 
-  def schemaId(): ZIO[SchemaMetaManager, Nothing, Option[Long]] =
-    ZIO.accessM[SchemaMetaManager](_.get.schemaId)
+  def schemaId(): ZIO[Service, Nothing, Option[Long]] =
+    ZIO.serviceWithZIO(_.schemaId)
 
-  val live: ZLayer[Has[
-    TarantoolConfig
-  ] with TarantoolConnection with SyncIdProvider with Clock, Nothing, SchemaMetaManager] =
-    ZLayer.fromServicesManaged[
-      TarantoolConfig,
-      TarantoolConnection.Service,
-      SyncIdProvider.Service,
-      Clock,
-      Nothing,
-      Service
-    ] { (cfg, connection, syncIdProvider) =>
-      make(cfg, connection, syncIdProvider)
+  val live: ZLayer[
+    TarantoolConfig with TarantoolConnection.Service with SyncIdProvider.Service with Clock,
+    Nothing,
+    Service
+  ] =
+    ZLayer {
+      for {
+        cfg <- ZIO.service[TarantoolConfig]
+        connection <- ZIO.service[TarantoolConnection.Service]
+        syncIdProvider <- ZIO.service[SyncIdProvider.Service]
+        service <- make(cfg, connection, syncIdProvider)
+      } yield service
     }
 
-  val test: ZLayer[Any, Nothing, SchemaMetaManager] =
+  val test: ZLayer[Any, Nothing, Service] =
     ZLayer.succeed(new Service {
       override def getSpaceMeta(spaceName: String): IO[TarantoolError, SpaceMeta] =
-        IO.fail(TarantoolError.InternalError(new NotImplementedError()))
+        ZIO.fail(TarantoolError.InternalError(new NotImplementedError()))
 
       override def getIndexMeta(
         spaceName: String,
         indexName: String
       ): IO[TarantoolError, IndexMeta] =
-        IO.fail(TarantoolError.InternalError(new NotImplementedError()))
+        ZIO.fail(TarantoolError.InternalError(new NotImplementedError()))
 
       override def refresh: IO[TarantoolError, Unit] =
-        IO.fail(TarantoolError.InternalError(new NotImplementedError()))
+        ZIO.fail(TarantoolError.InternalError(new NotImplementedError()))
 
-      override def schemaId: UIO[Option[Long]] = UIO.some(0)
+      override def schemaId: UIO[Option[Long]] = ZIO.some(0)
     })
 
   // lazy start
@@ -77,22 +71,20 @@ private[tarantool] object SchemaMetaManager {
     cfg: TarantoolConfig,
     connection: TarantoolConnection.Service,
     syncIdProvider: SyncIdProvider.Service
-  ): ZManaged[Clock, Nothing, Service] =
-    ZManaged.fromEffect(
-      for {
-        clock <- ZIO.environment[Clock]
-        spaceMetaMap <- Ref.make(Map.empty[String, SpaceMeta])
-        currentSchemaId <- Ref.make[Option[Long]](None)
-        semaphore <- Semaphore.make(1)
-      } yield new Live(
-        cfg,
-        connection,
-        syncIdProvider,
-        spaceMetaMap,
-        currentSchemaId,
-        semaphore,
-        clock
-      )
+  ): URIO[Clock, Service] =
+    for {
+      clock <- ZIO.service[Clock]
+      spaceMetaMap <- Ref.make(Map.empty[String, SpaceMeta])
+      currentSchemaId <- Ref.make[Option[Long]](None)
+      semaphore <- Semaphore.make(1)
+    } yield new Live(
+      cfg,
+      connection,
+      syncIdProvider,
+      spaceMetaMap,
+      currentSchemaId,
+      semaphore,
+      clock
     )
 
   /* space id with list of spaces meta */
@@ -119,9 +111,9 @@ private[tarantool] object SchemaMetaManager {
     override def getSpaceMeta(spaceName: String): IO[TarantoolError, SpaceMeta] =
       for {
         cache <- spaceMetaMap.get
-        meta <- IO.ifM(IO.effectTotal(cache.contains(spaceName)))(
-          IO.effectTotal(cache(spaceName)),
-          IO.fail(SpaceNotFound(spaceName))
+        meta <- ZIO.ifZIO(ZIO.succeed(cache.contains(spaceName)))(
+          ZIO.succeed(cache(spaceName)),
+          ZIO.fail(SpaceNotFound(spaceName))
         )
       } yield meta
 
@@ -136,7 +128,8 @@ private[tarantool] object SchemaMetaManager {
       spaceName: String,
       indexName: String
     ): IO[TarantoolError, IndexMeta] =
-      IO.when(!space.indexes.contains(indexName))(IO.fail(IndexNotFound(spaceName, indexName)))
+      ZIO
+        .when(!space.indexes.contains(indexName))(ZIO.fail(IndexNotFound(spaceName, indexName)))
         .as(space.indexes(indexName))
 
     override def refresh: IO[TarantoolError, Unit] =
@@ -172,14 +165,18 @@ private[tarantool] object SchemaMetaManager {
     private def selectMeta(
       spaceId: Int,
       indexId: Int
-    ): IO[TarantoolError.Timeout, TarantoolResponse] = select(
-      spaceId,
-      indexId
-    ).flatMap(
-      _.response.await.timeout(cfg.clientConfig.schemaRequestTimeoutMillis.milliseconds).flatMap(ZIO.fromOption(_))
-    ).orElseFail(
-      TarantoolError.Timeout(s"Schema request timeout. SpaceId: $spaceId, indexId: $indexId")
-    ).provide(clock)
+    ): IO[TarantoolError.Timeout, TarantoolResponse] =
+      ZIO
+        .withClock(clock) {
+          select(spaceId, indexId).flatMap(
+            _.response.await
+              .timeout(cfg.clientConfig.schemaRequestTimeoutMillis.millis)
+              .flatMap(ZIO.fromOption(_))
+          )
+        }
+        .orElseFail(
+          TarantoolError.Timeout(s"Schema request timeout. SpaceId: $spaceId, indexId: $indexId")
+        )
 
     private def select(
       spaceId: Int,
@@ -188,7 +185,7 @@ private[tarantool] object SchemaMetaManager {
       for {
         syncId <- syncIdProvider.syncId()
         body <- ZIO
-          .effect(
+          .attempt(
             TarantoolRequestBody.selectBody(spaceId, indexId, Int.MaxValue, Offset, IteratorCode.All, EmptyMpArray)
           )
           .mapError(TarantoolError.CodecError)

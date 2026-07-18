@@ -1,9 +1,6 @@
 package zio.tarantool.codec
 
-import shapeless._
-import shapeless.ops.hlist.ToTraversable
-import shapeless.ops.record.Keys
-import zio.IO
+import _root_.zio.{IO, ZIO}
 import zio.tarantool.TarantoolError
 import zio.tarantool.TarantoolError.CodecError
 import zio.tarantool.protocol.{FieldUpdate, UpdateOperations}
@@ -11,7 +8,7 @@ import zio.tarantool.codec.TupleOpsBuilder.FieldMeta
 
 import scala.collection.mutable
 
-final class TupleOpsBuilder[C] private (fields: Map[String, FieldMeta]) {
+final class TupleOpsBuilder[C] private[codec] (fields: Map[String, FieldMeta]) {
   private val buffer = mutable.ListBuffer[Either[TarantoolError, FieldUpdate]]()
 
   def plus[A](field: String, value: A)(implicit ops: TupleOps[A]): this.type =
@@ -51,7 +48,7 @@ final class TupleOpsBuilder[C] private (fields: Map[String, FieldMeta]) {
   }
 
   def buildM(): IO[CodecError, UpdateOperations] =
-    IO.fromEither(build()).mapError(err => CodecError(err))
+    ZIO.fromEither(build()).mapError(err => CodecError(err))
 
   def reset(): Unit = buffer.clear()
 
@@ -74,20 +71,10 @@ final class TupleOpsBuilder[C] private (fields: Map[String, FieldMeta]) {
 }
 
 object TupleOpsBuilder {
-  private[tarantool] case class FieldMeta(position: Int)
+  private[codec] case class FieldMeta(position: Int)
 
   def apply[A](implicit builder: TupleOpsBuilder[A]): TupleOpsBuilder[A] = builder
 
-  implicit def newBuilder[A, ARepr <: HList, KeysRepr <: HList](implicit
-    gen: LabelledGeneric.Aux[A, ARepr],
-    keys: Keys.Aux[ARepr, KeysRepr],
-    keysToTraversable: ToTraversable.Aux[KeysRepr, List, Symbol]
-  ): TupleOpsBuilder[A] = {
-    val fieldMetas: Map[String, FieldMeta] =
-      keys().toList.zipWithIndex.map { case (symbol, i) =>
-        symbol.name -> FieldMeta(i)
-      }.toMap
-
-    new TupleOpsBuilder[A](fieldMetas)
-  }
+  private[codec] def fromFields[A](fields: Map[String, FieldMeta]): TupleOpsBuilder[A] =
+    new TupleOpsBuilder[A](fields)
 }

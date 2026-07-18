@@ -1,8 +1,7 @@
 package zio.tarantool.internal
 
-import zio._
-import zio.stream._
-import zio.clock.Clock
+import _root_.zio._
+import _root_.zio.stream._
 import zio.tarantool.protocol.{
   MessagePackPacket,
   RequestCode,
@@ -16,12 +15,7 @@ import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.Base64
 
-import zio.tarantool.internal.RequestHandler.RequestHandler
-import zio.tarantool.internal.SyncIdProvider.SyncIdProvider
-
 private[tarantool] object TarantoolConnection {
-
-  type TarantoolConnection = Has[Service]
 
   trait Service extends Serializable {
     def sendRequest(request: TarantoolRequest): IO[TarantoolError, TarantoolOperation]
@@ -33,52 +27,47 @@ private[tarantool] object TarantoolConnection {
 
   def sendRequest(
     request: TarantoolRequest
-  ): ZIO[TarantoolConnection, TarantoolError, TarantoolOperation] =
-    ZIO.accessM[TarantoolConnection](_.get.sendRequest(request))
+  ): ZIO[Service, TarantoolError, TarantoolOperation] =
+    ZIO.serviceWithZIO(_.sendRequest(request))
 
   private[tarantool] def forceSendRequest(
     request: TarantoolRequest
-  ): ZIO[TarantoolConnection, TarantoolError, Unit] =
-    ZIO.accessM[TarantoolConnection](_.get.forceSendRequest(request))
+  ): ZIO[Service, TarantoolError, Unit] =
+    ZIO.serviceWithZIO(_.forceSendRequest(request))
 
-  def receive(): ZStream[TarantoolConnection, TarantoolError, MessagePackPacket] =
-    ZStream.access[TarantoolConnection](_.get.receive()).flatten
+  def receive(): ZStream[Service, TarantoolError, MessagePackPacket] =
+    ZStream.serviceWithStream(_.receive())
 
   val live: ZLayer[
-    Clock
-      with SyncIdProvider
-      with RequestHandler
-      with Has[
-        TarantoolConfig
-      ],
+    Clock with SyncIdProvider.Service with RequestHandler.Service with TarantoolConfig,
     TarantoolError,
-    Has[Service]
+    Service
   ] =
-    ZLayer.fromServicesManaged[
-      TarantoolConfig,
-      SyncIdProvider.Service,
-      RequestHandler.Service,
-      Clock,
-      TarantoolError,
-      Service
-    ]((cfg, syncId, requestHandler) => make(cfg, syncId, requestHandler))
+    ZLayer.scoped {
+      for {
+        cfg <- ZIO.service[TarantoolConfig]
+        syncId <- ZIO.service[SyncIdProvider.Service]
+        requestHandler <- ZIO.service[RequestHandler.Service]
+        service <- make(cfg, syncId, requestHandler)
+      } yield service
+    }
 
   def make(
     config: TarantoolConfig,
     syncIdProvider: SyncIdProvider.Service,
     requestHandler: RequestHandler.Service
-  ): ZManaged[Clock, TarantoolError, Service] =
+  ): ZIO[Scope with Clock, TarantoolError, Service] =
     for {
       openChannel <- AsyncSocketChannelProvider.connect(config)
-      requestQueue <- Queue.bounded[ByteBuffer](config.clientConfig.requestQueueSize).toManaged_
+      requestQueue <- ZIO.acquireRelease(Queue.bounded[ByteBuffer](config.clientConfig.requestQueueSize))(_.shutdown)
       live = new Live(openChannel.channel, requestQueue, requestHandler)
 
       _ <- config.authInfo match {
-        case None           => IO.unit.toManaged_
-        case Some(authInfo) => auth(authInfo, openChannel.salt, live, syncIdProvider).toManaged_
+        case None           => ZIO.unit
+        case Some(authInfo) => auth(authInfo, openChannel.salt, live, syncIdProvider)
       }
 
-      _ <- live.run.forkManaged
+      _ <- live.run.forkScoped
     } yield live
 
   private[tarantool] class Live(
@@ -108,8 +97,8 @@ private[tarantool] object TarantoolConnection {
         )
 
     // used by ResponseHandler fiber
-    val receive: ZStream[Any, TarantoolError, MessagePackPacket] =
-      channel.read.transduce(ByteStream.decoder).mapError(TarantoolError.InternalError)
+    override def receive(): ZStream[Any, TarantoolError, MessagePackPacket] =
+      channel.read.via(ByteStream.decoder).mapError(TarantoolError.InternalError)
 
     val run: ZIO[Any, TarantoolError, Unit] = send.forever.retryWhile(_ => true).unit
 
@@ -141,7 +130,7 @@ private[tarantool] object TarantoolConnection {
     encodedSalt: Array[Byte],
     syncId: Long
   ): ZIO[Any, Throwable, TarantoolRequest] =
-    IO.effect {
+    ZIO.attempt {
       val sha1: MessageDigest = MessageDigest.getInstance("SHA-1")
       val auth1: Array[Byte] = sha1.digest(authInfo.password.getBytes)
       val auth2: Array[Byte] = sha1.digest(auth1)

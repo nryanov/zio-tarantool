@@ -2,8 +2,8 @@ package zio.tarantool.api
 
 import org.msgpack.value.Value
 import org.msgpack.value.impl.ImmutableArrayValueImpl
-import zio.{Promise, ZIO}
-import zio.tarantool.TarantoolClient.TarantoolClient
+import _root_.zio.{Promise, ZIO}
+import zio.tarantool.TarantoolClient
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.protocol.TarantoolResponse
 import zio.tarantool.TarantoolError
@@ -18,7 +18,7 @@ final case class CallBuilder private[api] (
 
   def args[A: TupleEncoder](args: A): CallBuilder = copy(args = MpValue.typed(args))
 
-  def run: ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
+  def run: ZIO[TarantoolClient.Service, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     for {
       functionName <- BuilderOps.require(functionName, "function")
       response <- BuilderOps.run(BuiltRequest.Call(functionName, args))

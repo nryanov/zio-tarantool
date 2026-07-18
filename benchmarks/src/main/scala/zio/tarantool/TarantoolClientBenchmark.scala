@@ -5,8 +5,8 @@ import java.util.concurrent.TimeUnit
 import org.msgpack.value._
 import org.msgpack.value.impl._
 import org.openjdk.jmh.annotations._
-import zio.ZIO
-import zio.tarantool.TarantoolClient.TarantoolClient
+import _root_.zio.ZIO
+import zio.tarantool.TarantoolClient.Service
 import zio.tarantool.TarantoolClientBenchmark.A
 
 @Fork(1)

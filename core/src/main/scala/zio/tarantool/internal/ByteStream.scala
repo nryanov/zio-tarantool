@@ -1,8 +1,8 @@
 package zio.tarantool.internal
 
 import org.msgpack.core.MessagePack
-import zio.{Chunk, ChunkBuilder, ZRef}
-import zio.stream.ZTransducer
+import _root_.zio.{Chunk, ChunkBuilder, Ref, Scope, ZIO}
+import _root_.zio.stream.ZPipeline
 import zio.tarantool.protocol.MessagePackPacket
 import zio.tarantool.codec.MessagePackPacketSerDe
 
@@ -11,9 +11,9 @@ import scala.annotation.tailrec
 private[tarantool] object ByteStream {
   private val MessageSizeLength = 5
 
-  val decoder: ZTransducer[Any, Nothing, Byte, MessagePackPacket] =
-    ZTransducer {
-      ZRef.makeManaged[State](State.empty).map { stateRef =>
+  val decoder: ZPipeline[Any, Nothing, Byte, MessagePackPacket] =
+    ZPipeline.fromPush {
+      Ref.make[State](State.empty).map { stateRef =>
         {
           // no new data was read
           case None =>
