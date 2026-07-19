@@ -24,7 +24,7 @@ object RequestHandlerSpec extends ZIOSpecDefault with BaseLayers {
         val result = for {
           _ <- RequestHandler.submitRequest(request)
           sentRequests <- RequestHandler.sentRequests
-        } yield assertZIO(sentRequests.size)(equalTo(1)) && assert(sentRequests.get(1L))(isSome)
+        } yield assert(sentRequests.size)(equalTo(1)) && assert(sentRequests.get(1L))(isSome)
 
         result.provideLayer(requestHandlerLayer)
       },
@@ -43,7 +43,7 @@ object RequestHandlerSpec extends ZIOSpecDefault with BaseLayers {
           operation <- RequestHandler.submitRequest(request)
           _ <- RequestHandler.complete(1L, new ImmutableLongValueImpl(1))
           isDone <- operation.isDone
-        } yield assertZIO(isDone)(isTrue)
+        } yield assert(isDone)(isTrue)
 
         result.provideLayer(requestHandlerLayer)
       },
@@ -51,8 +51,8 @@ object RequestHandlerSpec extends ZIOSpecDefault with BaseLayers {
         val result = for {
           operation <- RequestHandler.submitRequest(request)
           _ <- RequestHandler.fail(1L, "some error", 0)
-          doneStatus <- operation.response.await.run
-        } yield assert(doneStatus.succeeded)(isFalse)
+          doneStatus <- operation.response.await.exit
+        } yield assert(doneStatus.isSuccess)(isFalse)
 
         result.provideLayer(requestHandlerLayer)
       },
@@ -83,12 +83,12 @@ object RequestHandlerSpec extends ZIOSpecDefault with BaseLayers {
             sentRequests <- RequestHandler.sentRequests
             _ <- RequestHandler.close()
             emptyRequests <- RequestHandler.sentRequests
-            doneStatus1 <- op1.response.await.run
-            doneStatus2 <- op2.response.await.run
-            doneStatus3 <- op3.response.await.run
+            doneStatus1 <- op1.response.await.exit
+            doneStatus2 <- op2.response.await.exit
+            doneStatus3 <- op3.response.await.exit
           } yield assert(sentRequests.size)(equalTo(3)) &&
             assert(emptyRequests.size)(equalTo(0)) &&
-            assert(Seq(doneStatus1, doneStatus2, doneStatus3).forall(!_.succeeded))(isTrue)
+            assert(Seq(doneStatus1, doneStatus2, doneStatus3).forall(!_.isSuccess))(isTrue)
 
         result.provideLayer(requestHandlerLayer)
       }

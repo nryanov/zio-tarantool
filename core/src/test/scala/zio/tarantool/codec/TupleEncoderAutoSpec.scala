@@ -14,6 +14,11 @@ object TupleEncoderAutoSpec extends ZIOSpecDefault {
 
   final case class Child(f1: Int, f2: String)
   final case class Parent(f1: Vector[Int], f2: Option[String], f3: Child)
+  final case class NestedFirst(child: Child, flag: Boolean)
+
+  sealed trait Shape
+  final case class Circle(r: Int) extends Shape
+  final case class Rect(w: Int, h: Int) extends Shape
 
   override def spec: Spec[TestEnvironment, Any] =
     suite("TupleEncoder")(
@@ -90,7 +95,7 @@ object TupleEncoderAutoSpec extends ZIOSpecDefault {
         )
         val encoder = TupleEncoder[A]
         for {
-          result <- encoder.decodeM(value).run
+          result <- encoder.decodeM(value).exit
         } yield assert(result)(fails(isSubtype[CodecError](anything)))
       },
       test(
@@ -165,6 +170,60 @@ object TupleEncoderAutoSpec extends ZIOSpecDefault {
             )
           )
         ) && assert(decoded)(equalTo(value))
+      },
+      test("encode/decode nested case class not in last position") {
+        val value = NestedFirst(Child(7, "x"), flag = true)
+        val encoder = TupleEncoder[NestedFirst]
+        for {
+          encoded <- encoder.encodeM(value)
+          decoded <- encoder.decodeM(encoded)
+        } yield assert(encoded)(
+          equalTo(
+            new ImmutableArrayValueImpl(
+              Array(
+                new ImmutableLongValueImpl(7),
+                new ImmutableStringValueImpl("x"),
+                ImmutableBooleanValueImpl.TRUE
+              )
+            )
+          )
+        ) && assert(decoded)(equalTo(value))
+      },
+      test("encode/decode sealed trait / ADT via try-decode") {
+        val circle: Shape = Circle(3)
+        val rect: Shape = Rect(2, 4)
+        val encoder = TupleEncoder[Shape]
+        for {
+          encodedCircle <- encoder.encodeM(circle)
+          decodedCircle <- encoder.decodeM(encodedCircle)
+          encodedRect <- encoder.encodeM(rect)
+          decodedRect <- encoder.decodeM(encodedRect)
+        } yield assert(decodedCircle)(equalTo(circle)) && assert(decodedRect)(equalTo(rect))
+      },
+      test("encode/decode Option[A] None as empty vector") {
+        val value: Option[A] = None
+        val encoder = TupleEncoder[Option[A]]
+        for {
+          encoded <- encoder.encodeM(value)
+          decoded <- encoder.decodeM(encoded)
+        } yield assert(encoded)(equalTo(new ImmutableArrayValueImpl(Array.empty))) &&
+          assert(decoded)(isNone)
+      },
+      test("TupleOpsBuilder maps field names to positions") {
+        import zio.tarantool.protocol.FieldUpdate.SimpleFieldUpdate
+        import zio.tarantool.protocol.OperatorCode
+
+        val ops = TupleOpsBuilder[A].assign("f1", 10).plus("f2", 5L).build()
+        assert(ops.map(_.ops.collect { case SimpleFieldUpdate(pos, code, _) => (pos, code) }))(
+          isRight(
+            equalTo(
+              Vector(
+                (0, OperatorCode.Assigment),
+                (1, OperatorCode.Addition)
+              )
+            )
+          )
+        )
       }
     )
 }

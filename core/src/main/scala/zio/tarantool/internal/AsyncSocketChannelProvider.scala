@@ -38,18 +38,20 @@ private[tarantool] class AsyncSocketChannelProvider(
     }
 
   def write(chunk: Chunk[Byte]): IO[IOException, Unit] =
-    ZIO.when(chunk.nonEmpty) {
-      ZIO.suspendSucceed {
-        writeBuffer.clear()
-        val (c, remainder) = chunk.splitAt(writeBuffer.capacity())
-        writeBuffer.put(c.toArray)
-        writeBuffer.flip()
+    ZIO
+      .when(chunk.nonEmpty) {
+        ZIO.suspendSucceed {
+          writeBuffer.clear()
+          val (c, remainder) = chunk.splitAt(writeBuffer.capacity())
+          writeBuffer.put(c.toArray)
+          writeBuffer.flip()
 
-        completeWith[Integer](channel)(channel.write(writeBuffer, null, _))
-          .repeatWhile(_ => writeBuffer.hasRemaining)
-          .zipRight(write(remainder))
+          completeWith[Integer](channel)(channel.write(writeBuffer, null, _))
+            .repeatWhile(_ => writeBuffer.hasRemaining)
+            .zipRight(write(remainder))
+        }
       }
-    }.unit
+      .unit
 }
 
 private[tarantool] object AsyncSocketChannelProvider {
@@ -98,19 +100,17 @@ private[tarantool] object AsyncSocketChannelProvider {
   def openChannel(
     address: SocketAddress
   ): ZIO[Scope, IOException, AsynchronousSocketChannel] =
-    ZIO
-      .fromAutoCloseable {
-        for {
-          channel <- ZIO.attempt {
-            val channel = AsynchronousSocketChannel.open()
-            channel.setOption(StandardSocketOptions.SO_KEEPALIVE, Boolean.box(true))
-            channel.setOption(StandardSocketOptions.TCP_NODELAY, Boolean.box(true))
-            channel
-          }
-          _ <- completeWith[Void](channel)(channel.connect(address, null, _))
-        } yield channel
-      }
-      .refineToOrDie[IOException]
+    ZIO.fromAutoCloseable {
+      for {
+        channel <- ZIO.attempt {
+          val channel = AsynchronousSocketChannel.open()
+          channel.setOption(StandardSocketOptions.SO_KEEPALIVE, Boolean.box(true))
+          channel.setOption(StandardSocketOptions.TCP_NODELAY, Boolean.box(true))
+          channel
+        }
+        _ <- completeWith[Void](channel)(channel.connect(address, null, _))
+      } yield channel
+    }.refineToOrDie[IOException]
 
   def completeWith[A](
     channel: Channel

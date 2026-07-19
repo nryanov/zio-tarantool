@@ -9,13 +9,11 @@ object TarantoolContainer {
   ): ZLayer[Any, Nothing, GenericContainer] =
     ZLayer.scoped {
       ZIO.acquireRelease {
-        ZIO
-          .attemptBlocking {
-            val container = new GenericContainer(dockerImage = imageName, exposedPorts = Seq(3301))
-            container.start()
-            container
-          }
-          .orDie
+        ZIO.attemptBlocking {
+          val container = new GenericContainer(dockerImage = imageName, exposedPorts = Seq(3301))
+          container.start()
+          container
+        }.orDie
       }(container => ZIO.attemptBlocking(container.stop()).orDie)
     }
 }

@@ -169,9 +169,7 @@ private[tarantool] object SchemaMetaManager {
       ZIO
         .withClock(clock) {
           select(spaceId, indexId).flatMap(
-            _.response.await
-              .timeout(cfg.clientConfig.schemaRequestTimeoutMillis.millis)
-              .flatMap(ZIO.fromOption(_))
+            _.response.await.timeout(cfg.clientConfig.schemaRequestTimeoutMillis.millis).flatMap(ZIO.fromOption(_))
           )
         }
         .orElseFail(

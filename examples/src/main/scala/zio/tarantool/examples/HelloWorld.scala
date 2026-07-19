@@ -30,6 +30,6 @@ object HelloWorld extends ZIOAppDefault {
   def tarantoolLayer() = {
     val config = ZLayer.succeed(TarantoolConfig(host = "localhost", port = 3301))
 
-    (Clock.live ++ config) >>> TarantoolClient.live
+    (ZLayer.succeed[Clock](Clock.ClockLive) ++ config) >>> TarantoolClient.live
   }
 }

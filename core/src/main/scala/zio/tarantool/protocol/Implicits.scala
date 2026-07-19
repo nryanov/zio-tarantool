@@ -23,29 +23,25 @@ private[tarantool] object Implicits {
       ZIO.attempt(encoder.decode(v.asArrayValue(), 0)).mapError(TarantoolError.CodecError)
 
     def deserialize(v: Array[Byte]): IO[TarantoolError.CodecError, A] =
-      ZIO
-        .attempt {
-          val unpacker = MessagePack.newDefaultUnpacker(v)
-          val nextValue = unpacker.unpackValue()
+      ZIO.attempt {
+        val unpacker = MessagePack.newDefaultUnpacker(v)
+        val nextValue = unpacker.unpackValue()
 
-          if (!nextValue.isArrayValue) {
-            throw new IllegalArgumentException(s"Expected ArrayType, but got: $nextValue")
-          }
-
-          encoder.decode(nextValue.asArrayValue(), 0)
+        if (!nextValue.isArrayValue) {
+          throw new IllegalArgumentException(s"Expected ArrayType, but got: $nextValue")
         }
-        .mapError(TarantoolError.CodecError)
+
+        encoder.decode(nextValue.asArrayValue(), 0)
+      }.mapError(TarantoolError.CodecError)
   }
 
   implicit class RichValue(val value: Value) {
     def serialize(): IO[TarantoolError.CodecError, Array[Byte]] =
-      ZIO
-        .attempt {
-          val packer = MessagePack.newDefaultBufferPacker()
-          packer.packValue(value)
-          packer.close()
-          packer.toByteArray
-        }
-        .mapError(TarantoolError.CodecError)
+      ZIO.attempt {
+        val packer = MessagePack.newDefaultBufferPacker()
+        packer.packValue(value)
+        packer.close()
+        packer.toByteArray
+      }.mapError(TarantoolError.CodecError)
   }
 }

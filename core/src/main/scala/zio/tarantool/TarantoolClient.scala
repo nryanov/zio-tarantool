@@ -8,6 +8,8 @@ import zio.tarantool.protocol.TarantoolRequestBody._
 import zio.tarantool.protocol.{RequestCode, TarantoolRequest, TarantoolResponse}
 
 object TarantoolClient {
+  type TarantoolClient = Service
+
   trait Service extends Serializable {
     def ping(): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
@@ -122,7 +124,9 @@ object TarantoolClient {
             ids <- resolveIndex(space, index)
             encodedOps <- ops.encode
             encodedTuple <- tuple.encode
-            body <- ZIO.attempt(upsertBody(ids._1, ids._2, encodedOps, encodedTuple)).mapError(TarantoolError.CodecError)
+            body <- ZIO
+              .attempt(upsertBody(ids._1, ids._2, encodedOps, encodedTuple))
+              .mapError(TarantoolError.CodecError)
             response <- send(RequestCode.Upsert, body)
           } yield response
 
@@ -144,29 +148,25 @@ object TarantoolClient {
           for {
             encodedBind <- sqlBind.encode
             encodedOptions <- options.encode
-            body <- ZIO
-              .attempt {
-                target match {
-                  case BuiltRequest.ExecuteTarget.StatementId(id) =>
-                    executeBody(id, encodedBind, encodedOptions)
-                  case BuiltRequest.ExecuteTarget.Sql(sql) =>
-                    executeBody(sql, encodedBind, encodedOptions)
-                }
+            body <- ZIO.attempt {
+              target match {
+                case BuiltRequest.ExecuteTarget.StatementId(id) =>
+                  executeBody(id, encodedBind, encodedOptions)
+                case BuiltRequest.ExecuteTarget.Sql(sql) =>
+                  executeBody(sql, encodedBind, encodedOptions)
               }
-              .mapError(TarantoolError.CodecError)
+            }.mapError(TarantoolError.CodecError)
             response <- send(RequestCode.Execute, body)
           } yield response
 
         case BuiltRequest.Prepare(target) =>
           for {
-            body <- ZIO
-              .attempt {
-                target match {
-                  case BuiltRequest.PrepareTarget.StatementId(id) => prepareBody(id)
-                  case BuiltRequest.PrepareTarget.Sql(sql)        => prepareBody(sql)
-                }
+            body <- ZIO.attempt {
+              target match {
+                case BuiltRequest.PrepareTarget.StatementId(id) => prepareBody(id)
+                case BuiltRequest.PrepareTarget.Sql(sql)        => prepareBody(sql)
               }
-              .mapError(TarantoolError.CodecError)
+            }.mapError(TarantoolError.CodecError)
             response <- send(RequestCode.Prepare, body)
           } yield response
       }

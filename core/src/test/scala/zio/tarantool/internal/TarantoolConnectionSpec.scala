@@ -59,7 +59,7 @@ object TarantoolConnectionSpec extends ZIOSpecDefault with BaseLayers {
   private def createTestSpecificLayer(
     authInfo: Option[AuthInfo] = None
   ): ZLayer[GenericContainer, TarantoolError, TarantoolConnection.Service] = {
-    val clock = Clock.live
+    val clock = ZLayer.succeed[Clock](Clock.ClockLive)
     val syncId = syncIdProviderLayer
     val requestHandler = requestHandlerLayer
 

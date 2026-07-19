@@ -1,6 +1,6 @@
 package zio.tarantool
 
-import _root_.zio.{Unsafe, ZIO, ZLayer}
+import _root_.zio.{Runtime, Unsafe, ZIO, ZLayer}
 import _root_.zio.Clock
 
 trait BenchmarkBase {
@@ -12,7 +12,7 @@ trait BenchmarkBase {
 
 object BenchmarkBase {
   private final val layer: ZLayer[Any, TarantoolError, TarantoolClient.Service] =
-    (Clock.live ++ ZLayer.succeed(
+    (ZLayer.succeed[Clock](Clock.ClockLive) ++ ZLayer.succeed(
       TarantoolConfig(
         connectionConfig = ConnectionConfig(host = "localhost", port = 3301),
         clientConfig = ClientConfig(useSchemaMetaCache = false),

@@ -123,17 +123,17 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
 
   private def createSharedLayer() = {
     val client = tarantoolClientLayer
-    val clock = Clock.live
+    val clock = ZLayer.succeed[Clock](Clock.ClockLive)
 
-    val prepare = (for {
-      _ <- createSpace()
-      _ <- createFunction()
-      spaceId <- getSpaceId()
-    } yield spaceId)
-      .timeout(Duration.ofSeconds(5))
-      .flatMap(opt => ZIO.fromOption(opt).orElseFail(new RuntimeException("Error while getting space id")))
-      .toLayer
-      .orDie
+    val prepare: ZLayer[TarantoolClient.Service with Clock, Nothing, Int] = ZLayer.fromZIO {
+      (for {
+        _ <- createSpace()
+        _ <- createFunction()
+        spaceId <- getSpaceId()
+      } yield spaceId)
+        .timeout(Duration.ofSeconds(5))
+        .flatMap(opt => ZIO.fromOption(opt).orElseFail(new RuntimeException("Error while getting space id")))
+    }.orDie
 
     ((client ++ clock) >>> prepare) ++ client
   }

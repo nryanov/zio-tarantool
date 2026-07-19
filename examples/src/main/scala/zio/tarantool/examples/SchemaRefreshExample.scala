@@ -20,7 +20,7 @@ object SchemaRefreshExample extends ZIOAppDefault {
     _ <- TarantoolClient.eval.expression("box.space.newSpace:truncate()").run
   } yield ()).provideLayer(tarantoolLayer()).orDie
 
-  def createSpace(): ZIO[TarantoolClient, Throwable, Unit] = for {
+  def createSpace(): ZIO[TarantoolClient.Service, Throwable, Unit] = for {
     _ <- TarantoolClient.eval.expression("box.schema.create_space('newSpace', {if_not_exists = true})").run
     _ <- TarantoolClient.eval
       .expression(
@@ -32,6 +32,6 @@ object SchemaRefreshExample extends ZIOAppDefault {
   def tarantoolLayer() = {
     val config = ZLayer.succeed(TarantoolConfig(host = "localhost", port = 3301))
 
-    (Clock.live ++ config) >>> TarantoolClient.live
+    (ZLayer.succeed[Clock](Clock.ClockLive) ++ config) >>> TarantoolClient.live
   }
 }

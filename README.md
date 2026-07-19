@@ -25,7 +25,6 @@ libraryDependencies ++= Seq(
 ## Getting started
 ```scala
 import zio._
-import zio.clock.Clock
 import zio.tarantool._
 import zio.tarantool.codec.auto._
 
@@ -33,11 +32,11 @@ import zio.tarantool.codec.auto._
  * > box.schema.create_space('users', {if_not_exists = true})
  * > box.space.users:create_index('primary', {if_not_exists = true, unique = true, parts = {1, 'number'} })
  */
-object HelloWorld extends zio.App {
+object HelloWorld extends ZIOAppDefault {
   final case class Address(street: String, number: Int)
   final case class User(id: Long, name: String, age: Int, address: Address)
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = (for {
+  override def run: ZIO[Any, Any, Any] = (for {
     _ <- TarantoolClient.insert.into("users").tuple(User(1, "Name1", 10, Address("street1", 1))).run
 
     // response is Promise[TarantoolError, TarantoolResponse]
@@ -50,13 +49,13 @@ object HelloWorld extends zio.App {
       .flatMap(_.await)
       .flatMap(_.head[User])
 
-    _ <- zio.console.putStrLn(s"User: $user")
-  } yield ExitCode.success).provideLayer(tarantoolLayer()).orDie
+    _ <- Console.printLine(s"User: $user")
+  } yield ()).provideLayer(tarantoolLayer()).orDie
 
   def tarantoolLayer() = {
     val config = ZLayer.succeed(TarantoolConfig(host = "localhost", port = 3301))
 
-    (Clock.live ++ config) >>> TarantoolClient.live ++ zio.console.Console.live
+    (ZLayer.succeed[Clock](Clock.ClockLive) ++ config) >>> TarantoolClient.live
   }
 }
 ```
@@ -174,6 +173,11 @@ But there are checks for operations and types:
 user.builder.minus("myField", "lalala").build() // Attempt.failure because string value cannot be used in numeric operations
 ```
 
+## Scala / ZIO support
+- Scala: **3.3.x** (default), 2.13.x, 2.12.x
+- ZIO: **2.1.x**
+
 ## Project status
 Currently, project is under development, so don't expect full stability and that there are no bugs :)
 Also, there may be API changes in the future.   
+

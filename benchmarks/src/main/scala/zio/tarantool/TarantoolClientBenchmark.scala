@@ -6,7 +6,6 @@ import org.msgpack.value._
 import org.msgpack.value.impl._
 import org.openjdk.jmh.annotations._
 import _root_.zio.ZIO
-import zio.tarantool.TarantoolClient.Service
 import zio.tarantool.TarantoolClientBenchmark.A
 
 @Fork(1)
@@ -27,7 +26,7 @@ class TarantoolClientBenchmark extends BenchmarkBase {
 
   @Setup(Level.Trial)
   def setup(): Unit = {
-    val init: ZIO[TarantoolClient, TarantoolError, Int] = for {
+    val init: ZIO[TarantoolClient.Service, TarantoolError, Int] = for {
       space <- TarantoolClient.eval.expression("box.schema.create_space('A', {if_not_exists = true})").run
       ids <- TarantoolClient.eval.expression("box.schema.sequence.create('ids', {if_not_exists = true})").run
       index <- TarantoolClient.eval
@@ -67,7 +66,7 @@ class TarantoolClientBenchmark extends BenchmarkBase {
     zioUnsafeRun(
       ZIO
         .foreach(msgpackValues)(v => TarantoolClient.insert.into(spaceId).tuple(v).run)
-        .flatMap(promises => ZIO.foreach_(promises)(_.await))
+        .flatMap(promises => ZIO.foreachDiscard(promises)(_.await))
     )
 
   @Benchmark
@@ -77,7 +76,7 @@ class TarantoolClientBenchmark extends BenchmarkBase {
     zioUnsafeRun(
       ZIO
         .foreach(notEncodedValues)(v => TarantoolClient.insert.into(spaceId).tuple(v).run)
-        .flatMap(promises => ZIO.foreach_(promises)(_.await))
+        .flatMap(promises => ZIO.foreachDiscard(promises)(_.await))
     )
   }
 }

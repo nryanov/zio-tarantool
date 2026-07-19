@@ -54,26 +54,24 @@ object TarantoolResponse {
         val array = messagePack.asArrayValue()
         val buffer = mutable.ListBuffer[A]()
 
-        ZIO
-          .attempt {
-            val iter = array.iterator()
+        ZIO.attempt {
+          val iter = array.iterator()
 
-            while (iter.hasNext) {
-              val next = iter.next()
+          while (iter.hasNext) {
+            val next = iter.next()
 
-              if (next.isArrayValue) {
-                val decoded = encoder.decode(next.asArrayValue(), 0)
-                buffer.+=(decoded)
-              } else {
-                throw ProtocolError(
-                  s"Unexpected tuple type. Expected MpArray, but got: ${next.getValueType.name()}"
-                )
-              }
+            if (next.isArrayValue) {
+              val decoded = encoder.decode(next.asArrayValue(), 0)
+              buffer.+=(decoded)
+            } else {
+              throw ProtocolError(
+                s"Unexpected tuple type. Expected MpArray, but got: ${next.getValueType.name()}"
+              )
             }
-
-            buffer.toVector
           }
-          .mapError(CodecError)
+
+          buffer.toVector
+        }.mapError(CodecError)
       } else {
         ZIO.fail(
           ProtocolError(

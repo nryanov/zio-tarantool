@@ -4,7 +4,8 @@ import shapeless3.deriving.Labelling
 import zio.tarantool.codec.TupleOpsBuilder.FieldMeta
 
 private[codec] trait TupleOpsBuilderDerivation:
-  given [A](using labelling: Labelling[A]): TupleOpsBuilder[A] =
+  // Use implicit def so `import auto._` brings it into scope (Scala 3 wildcard skips givens)
+  implicit def tupleOpsBuilder[A](using labelling: Labelling[A]): TupleOpsBuilder[A] =
     val fieldMetas: Map[String, FieldMeta] =
       labelling.elemLabels.zipWithIndex.map { case (name, i) =>
         name -> FieldMeta(i)

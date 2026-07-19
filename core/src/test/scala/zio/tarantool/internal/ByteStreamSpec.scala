@@ -15,7 +15,7 @@ object ByteStreamSpec extends ZIOSpecDefault {
     suite("ByteStream")(
       test("read empty chunk and return none") {
         for {
-          result <- ZStream().transduce(decoder).runHead
+          result <- ZStream().via(decoder).runHead
         } yield assert(result)(isNone)
       },
       test("read non empty chunk and return MessagePackPacket") {
@@ -25,7 +25,7 @@ object ByteStreamSpec extends ZIOSpecDefault {
           )
           encodedPacket <- MessagePackPacketSerDe.serialize(packet)
           size = ByteBuffer.allocate(5).put(0xd2.toByte).putInt(encodedPacket.length)
-          result <- ZStream.fromIterable(size.array() ++ encodedPacket).transduce(decoder).runHead
+          result <- ZStream.fromIterable(size.array() ++ encodedPacket).via(decoder).runHead
         } yield assert(result)(isSome(equalTo(packet)))
       }
     ) @@ sequential

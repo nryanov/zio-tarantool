@@ -9,20 +9,18 @@ object TarantoolSecuredContainer {
   ): ZLayer[Any, Nothing, GenericContainer] =
     ZLayer.scoped {
       ZIO.acquireRelease {
-        ZIO
-          .attemptBlocking {
-            val container = new GenericContainer(
-              dockerImage = imageName,
-              exposedPorts = Seq(3301),
-              env = Map(
-                "TARANTOOL_USER_NAME" -> "username",
-                "TARANTOOL_USER_PASSWORD" -> "password"
-              )
+        ZIO.attemptBlocking {
+          val container = new GenericContainer(
+            dockerImage = imageName,
+            exposedPorts = Seq(3301),
+            env = Map(
+              "TARANTOOL_USER_NAME" -> "username",
+              "TARANTOOL_USER_PASSWORD" -> "password"
             )
-            container.start()
-            container
-          }
-          .orDie
+          )
+          container.start()
+          container
+        }.orDie
       }(container => ZIO.attemptBlocking(container.stop()).orDie)
     }
 }

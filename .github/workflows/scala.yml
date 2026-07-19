@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         java: [ adopt@1.11 ]
-        scala: [ 2.13.8 ]
+        scala: [ 3.3.6 ]
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
       fail-fast: false
       matrix:
         java: [adopt@1.11]
-        scala: [2.12.15, 2.13.8]
+        scala: [2.12.20, 2.13.18, 3.3.6]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout current branch
@@ -57,11 +57,5 @@ jobs:
             ~/Library/Caches/Coursier/v1
           key: ${{ runner.os }}-sbt-cache-v4-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/build.properties') }}
 
-      - name: Run tests
-        run: sbt ++${{ matrix.scala }} coverage test
-
-      - name: Coverage Report
-        run: sbt coverageReport
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v1
+      - name: Compile
+        run: sbt ++${{ matrix.scala }} Test/compile

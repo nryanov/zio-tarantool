@@ -1,6 +1,6 @@
 package zio.tarantool.api
 
-import _root_.zio.{Promise, IO, ZIO}
+import _root_.zio.{IO, Promise, ZIO}
 import zio.tarantool.TarantoolClient
 import zio.tarantool.protocol.TarantoolResponse
 import zio.tarantool.TarantoolError

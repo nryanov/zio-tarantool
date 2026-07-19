@@ -2,13 +2,12 @@ package zio.tarantool
 
 import java.time.Duration
 
-import zio.ZIO
+import _root_.zio._
 import _root_.zio.test._
-import _root_.zio.Clock
 import _root_.zio.test.Assertion._
+import _root_.zio.test.TestAspect.{after, sequential}
 import zio.tarantool.codec.auto._
 import zio.tarantool.codec.TupleOpsBuilder
-import _root_.zio.test.TestAspect.{after, sequential}
 import zio.tarantool.data.{TestTuple, TestTupleKey}
 
 object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
@@ -83,16 +82,14 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
 
   private def createSharedLayer() = {
     val client = tarantoolClientLayer
-    val clock = Clock.live
+    val clock = ZLayer.succeed[Clock](Clock.ClockLive)
 
-    val prepare = (for {
-      _ <- createSpace()
-      _ <- TarantoolClient.refreshMeta()
-    } yield ())
-      .timeout(Duration.ofSeconds(30))
-      .flatMap(opt => ZIO.fromOption(opt).orElseFail(new RuntimeException("Error while preparing schema suite")))
-      .toLayer
-      .orDie
+    val prepare: ZLayer[TarantoolClient.Service with Clock, Nothing, Unit] = ZLayer.fromZIO {
+      (for {
+        _ <- createSpace()
+        _ <- TarantoolClient.refreshMeta()
+      } yield ()).timeout(Duration.ofSeconds(30)).someOrFail(new RuntimeException("Error while preparing schema suite"))
+    }.orDie
 
     ((client ++ clock) >>> prepare) ++ client
   }

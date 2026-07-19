@@ -52,17 +52,21 @@ trait BaseLayers {
   val requestHandlerLayer: ZLayer[Any, Nothing, RequestHandler.Service] = RequestHandler.live
 
   val tarantoolConnectionLayer: ZLayer[Any, Throwable, TarantoolConnection.Service] =
-    (Clock.live ++ configLayer ++ syncIdProviderLayer ++ requestHandlerLayer) >>> TarantoolConnection.live
+    (ZLayer.succeed[Clock](
+      Clock.ClockLive
+    ) ++ configLayer ++ syncIdProviderLayer ++ requestHandlerLayer) >>> TarantoolConnection.live
 
   val schemaMetaManagerLayer: ZLayer[Any, Throwable, SchemaMetaManager.Service] =
-    (configLayer ++ tarantoolConnectionLayer ++ syncIdProviderLayer ++ Clock.live) >>> SchemaMetaManager.live
+    (configLayer ++ tarantoolConnectionLayer ++ syncIdProviderLayer ++ ZLayer.succeed[Clock](
+      Clock.ClockLive
+    )) >>> SchemaMetaManager.live
 
   val responseHandlerLayer: ZLayer[Any, Throwable, ResponseHandler.Service] =
     (tarantoolConnectionLayer ++ requestHandlerLayer) >>> ResponseHandler.live
 
   val tarantoolClientLayer: ZLayer[Any, Nothing, TarantoolClient.Service] =
-    ((Clock.live ++ configLayer) >>> TarantoolClient.live).orDie
+    ((ZLayer.succeed[Clock](Clock.ClockLive) ++ configLayer) >>> TarantoolClient.live).orDie
 
   val tarantoolClientNotMetaCacheLayer: ZLayer[Any, Nothing, TarantoolClient.Service] =
-    ((Clock.live ++ configNoMetaCacheLayer) >>> TarantoolClient.live).orDie
+    ((ZLayer.succeed[Clock](Clock.ClockLive) ++ configNoMetaCacheLayer) >>> TarantoolClient.live).orDie
 }
