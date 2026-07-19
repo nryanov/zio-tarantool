@@ -44,9 +44,11 @@ trait LowPriorityInstances extends LowestPriorityInstances {
       }
 
     override def decode(v: ArrayValue, idx: Int): FieldType[K, H] :+: T =
-      Try(hEncoder.value.decode(v, idx))
-        .map(h => Inl(field[K](h)))
-        .orElse(Try(tEncoder.value.decode(v, idx)).map(t => Inr(t)))
+      // Prefer the tail (later variants) so wider shapes win over narrower prefixes
+      // (e.g. Rect(w,h) before Circle(r)).
+      Try(tEncoder.value.decode(v, idx))
+        .map(t => Inr(t))
+        .orElse(Try(hEncoder.value.decode(v, idx)).map(h => Inl(field[K](h))))
         .getOrElse(
           throw CodecError(
             new IllegalArgumentException("Unexpected error while decoding coproduct")
@@ -85,7 +87,8 @@ trait LowPriorityInstances extends LowestPriorityInstances {
 
     override def decode(v: ArrayValue, idx: Int): FieldType[K, H] :: T = {
       val head = hEncoder.value.decode(v, idx)
-      val tail = tEncoder.value.decode(v, idx + 1)
+      val width = hEncoder.value.encode(head).length
+      val tail = tEncoder.value.decode(v, idx + width)
 
       field[K](head) :: tail
     }
@@ -103,7 +106,8 @@ trait LowestPriorityInstances {
     }
 
     override def decode(v: ArrayValue, idx: Int): Option[A] =
-      hEncoder.value.decode(v, idx).map(gen.from)
+      if (idx >= v.size()) None
+      else hEncoder.value.decode(v, idx).map(gen.from)
   }
 
   implicit val hnilOptionEncoder: TupleEncoder[Option[HNil]] = new TupleEncoder[Option[HNil]] {
@@ -131,10 +135,14 @@ trait LowestPriorityInstances {
     }
 
     override def decode(v: ArrayValue, idx: Int): Option[FieldType[K, H] :: T] = {
-      val head = hEncoder.value.decode(v, idx)
-      val tail = tEncoder.value.decode(v, idx + 1)
+      if (idx >= v.size()) None
+      else {
+        val head = hEncoder.value.decode(v, idx)
+        val width = head.map(h => hEncoder.value.encode(Some(h)).length).getOrElse(1)
+        val tail = tEncoder.value.decode(v, idx + width)
 
-      head.flatMap(h => tail.map(t => field[K](h) :: t))
+        head.flatMap(h => tail.map(t => field[K](h) :: t))
+      }
     }
 
   }

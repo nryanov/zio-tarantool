@@ -9,21 +9,20 @@ import zio.tarantool.protocol.{FieldUpdate, OperatorCode}
 sealed trait TupleOps[A] {
   def encoder: Encoder[A]
 
-  // todo: Try ... Catch ?
   def plus(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
-    Right(SimpleFieldUpdate(position, OperatorCode.Assigment, encoder.encode(value)))
+    Left(NotSupportedUpdateOperation(s"plus is not supported at position $position"))
 
   def minus(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
-    Right(SimpleFieldUpdate(position, OperatorCode.Assigment, encoder.encode(value)))
+    Left(NotSupportedUpdateOperation(s"minus is not supported at position $position"))
 
   def or(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
-    Right(SimpleFieldUpdate(position, OperatorCode.Assigment, encoder.encode(value)))
+    Left(NotSupportedUpdateOperation(s"or is not supported at position $position"))
 
   def and(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
-    Right(SimpleFieldUpdate(position, OperatorCode.Assigment, encoder.encode(value)))
+    Left(NotSupportedUpdateOperation(s"and is not supported at position $position"))
 
   def xor(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
-    Right(SimpleFieldUpdate(position, OperatorCode.Assigment, encoder.encode(value)))
+    Left(NotSupportedUpdateOperation(s"xor is not supported at position $position"))
 
   def splice(
     position: Int,
@@ -34,10 +33,10 @@ sealed trait TupleOps[A] {
     Right(SpliceFieldUpdate(position, start, length, OperatorCode.Splice, encoder.encode(value)))
 
   def insert(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
-    Right(SimpleFieldUpdate(position, OperatorCode.Assigment, encoder.encode(value)))
+    Right(SimpleFieldUpdate(position, OperatorCode.Insertion, encoder.encode(value)))
 
   def delete(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
-    Right(SimpleFieldUpdate(position, OperatorCode.Assigment, encoder.encode(value)))
+    Right(SimpleFieldUpdate(position, OperatorCode.Deletion, encoder.encode(value)))
 
   def assign(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
     Right(SimpleFieldUpdate(position, OperatorCode.Assigment, encoder.encode(value)))
@@ -49,66 +48,39 @@ object TupleOps {
   implicit val messagePackTupleOps: TupleOps[Value] = new TupleOps[Value] {
     override val encoder: Encoder[Value] = Encoder[Value]
   }
-  implicit val byteTupleOps: TupleOps[Byte] = new TupleOps[Byte] {
-    override val encoder: Encoder[Byte] = Encoder[Byte]
+  private def numericTupleOps[A](enc: Encoder[A]): TupleOps[A] = new TupleOps[A] {
+    override val encoder: Encoder[A] = enc
+
+    override def plus(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
+      Right(SimpleFieldUpdate(position, OperatorCode.Addition, encoder.encode(value)))
+
+    override def minus(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
+      Right(SimpleFieldUpdate(position, OperatorCode.Subtraction, encoder.encode(value)))
+
+    override def or(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
+      Right(SimpleFieldUpdate(position, OperatorCode.Or, encoder.encode(value)))
+
+    override def and(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
+      Right(SimpleFieldUpdate(position, OperatorCode.And, encoder.encode(value)))
+
+    override def xor(position: Int, value: A): Either[TarantoolError, FieldUpdate] =
+      Right(SimpleFieldUpdate(position, OperatorCode.Xor, encoder.encode(value)))
+
     override def splice(
       position: Int,
       start: Int,
       length: Int,
-      value: Byte
+      value: A
     ): Either[TarantoolError, FieldUpdate] =
       Left(NotSupportedUpdateOperation("Not supported"))
   }
-  implicit val shortTupleOps: TupleOps[Short] = new TupleOps[Short] {
-    override val encoder: Encoder[Short] = Encoder[Short]
-    override def splice(
-      position: Int,
-      start: Int,
-      length: Int,
-      value: Short
-    ): Either[TarantoolError, FieldUpdate] =
-      Left(NotSupportedUpdateOperation("Not supported"))
-  }
-  implicit val intTupleOps: TupleOps[Int] = new TupleOps[Int] {
-    override val encoder: Encoder[Int] = Encoder[Int]
-    override def splice(
-      position: Int,
-      start: Int,
-      length: Int,
-      value: Int
-    ): Either[TarantoolError, FieldUpdate] =
-      Left(NotSupportedUpdateOperation("Not supported"))
-  }
-  implicit val longTupleOps: TupleOps[Long] = new TupleOps[Long] {
-    override val encoder: Encoder[Long] = Encoder[Long]
-    override def splice(
-      position: Int,
-      start: Int,
-      length: Int,
-      value: Long
-    ): Either[TarantoolError, FieldUpdate] =
-      Left(NotSupportedUpdateOperation("Not supported"))
-  }
-  implicit val floatTupleOps: TupleOps[Float] = new TupleOps[Float] {
-    override val encoder: Encoder[Float] = Encoder[Float]
-    override def splice(
-      position: Int,
-      start: Int,
-      length: Int,
-      value: Float
-    ): Either[TarantoolError, FieldUpdate] =
-      Left(NotSupportedUpdateOperation("Not supported"))
-  }
-  implicit val doubleTupleOps: TupleOps[Double] = new TupleOps[Double] {
-    override val encoder: Encoder[Double] = Encoder[Double]
-    override def splice(
-      position: Int,
-      start: Int,
-      length: Int,
-      value: Double
-    ): Either[TarantoolError, FieldUpdate] =
-      Left(NotSupportedUpdateOperation("Not supported"))
-  }
+
+  implicit val byteTupleOps: TupleOps[Byte] = numericTupleOps(Encoder[Byte])
+  implicit val shortTupleOps: TupleOps[Short] = numericTupleOps(Encoder[Short])
+  implicit val intTupleOps: TupleOps[Int] = numericTupleOps(Encoder[Int])
+  implicit val longTupleOps: TupleOps[Long] = numericTupleOps(Encoder[Long])
+  implicit val floatTupleOps: TupleOps[Float] = numericTupleOps(Encoder[Float])
+  implicit val doubleTupleOps: TupleOps[Double] = numericTupleOps(Encoder[Double])
   implicit val booleanTupleOps: TupleOps[Boolean] = new TupleOps[Boolean] {
     override val encoder: Encoder[Boolean] = Encoder[Boolean]
     override def splice(
