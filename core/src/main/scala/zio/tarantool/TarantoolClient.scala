@@ -1,7 +1,6 @@
 package zio.tarantool
 
-import zio._
-import zio.clock.Clock
+import _root_.zio._
 import zio.tarantool.api._
 import zio.tarantool.internal._
 import org.msgpack.value.Value
@@ -9,7 +8,7 @@ import zio.tarantool.protocol.TarantoolRequestBody._
 import zio.tarantool.protocol.{RequestCode, TarantoolRequest, TarantoolResponse}
 
 object TarantoolClient {
-  type TarantoolClient = Has[Service]
+  type TarantoolClient = Service
 
   trait Service extends Serializable {
     def ping(): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
@@ -21,11 +20,11 @@ object TarantoolClient {
     ): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
   }
 
-  def ping(): ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
-    ZIO.accessM[TarantoolClient](_.get.ping())
+  def ping(): ZIO[Service, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
+    ZIO.serviceWithZIO(_.ping())
 
-  def refreshMeta(): ZIO[TarantoolClient, TarantoolError, Unit] =
-    ZIO.accessM[TarantoolClient](_.get.refreshMeta())
+  def refreshMeta(): ZIO[Service, TarantoolError, Unit] =
+    ZIO.serviceWithZIO(_.refreshMeta())
 
   def select: SelectBuilder = SelectBuilder()
 
@@ -47,12 +46,12 @@ object TarantoolClient {
 
   def prepare: PrepareBuilder = PrepareBuilder()
 
-  val live: ZLayer[Has[TarantoolConfig] with Clock, TarantoolError, TarantoolClient] =
-    ZLayer.fromServiceManaged[TarantoolConfig, Clock, TarantoolError, Service] { cfg =>
-      make(cfg)
+  val live: ZLayer[TarantoolConfig with Clock, TarantoolError, Service] =
+    ZLayer.scoped {
+      ZIO.serviceWithZIO[TarantoolConfig](make)
     }
 
-  def make(config: TarantoolConfig): ZManaged[Clock, TarantoolError, Service] =
+  def make(config: TarantoolConfig): ZIO[Scope with Clock, TarantoolError, Service] =
     for {
       syncIdProvider <- SyncIdProvider.make()
       requestHandler <- RequestHandler.make()
@@ -60,7 +59,7 @@ object TarantoolClient {
       schemaMetaManager <- SchemaMetaManager.make(config, connection, syncIdProvider)
       _ <- ResponseHandler.make(connection, requestHandler)
       // fetch actual meta on start
-      _ <- ZIO.when(config.clientConfig.useSchemaMetaCache)(schemaMetaManager.refresh).toManaged_
+      _ <- ZIO.when(config.clientConfig.useSchemaMetaCache)(schemaMetaManager.refresh)
     } yield new Live(schemaMetaManager, connection, syncIdProvider)
 
   private[this] final class Live(
@@ -82,7 +81,7 @@ object TarantoolClient {
             ids <- resolveIndex(space, index)
             encodedKey <- key.encode
             body <- ZIO
-              .effect(selectBody(ids._1, ids._2, limit, offset, iterator, encodedKey))
+              .attempt(selectBody(ids._1, ids._2, limit, offset, iterator, encodedKey))
               .mapError(TarantoolError.CodecError)
             response <- send(RequestCode.Select, body)
           } yield response
@@ -91,7 +90,7 @@ object TarantoolClient {
           for {
             spaceId <- resolveSpace(space)
             encodedTuple <- tuple.encode
-            body <- ZIO.effect(insertBody(spaceId, encodedTuple)).mapError(TarantoolError.CodecError)
+            body <- ZIO.attempt(insertBody(spaceId, encodedTuple)).mapError(TarantoolError.CodecError)
             response <- send(RequestCode.Insert, body)
           } yield response
 
@@ -99,7 +98,7 @@ object TarantoolClient {
           for {
             spaceId <- resolveSpace(space)
             encodedTuple <- tuple.encode
-            body <- ZIO.effect(replaceBody(spaceId, encodedTuple)).mapError(TarantoolError.CodecError)
+            body <- ZIO.attempt(replaceBody(spaceId, encodedTuple)).mapError(TarantoolError.CodecError)
             response <- send(RequestCode.Replace, body)
           } yield response
 
@@ -107,7 +106,7 @@ object TarantoolClient {
           for {
             ids <- resolveIndex(space, index)
             encodedKey <- key.encode
-            body <- ZIO.effect(deleteBody(ids._1, ids._2, encodedKey)).mapError(TarantoolError.CodecError)
+            body <- ZIO.attempt(deleteBody(ids._1, ids._2, encodedKey)).mapError(TarantoolError.CodecError)
             response <- send(RequestCode.Delete, body)
           } yield response
 
@@ -116,7 +115,7 @@ object TarantoolClient {
             ids <- resolveIndex(space, index)
             encodedKey <- key.encode
             encodedOps <- ops.encode
-            body <- ZIO.effect(updateBody(ids._1, ids._2, encodedKey, encodedOps)).mapError(TarantoolError.CodecError)
+            body <- ZIO.attempt(updateBody(ids._1, ids._2, encodedKey, encodedOps)).mapError(TarantoolError.CodecError)
             response <- send(RequestCode.Update, body)
           } yield response
 
@@ -125,21 +124,23 @@ object TarantoolClient {
             ids <- resolveIndex(space, index)
             encodedOps <- ops.encode
             encodedTuple <- tuple.encode
-            body <- ZIO.effect(upsertBody(ids._1, ids._2, encodedOps, encodedTuple)).mapError(TarantoolError.CodecError)
+            body <- ZIO
+              .attempt(upsertBody(ids._1, ids._2, encodedOps, encodedTuple))
+              .mapError(TarantoolError.CodecError)
             response <- send(RequestCode.Upsert, body)
           } yield response
 
         case BuiltRequest.Call(functionName, args) =>
           for {
             encodedArgs <- args.encode
-            body <- ZIO.effect(callBody(functionName, encodedArgs)).mapError(TarantoolError.CodecError)
+            body <- ZIO.attempt(callBody(functionName, encodedArgs)).mapError(TarantoolError.CodecError)
             response <- send(RequestCode.Call, body)
           } yield response
 
         case BuiltRequest.Eval(expression, args) =>
           for {
             encodedArgs <- args.encode
-            body <- ZIO.effect(evalBody(expression, encodedArgs)).mapError(TarantoolError.CodecError)
+            body <- ZIO.attempt(evalBody(expression, encodedArgs)).mapError(TarantoolError.CodecError)
             response <- send(RequestCode.Eval, body)
           } yield response
 
@@ -147,7 +148,7 @@ object TarantoolClient {
           for {
             encodedBind <- sqlBind.encode
             encodedOptions <- options.encode
-            body <- ZIO.effect {
+            body <- ZIO.attempt {
               target match {
                 case BuiltRequest.ExecuteTarget.StatementId(id) =>
                   executeBody(id, encodedBind, encodedOptions)
@@ -160,7 +161,7 @@ object TarantoolClient {
 
         case BuiltRequest.Prepare(target) =>
           for {
-            body <- ZIO.effect {
+            body <- ZIO.attempt {
               target match {
                 case BuiltRequest.PrepareTarget.StatementId(id) => prepareBody(id)
                 case BuiltRequest.PrepareTarget.Sql(sql)        => prepareBody(sql)
@@ -172,18 +173,18 @@ object TarantoolClient {
 
     private def resolveSpace(space: SpaceRef): IO[TarantoolError, Int] =
       space match {
-        case SpaceRef.Id(id)     => IO.succeed(id)
+        case SpaceRef.Id(id)     => ZIO.succeed(id)
         case SpaceRef.Name(name) => schemaMetaManager.getSpaceMeta(name).map(_.spaceId)
       }
 
     private def resolveIndex(space: SpaceRef, index: IndexRef): IO[TarantoolError, (Int, Int)] =
       (space, index) match {
         case (SpaceRef.Id(spaceId), IndexRef.Id(indexId)) =>
-          IO.succeed((spaceId, indexId))
+          ZIO.succeed((spaceId, indexId))
         case (SpaceRef.Name(spaceName), IndexRef.Name(indexName)) =>
           schemaMetaManager.getIndexMeta(spaceName, indexName).map(meta => (meta.spaceId, meta.indexId))
         case (SpaceRef.Id(_), IndexRef.Name(_)) | (SpaceRef.Name(_), IndexRef.Id(_)) =>
-          IO.fail(
+          ZIO.fail(
             TarantoolError.IncompleteRequest(
               "Space and index must both be referenced by id or both by name"
             )

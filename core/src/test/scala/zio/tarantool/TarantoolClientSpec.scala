@@ -2,11 +2,11 @@ package zio.tarantool
 
 import java.time.Duration
 
-import zio._
-import zio.clock.Clock
-import zio.test._
-import zio.test.Assertion._
-import zio.test.TestAspect._
+import _root_.zio._
+import _root_.zio.Clock
+import _root_.zio.test._
+import _root_.zio.test.Assertion._
+import _root_.zio.test.TestAspect._
 import zio.tarantool.codec.auto._
 import zio.tarantool.codec.TupleOpsBuilder
 import zio.tarantool.data.{TestTuple, TestTupleKey}
@@ -18,21 +18,21 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
 
   final case class SumFunctionArgs(a: Int, b: Int)
 
-  private val eval = testM("eval") {
+  private val eval = test("eval") {
     for {
       operation <- TarantoolClient.eval.expression("return 123").run
       result <- awaitResponse(operation).flatMap(_.head[Int])
     } yield assert(result)(equalTo(123))
   }
 
-  private val call = testM("call") {
+  private val call = test("call") {
     for {
       operation <- TarantoolClient.call.function("sum").args(SumFunctionArgs(2, 5)).run
       result <- awaitResponse(operation).flatMap(_.head[Int])
     } yield assert(result)(equalTo(7))
   }
 
-  private val insert = testM("insert") {
+  private val insert = test("insert") {
     for {
       spaceId <- ZIO.service[Int]
       _ <- TarantoolClient.insert.into(spaceId).tuple(tuple).run
@@ -41,7 +41,7 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
     } yield assert(result)(equalTo(Vector(tuple)))
   }
 
-  private val upsert = testM("upsert") {
+  private val upsert = test("upsert") {
     for {
       spaceId <- ZIO.service[Int]
       ops <- TupleOpsBuilder[TestTuple].assign("f2", 321).assign("f3", 11).buildM()
@@ -55,7 +55,7 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
       assert(updatedValue)(equalTo(Vector(tuple.copy(f2 = 321, f3 = 11))))
   }
 
-  private val delete = testM("delete") {
+  private val delete = test("delete") {
     for {
       spaceId <- ZIO.service[Int]
       _ <- TarantoolClient.insert.into(spaceId).tuple(tuple).run
@@ -68,7 +68,7 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
       assert(deletedValue)(equalTo(Vector.empty))
   }
 
-  private val update = testM("update") {
+  private val update = test("update") {
     for {
       spaceId <- ZIO.service[Int]
       ops <- TupleOpsBuilder[TestTuple].assign("f2", 123).assign("f3", 321).buildM()
@@ -82,7 +82,7 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
       assert(updatedValue)(equalTo(Vector(tuple.copy(f2 = 123, f3 = 321))))
   }
 
-  private val replace = testM("replace") {
+  private val replace = test("replace") {
     for {
       spaceId <- ZIO.service[Int]
       _ <- TarantoolClient.insert.into(spaceId).tuple(tuple).run
@@ -96,7 +96,7 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
     )
   }
 
-  private val executeSqlStatement = testM("execute sql statement") {
+  private val executeSqlStatement = test("execute sql statement") {
     for {
       query1 <- TarantoolClient.execute
         .sql("CREATE TABLE table1 (column1 INTEGER PRIMARY KEY, column2 VARCHAR(100))")
@@ -109,7 +109,7 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
     } yield assert(true)(isTrue)
   }
 
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+  override def spec: Spec[TestEnvironment, Any] =
     (suite("TarantoolClient without schema meta cache")(
       eval,
       call,
@@ -119,21 +119,21 @@ object TarantoolClientSpec extends TarantoolBaseSpec {
       update,
       replace,
       executeSqlStatement
-    ) @@ sequential @@ after(truncateSpace())).provideCustomLayerShared(createSharedLayer())
+    ) @@ sequential @@ after(truncateSpace())).provideLayerShared(createSharedLayer())
 
   private def createSharedLayer() = {
     val client = tarantoolClientLayer
-    val clock = Clock.live
+    val clock = ZLayer.succeed[Clock](Clock.ClockLive)
 
-    val prepare = (for {
-      _ <- createSpace()
-      _ <- createFunction()
-      spaceId <- getSpaceId()
-    } yield spaceId)
-      .timeout(Duration.ofSeconds(5))
-      .flatMap(opt => ZIO.require(new RuntimeException("Error while getting space id"))(ZIO.succeed(opt)))
-      .toLayer
-      .orDie
+    val prepare: ZLayer[TarantoolClient.Service with Clock, Nothing, Int] = ZLayer.fromZIO {
+      (for {
+        _ <- createSpace()
+        _ <- createFunction()
+        spaceId <- getSpaceId()
+      } yield spaceId)
+        .timeout(Duration.ofSeconds(5))
+        .flatMap(opt => ZIO.fromOption(opt).orElseFail(new RuntimeException("Error while getting space id")))
+    }.orDie
 
     ((client ++ clock) >>> prepare) ++ client
   }

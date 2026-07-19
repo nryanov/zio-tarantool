@@ -1,7 +1,7 @@
 package zio.tarantool.internal
 
 import org.msgpack.value.Value
-import zio._
+import _root_.zio._
 import zio.tarantool.TarantoolError
 import zio.tarantool.protocol.TarantoolResponse.{TarantoolDataResponse, TarantoolEvalResponse}
 import zio.tarantool.protocol.{RequestCode, TarantoolOperation, TarantoolRequest, TarantoolResponse}
@@ -9,8 +9,6 @@ import zio.tarantool.protocol.{RequestCode, TarantoolOperation, TarantoolRequest
 import scala.collection.concurrent.TrieMap
 
 private[tarantool] object RequestHandler {
-  type RequestHandler = Has[Service]
-
   trait Service {
     private[tarantool] def sentRequests: Map[Long, TarantoolOperation]
 
@@ -25,33 +23,33 @@ private[tarantool] object RequestHandler {
 
   def submitRequest(
     request: TarantoolRequest
-  ): ZIO[RequestHandler, TarantoolError, TarantoolOperation] =
-    ZIO.accessM[RequestHandler](_.get.submitRequest(request))
+  ): ZIO[Service, TarantoolError, TarantoolOperation] =
+    ZIO.serviceWithZIO(_.submitRequest(request))
 
   def complete(
     syncId: Long,
     response: Value
-  ): ZIO[RequestHandler, TarantoolError, Unit] =
-    ZIO.accessM[RequestHandler](_.get.complete(syncId, response))
+  ): ZIO[Service, TarantoolError, Unit] =
+    ZIO.serviceWithZIO(_.complete(syncId, response))
 
   def fail(
     syncId: Long,
     reason: String,
     errorCode: Int
-  ): ZIO[RequestHandler, TarantoolError, Unit] =
-    ZIO.accessM[RequestHandler](_.get.fail(syncId, reason, errorCode))
+  ): ZIO[Service, TarantoolError, Unit] =
+    ZIO.serviceWithZIO(_.fail(syncId, reason, errorCode))
 
-  def close(
-  ): ZIO[RequestHandler, Nothing, Unit] =
-    ZIO.accessM[RequestHandler](_.get.close())
+  def close(): ZIO[Service, Nothing, Unit] =
+    ZIO.serviceWithZIO(_.close())
 
-  val live: ZLayer[Any, TarantoolError, RequestHandler] = make().toLayer
+  val live: ZLayer[Any, Nothing, Service] =
+    ZLayer.scoped(make())
 
-  def make(): ZManaged[Any, Nothing, Service] =
-    ZManaged.make(ZIO.succeed(new Live()))(_.close())
+  def make(): ZIO[Scope, Nothing, Service] =
+    ZIO.acquireRelease(ZIO.succeed(new Live()))(_.close())
 
-  private[tarantool] def sentRequests: ZIO[RequestHandler, Nothing, Map[Long, TarantoolOperation]] =
-    ZIO.access(_.get.sentRequests)
+  private[tarantool] def sentRequests: ZIO[Service, Nothing, Map[Long, TarantoolOperation]] =
+    ZIO.serviceWith(_.sentRequests)
 
   private[tarantool] class Live() extends Service {
     private val awaitingRequestMap: TrieMap[Long, TarantoolOperation] =
@@ -66,7 +64,7 @@ private[tarantool] object RequestHandler {
       for {
         response <- Promise.make[TarantoolError, TarantoolResponse]
         operation = TarantoolOperation(request, response)
-        notEmpty <- ZIO.effectTotal(awaitingRequestMap.put(request.syncId, operation).isDefined)
+        notEmpty <- ZIO.succeed(awaitingRequestMap.put(request.syncId, operation).isDefined)
         _ <- ZIO.when(notEmpty)(ZIO.fail(TarantoolError.DuplicateOperation(request.syncId)))
       } yield operation
 
@@ -91,9 +89,9 @@ private[tarantool] object RequestHandler {
       } yield ()
 
     override def close(): UIO[Unit] = ZIO
-      .foreach_(awaitingRequestMap.values)(op =>
+      .foreachDiscard(awaitingRequestMap.values)(op =>
         op.response.fail(TarantoolError.DeclinedOperation(op.request.syncId, op.request.operationCode))
       )
-      .zipLeft(IO.effectTotal(awaitingRequestMap.clear()))
+      .zipLeft(ZIO.succeed(awaitingRequestMap.clear()))
   }
 }

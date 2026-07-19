@@ -1,7 +1,7 @@
 package zio.tarantool.protocol
 
 import zio.tarantool.TarantoolError
-import zio.{Promise, UIO}
+import _root_.zio.{Promise, UIO}
 
 final case class TarantoolOperation(
   request: TarantoolRequest,

@@ -2,20 +2,20 @@ package zio.tarantool.protocol
 
 import org.msgpack.value.Value
 import org.msgpack.value.impl._
-import zio._
+import _root_.zio._
 import zio.tarantool.TarantoolError
 import zio.tarantool.TarantoolError.{CodecError, EmptyResultSet}
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.data.TestTuple
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.protocol.TarantoolResponse.{TarantoolDataResponse, TarantoolEvalResponse}
-import zio.test._
-import zio.test.Assertion._
-import zio.test.TestAspect.sequential
+import _root_.zio.test._
+import _root_.zio.test.Assertion._
+import _root_.zio.test.TestAspect.sequential
 
-object TarantoolResponseSpec extends DefaultRunnableSpec {
+object TarantoolResponseSpec extends ZIOSpecDefault {
   private val tarantoolEvalResponseResultSet =
-    testM("TarantoolEvalResponse should return resultSet") {
+    test("TarantoolEvalResponse should return resultSet") {
       val tuple = TestTuple("f1", 2, 3L)
 
       for {
@@ -26,7 +26,7 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
     }
 
   private val tarantoolEvalResponseEmptyResultSet =
-    testM("TarantoolEvalResponse should return empty resultSet") {
+    test("TarantoolEvalResponse should return empty resultSet") {
       val response = TarantoolEvalResponse(new ImmutableArrayValueImpl(Array.empty))
       for {
         resultSet <- response.resultSet[TestTuple]
@@ -34,7 +34,7 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
     }
 
   private val tarantoolEvalResponseHeadOption =
-    testM("TarantoolEvalResponse should return head option") {
+    test("TarantoolEvalResponse should return head option") {
       val tuple = TestTuple("f1", 2, 3L)
 
       for {
@@ -45,7 +45,7 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
     }
 
   private val tarantoolEvalResponseHead =
-    testM("TarantoolEvalResponse should return head") {
+    test("TarantoolEvalResponse should return head") {
       val tuple = TestTuple("f1", 2, 3L)
 
       for {
@@ -56,24 +56,24 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
     }
 
   private val tarantoolEvalResponseHeadEmptyResultSet =
-    testM("TarantoolEvalResponse should fail when head is called on an empty result set") {
+    test("TarantoolEvalResponse should fail when head is called on an empty result set") {
       val response = TarantoolEvalResponse(new ImmutableArrayValueImpl(Array.empty))
       for {
-        resultSet <- response.head[TestTuple].run
+        resultSet <- response.head[TestTuple].exit
       } yield assert(resultSet)(fails(equalTo(EmptyResultSet)))
     }
 
   private val tarantoolEvalResponseFailOnIncorrectMessagePack =
-    testM("TarantoolEvalResponse should fail on incorrect message pack type") {
+    test("TarantoolEvalResponse should fail on incorrect message pack type") {
       val response =
         TarantoolEvalResponse(new ImmutableArrayValueImpl(Array(new ImmutableLongValueImpl(1))))
       for {
-        resultSet <- response.resultSet[TestTuple].run
+        resultSet <- response.resultSet[TestTuple].exit
       } yield assert(resultSet)(fails(isSubtype[CodecError](anything)))
     }
 
   private val tarantoolDataResponseResultSet =
-    testM("TarantoolDataResponse should return resultSet") {
+    test("TarantoolDataResponse should return resultSet") {
       val tuple = TestTuple("f1", 2, 3L)
 
       for {
@@ -84,7 +84,7 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
     }
 
   private val tarantoolDataResponseEmptyResultSet =
-    testM("TarantoolDataResponse should return empty resultSet") {
+    test("TarantoolDataResponse should return empty resultSet") {
       val response = TarantoolDataResponse(new ImmutableArrayValueImpl(Array.empty))
       for {
         resultSet <- response.resultSet[TestTuple]
@@ -92,7 +92,7 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
     }
 
   private val tarantoolDataResponseHeadOption =
-    testM("TarantoolDataResponse should return head option") {
+    test("TarantoolDataResponse should return head option") {
       val tuple = TestTuple("f1", 2, 3L)
 
       for {
@@ -103,7 +103,7 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
     }
 
   private val tarantoolDataResponseHead =
-    testM("TarantoolEvalResponse should return head") {
+    test("TarantoolEvalResponse should return head") {
       val tuple = TestTuple("f1", 2, 3L)
 
       for {
@@ -114,15 +114,15 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
     }
 
   private val tarantoolDataResponseHeadEmptyResultSet =
-    testM("TarantoolDataResponse should fail when head is called on an empty result set") {
+    test("TarantoolDataResponse should fail when head is called on an empty result set") {
       val response = TarantoolDataResponse(new ImmutableArrayValueImpl(Array.empty))
       for {
-        resultSet <- response.head[TestTuple].run
+        resultSet <- response.head[TestTuple].exit
       } yield assert(resultSet)(fails(equalTo(EmptyResultSet)))
     }
 
   private val tarantoolDataResponseFailOnIncorrectMessagePack =
-    testM("TarantoolDataResponse should fail on incorrect message pack type") {
+    test("TarantoolDataResponse should fail on incorrect message pack type") {
       val response =
         TarantoolDataResponse(
           new ImmutableArrayValueImpl(
@@ -130,11 +130,11 @@ object TarantoolResponseSpec extends DefaultRunnableSpec {
           )
         )
       for {
-        resultSet <- response.resultSet[TestTuple].run
+        resultSet <- response.resultSet[TestTuple].exit
       } yield assert(resultSet)(fails(isSubtype[CodecError](anything)))
     }
 
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+  override def spec: Spec[TestEnvironment, Any] =
     suite("TarantoolResponse")(
       tarantoolEvalResponseResultSet,
       tarantoolEvalResponseEmptyResultSet,

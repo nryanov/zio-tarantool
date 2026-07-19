@@ -1,7 +1,7 @@
 package zio.tarantool.api
 
-import zio.{Promise, ZIO}
-import zio.tarantool.TarantoolClient.TarantoolClient
+import _root_.zio.{Promise, ZIO}
+import zio.tarantool.TarantoolClient
 import zio.tarantool.protocol.TarantoolResponse
 import zio.tarantool.TarantoolError
 
@@ -13,7 +13,7 @@ final case class PrepareBuilder private[api] (
   def statementId(statementId: Int): PrepareBuilder =
     copy(target = Some(BuiltRequest.PrepareTarget.StatementId(statementId)))
 
-  def run: ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
+  def run: ZIO[TarantoolClient.Service, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     for {
       target <- BuilderOps.require(target, "sql or statementId")
       response <- BuilderOps.run(BuiltRequest.Prepare(target))

@@ -1,8 +1,8 @@
 package zio.tarantool.api
 
 import org.msgpack.value.Value
-import zio.{Promise, ZIO}
-import zio.tarantool.TarantoolClient.TarantoolClient
+import _root_.zio.{Promise, ZIO}
+import zio.tarantool.TarantoolClient
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.protocol.{TarantoolResponse, UpdateOperations}
 import zio.tarantool.TarantoolError
@@ -29,7 +29,7 @@ final case class UpsertBuilder private[api] (
 
   def tuple[A: TupleEncoder](tuple: A): UpsertBuilder = copy(tuple = Some(MpValue.typed(tuple)))
 
-  def run: ZIO[TarantoolClient, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
+  def run: ZIO[TarantoolClient.Service, TarantoolError, Promise[TarantoolError, TarantoolResponse]] =
     for {
       space <- BuilderOps.require(space, "space")
       index <- BuilderOps.require(index, "index")

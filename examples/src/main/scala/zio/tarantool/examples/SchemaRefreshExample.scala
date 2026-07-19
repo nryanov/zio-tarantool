@@ -1,13 +1,11 @@
 package zio.tarantool.examples
 
-import zio._
-import zio.clock.Clock
-import zio.tarantool.TarantoolClient.TarantoolClient
+import _root_.zio._
 import zio.tarantool._
 import zio.tarantool.codec.auto._
 
-object SchemaRefreshExample extends zio.App {
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = (for {
+object SchemaRefreshExample extends ZIOAppDefault {
+  override def run: ZIO[Any, Any, Any] = (for {
     _ <- createSpace()
     _ <- TarantoolClient.refreshMeta()
     _ <- TarantoolClient.insert.into("newSpace").tuple((1, "value")).run
@@ -18,11 +16,11 @@ object SchemaRefreshExample extends zio.App {
       .limit(1)
       .run
       .flatMap(_.await.flatMap(_.head[(Int, String)]))
-    _ <- zio.console.putStrLn(s"Tuple: $tuple")
+    _ <- Console.printLine(s"Tuple: $tuple")
     _ <- TarantoolClient.eval.expression("box.space.newSpace:truncate()").run
-  } yield ExitCode.success).provideLayer(tarantoolLayer()).orDie
+  } yield ()).provideLayer(tarantoolLayer()).orDie
 
-  def createSpace(): ZIO[TarantoolClient, Throwable, Unit] = for {
+  def createSpace(): ZIO[TarantoolClient.Service, Throwable, Unit] = for {
     _ <- TarantoolClient.eval.expression("box.schema.create_space('newSpace', {if_not_exists = true})").run
     _ <- TarantoolClient.eval
       .expression(
@@ -34,6 +32,6 @@ object SchemaRefreshExample extends zio.App {
   def tarantoolLayer() = {
     val config = ZLayer.succeed(TarantoolConfig(host = "localhost", port = 3301))
 
-    (Clock.live ++ config) >>> TarantoolClient.live ++ zio.console.Console.live
+    (ZLayer.succeed[Clock](Clock.ClockLive) ++ config) >>> TarantoolClient.live
   }
 }

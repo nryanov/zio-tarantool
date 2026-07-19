@@ -1,15 +1,39 @@
-val zioVersion = "1.0.15"
-val shapelessVersion = "2.3.9"
-val msgpackVersion = "0.9.3"
-val testContainersVersion = "0.40.8"
-val logbackVersion = "1.2.11"
+val zioVersion = "2.1.26"
+val shapelessVersion = "2.3.12"
+val shapeless3Version = "3.6.0"
+val msgpackVersion = "0.9.8"
+val testContainersVersion = "0.44.1"
+val logbackVersion = "1.5.18"
 
-val scala2_12 = "2.12.15"
-val scala2_13 = "2.13.8"
+val scala2_12 = "2.12.20"
+val scala2_13 = "2.13.18"
+val scala3 = "3.3.6"
 
 val compileAndTest = "compile->compile;test->test"
 
-def compilerOptions(scalaVersion: String): Seq[String] = Seq(
+def compilerOptions(scalaVersion: String): Seq[String] =
+  CrossVersion.partialVersion(scalaVersion) match {
+    case Some((3, _)) =>
+      Seq(
+        "-deprecation",
+        "-unchecked",
+        "-encoding",
+        "UTF-8",
+        "-feature",
+        "-language:implicitConversions",
+        "-language:higherKinds",
+        "-Wunused:all",
+        "-Wvalue-discard"
+      )
+    case Some((2, 12)) =>
+      sharedScala2CompilerOptions ++ scala212CompilerOptions
+    case Some((2, 13)) =>
+      sharedScala2CompilerOptions ++ scala213CompilerOptions
+    case _ =>
+      Seq.empty
+  }
+
+lazy val sharedScala2CompilerOptions = Seq(
   "-deprecation",
   "-unchecked",
   "-encoding",
@@ -19,7 +43,6 @@ def compilerOptions(scalaVersion: String): Seq[String] = Seq(
   "-language:existentials",
   "-language:higherKinds",
   "-language:implicitConversions",
-  "-language:existentials",
   "-language:postfixOps",
   "-Ywarn-dead-code",
   "-Xlint",
@@ -27,11 +50,7 @@ def compilerOptions(scalaVersion: String): Seq[String] = Seq(
   "-Xlint:inaccessible",
   "-Xlint:nullary-unit",
   "-Xlint:type-parameter-shadow"
-//  "-Xlog-implicits"
-) ++ (CrossVersion.partialVersion(scalaVersion) match {
-  case Some((2, scalaMajor)) if scalaMajor == 12 => scala212CompilerOptions
-  case Some((2, scalaMajor)) if scalaMajor == 13 => scala213CompilerOptions
-})
+)
 
 lazy val scala212CompilerOptions = Seq(
   "-Yno-adapted-args",
@@ -90,17 +109,21 @@ lazy val buildSettings = Seq(
       url("https://nryanov.com")
     )
   ),
-  scalaVersion := scala2_13,
-  crossScalaVersions := Seq(scala2_12, scala2_13),
+  scalaVersion := scala3,
+  crossScalaVersions := Seq(scala2_12, scala2_13, scala3),
   scalacOptions ++= compilerOptions(scalaVersion.value),
   Test / parallelExecution := false
 )
 
 lazy val macroSettings: Seq[Setting[_]] = Seq(
-  libraryDependencies ++= Seq(
-    scalaOrganization.value % "scala-compiler" % scalaVersion.value % Provided,
-    scalaOrganization.value % "scala-reflect" % scalaVersion.value % Provided
-  )
+  libraryDependencies ++= {
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(scalaOrganization.value % "scala-reflect" % scalaVersion.value % Provided)
+      case _ =>
+        Seq.empty
+    }
+  }
 )
 
 lazy val allSettings = buildSettings
@@ -119,15 +142,23 @@ lazy val core = project
   .settings(macroSettings)
   .settings(
     moduleName := "zio-tarantool-core",
-    libraryDependencies ++= Seq(
-      "org.msgpack" % "msgpack-core" % msgpackVersion,
-      "com.chuusai" %% "shapeless" % shapelessVersion,
-      "dev.zio" %% "zio-streams" % zioVersion,
-      "dev.zio" %% "zio-test" % zioVersion % Test,
-      "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
-      "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test,
-      "ch.qos.logback" % "logback-classic" % logbackVersion % Test
-    ),
+    libraryDependencies ++= {
+      val shapelessDeps = CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, _)) =>
+          Seq("org.typelevel" %% "shapeless3-deriving" % shapeless3Version)
+        case _ =>
+          Seq("com.chuusai" %% "shapeless" % shapelessVersion)
+      }
+
+      shapelessDeps ++ Seq(
+        "org.msgpack" % "msgpack-core" % msgpackVersion,
+        "dev.zio" %% "zio-streams" % zioVersion,
+        "dev.zio" %% "zio-test" % zioVersion % Test,
+        "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
+        "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test,
+        "ch.qos.logback" % "logback-classic" % logbackVersion % Test
+      )
+    },
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
 

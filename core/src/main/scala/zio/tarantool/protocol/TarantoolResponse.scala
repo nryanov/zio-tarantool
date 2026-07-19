@@ -1,7 +1,7 @@
 package zio.tarantool.protocol
 
 import org.msgpack.value.Value
-import zio._
+import _root_.zio._
 import zio.tarantool.TarantoolError
 import zio.tarantool.TarantoolError.{CodecError, EmptyResultSet, ProtocolError}
 import zio.tarantool.codec.TupleEncoder
@@ -14,7 +14,10 @@ sealed trait TarantoolResponse {
   def resultSet[A: TupleEncoder]: IO[TarantoolError, Vector[A]]
 
   final def head[A: TupleEncoder]: IO[TarantoolError, A] =
-    headOption.flatMap(opt => IO.require(EmptyResultSet)(IO.succeed(opt)))
+    headOption.flatMap {
+      case Some(value) => ZIO.succeed(value)
+      case None        => ZIO.fail(EmptyResultSet)
+    }
 
   final def headOption[A: TupleEncoder]: IO[TarantoolError, Option[A]] =
     resultSet.map(_.headOption)
@@ -29,12 +32,12 @@ object TarantoolResponse {
       if (messagePack.isArrayValue) {
         val array = messagePack.asArrayValue()
         if (array.size() != 0) {
-          IO.effect(encoder.decode(array, 0)).mapBoth(err => CodecError(err), value => Vector(value))
+          ZIO.attempt(encoder.decode(array, 0)).mapBoth(err => CodecError(err), value => Vector(value))
         } else {
-          IO.succeed(Vector.empty)
+          ZIO.succeed(Vector.empty)
         }
       } else {
-        IO.fail(
+        ZIO.fail(
           ProtocolError(
             s"Unexpected tuple type. Expected MpArray, but got: ${messagePack.getValueType.name()}"
           )
@@ -51,7 +54,7 @@ object TarantoolResponse {
         val array = messagePack.asArrayValue()
         val buffer = mutable.ListBuffer[A]()
 
-        IO.effect {
+        ZIO.attempt {
           val iter = array.iterator()
 
           while (iter.hasNext) {
@@ -70,7 +73,7 @@ object TarantoolResponse {
           buffer.toVector
         }.mapError(CodecError)
       } else {
-        IO.fail(
+        ZIO.fail(
           ProtocolError(
             s"Unexpected tuple type. Expected MpArray, but got: ${messagePack.getValueType.name()}"
           )

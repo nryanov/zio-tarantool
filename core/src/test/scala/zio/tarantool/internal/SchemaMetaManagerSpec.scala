@@ -1,21 +1,21 @@
 package zio.tarantool.internal
 
-import zio.duration._
+import _root_.zio.durationInt
 import zio.tarantool.{BaseLayers, TarantoolError}
-import zio.test.{DefaultRunnableSpec, ZSpec, assert, assertM}
-import zio.test.Assertion._
-import zio.test.TestAspect._
+import _root_.zio.test._
+import _root_.zio.test.Assertion._
+import _root_.zio.test.TestAspect._
 
-object SchemaMetaManagerSpec extends DefaultRunnableSpec with BaseLayers {
+object SchemaMetaManagerSpec extends ZIOSpecDefault with BaseLayers {
   private val layer = responseHandlerLayer ++ schemaMetaManagerLayer
 
-  private val failIfSpaceNotFound = testM("should fail if space not found in cache") {
-    assertM(SchemaMetaManager.getSpaceMeta("some space").run)(
+  private val failIfSpaceNotFound = test("should fail if space not found in cache") {
+    assertZIO(SchemaMetaManager.getSpaceMeta("some space").exit)(
       fails(equalTo(TarantoolError.SpaceNotFound("some space")))
     )
   }
 
-  private val fetchSpaceAndIndex = testM("should fetch spaces and indexes") {
+  private val fetchSpaceAndIndex = test("should fetch spaces and indexes") {
     for {
       _ <- SchemaMetaManager.refresh()
       space <- SchemaMetaManager.getSpaceMeta("_vspace")
@@ -25,21 +25,21 @@ object SchemaMetaManagerSpec extends DefaultRunnableSpec with BaseLayers {
     )
   }
 
-  private val failIfIndexNotFound = testM("should fail if index not found in cache") {
+  private val failIfIndexNotFound = test("should fail if index not found in cache") {
     val result = for {
       _ <- SchemaMetaManager.refresh()
       _ <- SchemaMetaManager.getIndexMeta("_vspace", "notExistingIndex")
     } yield ()
 
-    assertM(result.run)(
+    assertZIO(result.exit)(
       fails(equalTo(TarantoolError.IndexNotFound("_vspace", "notExistingIndex")))
     )
   }
 
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+  override def spec: Spec[TestEnvironment, Any] =
     (suite("SchemaMetaManager spec")(
       failIfSpaceNotFound.provideLayer(layer.orDie),
       fetchSpaceAndIndex.provideLayer(layer.orDie),
       failIfIndexNotFound.provideLayer(layer.orDie)
-    ) @@ sequential @@ timeout(1 minute)).provideCustomLayerShared(tarantoolLayer)
+    ) @@ sequential @@ timeout(1.minute)).provideLayerShared(tarantoolLayer)
 }

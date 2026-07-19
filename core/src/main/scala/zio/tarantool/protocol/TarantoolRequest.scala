@@ -1,7 +1,7 @@
 package zio.tarantool.protocol
 
 import org.msgpack.value.Value
-import zio._
+import _root_.zio._
 import zio.tarantool.TarantoolError
 import zio.tarantool.codec.Encoder
 import zio.tarantool.protocol.Implicits._

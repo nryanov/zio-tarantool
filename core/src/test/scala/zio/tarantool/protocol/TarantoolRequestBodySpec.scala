@@ -1,11 +1,11 @@
 package zio.tarantool.protocol
 
 import org.msgpack.value.impl.{ImmutableArrayValueImpl, ImmutableLongValueImpl, ImmutableStringValueImpl}
-import zio.test._
-import zio.test.Assertion._
-import zio.test.TestAspect.sequential
+import _root_.zio.test._
+import _root_.zio.test.Assertion._
+import _root_.zio.test.TestAspect.sequential
 
-object TarantoolRequestBodySpec extends DefaultRunnableSpec {
+object TarantoolRequestBodySpec extends ZIOSpecDefault {
   private val createSelectBody = test("create select body") {
     val body = TarantoolRequestBody.selectBody(
       spaceId = 1,
@@ -264,7 +264,7 @@ object TarantoolRequestBodySpec extends DefaultRunnableSpec {
     assert(tuple.get(1).asBinaryValue().asByteArray().toSeq)(equalTo(scramble.toSeq))
   }
 
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+  override def spec: Spec[TestEnvironment, Any] =
     suite("TarantoolRequestBody")(
       createSelectBody,
       createInsertBody,

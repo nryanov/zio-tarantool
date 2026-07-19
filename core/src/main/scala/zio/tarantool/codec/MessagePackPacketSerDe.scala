@@ -2,14 +2,14 @@ package zio.tarantool.codec
 
 import org.msgpack.core.MessagePack
 import org.msgpack.value.Value
-import zio.{IO, ZIO}
+import _root_.zio.{IO, ZIO}
 import zio.tarantool.TarantoolError
 import zio.tarantool.protocol.MessagePackPacket
 
 object MessagePackPacketSerDe {
 
   def serialize(packet: MessagePackPacket): IO[TarantoolError.CodecError, Array[Byte]] =
-    ZIO.effect {
+    ZIO.attempt {
       val packer = MessagePack.newDefaultBufferPacker()
       val header = Encoder[Map[Long, Value]].encode(packet.header)
       val body = Encoder[Map[Long, Value]].encode(packet.body)

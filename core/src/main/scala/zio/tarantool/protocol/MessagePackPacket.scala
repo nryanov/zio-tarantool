@@ -4,7 +4,7 @@ import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
 import org.msgpack.value.Value
-import zio.{IO, ZIO}
+import _root_.zio.{IO, ZIO}
 import zio.tarantool.TarantoolError
 import zio.tarantool.protocol.Implicits._
 import zio.tarantool.TarantoolError.toIOError
@@ -30,23 +30,23 @@ object MessagePackPacket {
     new MessagePackPacket(header, Map.empty)
 
   def toBuffer(packet: MessagePackPacket): IO[TarantoolError, ByteBuffer] = for {
-    os <- ZIO.effectTotal(new ByteArrayOutputStream(InitialRequestSize))
+    os <- ZIO.succeed(new ByteArrayOutputStream(InitialRequestSize))
     encodedPacket <- MessagePackPacketSerDe.serialize(packet)
     size <- Encoder[Int].encodeM(encodedPacket.length)
     sizeMp <- size.serialize()
-    _ <- ZIO.effect(os.write(sizeMp)).refineOrDie(toIOError)
-    _ <- ZIO.effect(os.write(encodedPacket)).refineOrDie(toIOError)
+    _ <- ZIO.attempt(os.write(sizeMp)).refineOrDie(toIOError)
+    _ <- ZIO.attempt(os.write(encodedPacket)).refineOrDie(toIOError)
   } yield ByteBuffer.wrap(os.toByteArray)
 
   def responseType(packet: MessagePackPacket): IO[TarantoolError, ResponseType] =
     packet.body match {
-      case mp if mp.contains(ResponseBodyKey.Data.value)    => IO.succeed(ResponseType.DataResponse)
-      case mp if mp.contains(ResponseBodyKey.SqlInfo.value) => IO.succeed(ResponseType.SqlResponse)
+      case mp if mp.contains(ResponseBodyKey.Data.value)    => ZIO.succeed(ResponseType.DataResponse)
+      case mp if mp.contains(ResponseBodyKey.SqlInfo.value) => ZIO.succeed(ResponseType.SqlResponse)
       case mp if mp.contains(ResponseBodyKey.Error24.value) =>
-        IO.succeed(ResponseType.ErrorResponse)
-      case mp if mp.contains(ResponseBodyKey.Error.value) => IO.succeed(ResponseType.ErrorResponse)
-      case mp if mp.isEmpty                               => IO.succeed(ResponseType.PingResponse)
-      case _                                              => IO.fail(TarantoolError.UnknownResponseCode(packet))
+        ZIO.succeed(ResponseType.ErrorResponse)
+      case mp if mp.contains(ResponseBodyKey.Error.value) => ZIO.succeed(ResponseType.ErrorResponse)
+      case mp if mp.isEmpty                               => ZIO.succeed(ResponseType.PingResponse)
+      case _                                              => ZIO.fail(TarantoolError.UnknownResponseCode(packet))
     }
 
   def extractCode(packet: MessagePackPacket): IO[TarantoolError, ResponseCode] = for {
