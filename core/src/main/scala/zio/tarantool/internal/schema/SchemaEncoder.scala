@@ -3,7 +3,8 @@ package zio.tarantool.internal.schema
 import org.msgpack.value.{ArrayValue, MapValue, Value}
 import org.msgpack.value.impl.{ImmutableBooleanValueImpl, ImmutableNilValueImpl}
 import zio.tarantool.codec.{Encoder, TupleEncoder}
-import zio.tarantool.internal.schema.IndexPartMeta.{FullIndexPartMeta, SimpleIndexPartMeta}
+import zio.tarantool.schema.IndexPartMeta.{FullIndexPartMeta, SimpleIndexPartMeta}
+import zio.tarantool.schema._
 
 private[tarantool] object SchemaEncoder {
   private val empty = Vector(ImmutableNilValueImpl.get())

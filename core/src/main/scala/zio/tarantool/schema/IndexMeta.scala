@@ -1,6 +1,6 @@
-package zio.tarantool.internal.schema
+package zio.tarantool.schema
 
-private[tarantool] final case class IndexMeta(
+final case class IndexMeta(
   spaceId: Int,
   indexId: Int,
   indexName: String,

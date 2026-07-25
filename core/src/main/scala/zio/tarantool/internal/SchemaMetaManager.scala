@@ -5,7 +5,7 @@ import org.msgpack.value.impl.ImmutableArrayValueImpl
 import _root_.zio._
 import zio.tarantool.protocol._
 import zio.tarantool.internal.schema.SchemaEncoder._
-import zio.tarantool.internal.schema.{IndexMeta, SpaceMeta}
+import zio.tarantool.schema.{IndexMeta, SpaceMeta}
 import zio.tarantool.TarantoolError.{IndexNotFound, SpaceNotFound}
 import zio.tarantool.{TarantoolConfig, TarantoolError}
 

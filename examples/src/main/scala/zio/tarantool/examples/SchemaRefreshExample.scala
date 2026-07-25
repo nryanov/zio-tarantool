@@ -3,11 +3,17 @@ package zio.tarantool.examples
 import _root_.zio._
 import zio.tarantool._
 import zio.tarantool.codec.auto._
+import zio.tarantool.schema.IndexPart.ByPosition
 
 object SchemaRefreshExample extends ZIOAppDefault {
   override def run: ZIO[Any, Any, Any] = (for {
-    _ <- createSpace()
-    _ <- TarantoolClient.refreshMeta()
+    _ <- TarantoolClient.schema.createSpace("newSpace").ifNotExists(true).run
+    _ <- TarantoolClient.schema
+      .createIndex("newSpace", "primary")
+      .unique(true)
+      .ifNotExists(true)
+      .parts(ByPosition(1, "number"))
+      .run
     _ <- TarantoolClient.insert.into("newSpace").tuple((1, "value")).run
     tuple <- TarantoolClient.select
       .from("newSpace")
@@ -17,17 +23,8 @@ object SchemaRefreshExample extends ZIOAppDefault {
       .run
       .flatMap(_.await.flatMap(_.head[(Int, String)]))
     _ <- Console.printLine(s"Tuple: $tuple")
-    _ <- TarantoolClient.eval.expression("box.space.newSpace:truncate()").run
+    _ <- TarantoolClient.schema.truncate("newSpace").run
   } yield ()).provideLayer(tarantoolLayer()).orDie
-
-  def createSpace(): ZIO[TarantoolClient.Service, Throwable, Unit] = for {
-    _ <- TarantoolClient.eval.expression("box.schema.create_space('newSpace', {if_not_exists = true})").run
-    _ <- TarantoolClient.eval
-      .expression(
-        "box.space.newSpace:create_index('primary', {if_not_exists = true, unique = true, parts = {1, 'number'} })"
-      )
-      .run
-  } yield ()
 
   def tarantoolLayer() = {
     val config = ZLayer.succeed(TarantoolConfig(host = "localhost", port = 3301))

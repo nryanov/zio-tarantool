@@ -85,10 +85,9 @@ object TarantoolClientWithSchemaSpec extends TarantoolBaseSpec {
     val clock = ZLayer.succeed[Clock](Clock.ClockLive)
 
     val prepare: ZLayer[TarantoolClient.Service with Clock, Nothing, Unit] = ZLayer.fromZIO {
-      (for {
-        _ <- createSpace()
-        _ <- TarantoolClient.refreshMeta()
-      } yield ()).timeout(Duration.ofSeconds(30)).someOrFail(new RuntimeException("Error while preparing schema suite"))
+      createSpace()
+        .timeout(Duration.ofSeconds(30))
+        .someOrFail(new RuntimeException("Error while preparing schema suite"))
     }.orDie
 
     ((client ++ clock) >>> prepare) ++ client
