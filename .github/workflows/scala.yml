@@ -8,6 +8,11 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
 jobs:
   scalafmt:
     name: scalafmt
@@ -59,3 +64,57 @@ jobs:
 
       - name: Run tests
         run: sbt ++${{ matrix.scala }} test
+
+      - name: Convert JUnit XML to CTRF
+        if: always()
+        run: |
+          mkdir -p ctrf
+          npx junit-to-ctrf "core/target/test-reports/*.xml" \
+            -o ctrf/ctrf-report.json -t sbt
+
+      - name: Upload CTRF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctrf-${{ matrix.scala }}
+          path: ctrf/ctrf-report.json
+          if-no-files-found: ignore
+
+      - name: Publish job summary
+        if: always()
+        uses: ctrf-io/github-test-reporter@v1
+        with:
+          report-path: './ctrf/ctrf-report.json'
+          title: 'Scala ${{ matrix.scala }}'
+          github-report: true
+          failed-report: true
+          annotate: true
+          exit-on-no-files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  report:
+    name: Test report
+    needs: validate
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download CTRF artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ctrf-*
+          path: ctrf-all
+          merge-multiple: false
+
+      - name: Publish aggregated PR report
+        uses: ctrf-io/github-test-reporter@v1
+        with:
+          report-path: 'ctrf-all/**/*.json'
+          title: 'All Scala versions'
+          pull-request-report: ${{ github.event_name == 'pull_request' }}
+          failed-report: true
+          overwrite-comment: true
+          comment-tag: ctrf-all-scala
+          exit-on-no-files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

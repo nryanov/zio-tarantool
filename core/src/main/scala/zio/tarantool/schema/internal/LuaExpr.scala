@@ -73,12 +73,10 @@ private[schema] object LuaExpr {
       .replace("\t", "\\t") + "'"
 
   private def renderFormat(format: List[FieldFormat]): String =
-    format
-      .map { f =>
-        val nullable = if (f.isNullable) ", is_nullable = true" else ""
-        s"{name = ${str(f.name)}, type = ${str(f.fieldType)}$nullable}"
-      }
-      .mkString("{", ", ", "}")
+    format.map { f =>
+      val nullable = if (f.isNullable) ", is_nullable = true" else ""
+      s"{name = ${str(f.name)}, type = ${str(f.fieldType)}$nullable}"
+    }.mkString("{", ", ", "}")
 
   private def renderPart(part: IndexPart): String =
     part match {

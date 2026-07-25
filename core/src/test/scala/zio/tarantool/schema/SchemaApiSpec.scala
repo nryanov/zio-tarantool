@@ -13,10 +13,7 @@ object SchemaApiSpec extends TarantoolBaseSpec {
   private val createAndUseByName =
     test("create space and index then use name-based CRUD without manual refresh") {
       for {
-        _ <- TarantoolClient.schema
-          .createSpace(spaceName)
-          .ifNotExists(true)
-          .run
+        _ <- TarantoolClient.schema.createSpace(spaceName).ifNotExists(true).run
         _ <- TarantoolClient.schema
           .createIndex(spaceName, "primary")
           .unique(true)
@@ -26,12 +23,7 @@ object SchemaApiSpec extends TarantoolBaseSpec {
         meta <- TarantoolClient.schema.spaceMeta(spaceName)
         index <- TarantoolClient.schema.indexMeta(spaceName, "primary")
         _ <- TarantoolClient.insert.into(spaceName).tuple(("key1", 1)).run
-        select <- TarantoolClient.select
-          .from(spaceName)
-          .index("primary")
-          .key(Tuple1("key1"))
-          .limit(1)
-          .run
+        select <- TarantoolClient.select.from(spaceName).index("primary").key(Tuple1("key1")).limit(1).run
         result <- awaitResponseData[(String, Int)](select)
       } yield assertTrue(meta.spaceName == spaceName) &&
         assertTrue(index.indexName == "primary") &&
@@ -50,12 +42,7 @@ object SchemaApiSpec extends TarantoolBaseSpec {
           .run
         _ <- TarantoolClient.insert.into(spaceName).tuple(("key1", 1)).run
         _ <- TarantoolClient.schema.truncate(spaceName).run
-        select <- TarantoolClient.select
-          .from(spaceName)
-          .index("primary")
-          .key(Tuple1("key1"))
-          .limit(1)
-          .run
+        select <- TarantoolClient.select.from(spaceName).index("primary").key(Tuple1("key1")).limit(1).run
         result <- awaitResponseHeadOption[(String, Int)](select)
       } yield assert(result)(isNone)
     }
