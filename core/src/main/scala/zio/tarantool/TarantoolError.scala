@@ -24,6 +24,10 @@ object TarantoolError {
   final case class Timeout(message: String) extends TarantoolError(message, null)
   final case class UnknownResponseCode(mp: MessagePackPacket) extends TarantoolError("Unknown response code", null)
 
+  final case class ConnectionLost(reason: String) extends TarantoolError(s"Connection lost: $reason", null)
+  final case class ReconnectFailed(cause: TarantoolError)
+      extends TarantoolError(s"Reconnect failed: ${cause.getMessage}", cause)
+
   final case class OperationException(reason: String, errorCode: Int)
       extends TarantoolError(s"[$errorCode] $reason", null)
   final case class NotFoundOperation(syncId: Long) extends TarantoolError(syncId.toString, null)

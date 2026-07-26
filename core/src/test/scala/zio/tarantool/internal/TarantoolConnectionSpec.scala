@@ -6,7 +6,7 @@ import _root_.zio.durationInt
 import _root_.zio.Clock
 import zio.tarantool.TarantoolError.AuthError
 import zio.tarantool.{AuthInfo, BaseLayers, TarantoolConfig, TarantoolError}
-import zio.tarantool.protocol.{MessagePackPacket, RequestCode, ResponseCode, ResponseType, TarantoolRequest}
+import zio.tarantool.protocol.{RequestCode, ResponseCode, TarantoolRequest, TarantoolResponse}
 import _root_.zio.test._
 import _root_.zio.test.Assertion._
 import _root_.zio.test.TestAspect.{sequential, timeout}
@@ -15,11 +15,9 @@ object TarantoolConnectionSpec extends ZIOSpecDefault with BaseLayers {
   private val connectAndCommunicate =
     test("Create new connection then send and receive message") {
       for {
-        _ <- TarantoolConnection.sendRequest(TarantoolRequest(RequestCode.Ping, 1, Map.empty))
-        responseOpt <- TarantoolConnection.receive().take(1).runHead
-        response <- ZIO.fromOption(responseOpt)
-        responseType <- MessagePackPacket.responseType(response)
-      } yield assertTrue(responseType == ResponseType.PingResponse)
+        operation <- TarantoolConnection.sendRequest(TarantoolRequest(RequestCode.Ping, 1, Map.empty))
+        response <- operation.response.await
+      } yield assertTrue(response.isInstanceOf[TarantoolResponse.TarantoolDataResponse])
     }
 
   private val failOnIncorrectAuthInfo = test("fail on incorrect auth info") {

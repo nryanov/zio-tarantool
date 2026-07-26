@@ -7,7 +7,7 @@ import _root_.zio.test.Assertion._
 import _root_.zio.test.TestAspect._
 
 object SchemaMetaManagerSpec extends ZIOSpecDefault with BaseLayers {
-  private val layer = responseHandlerLayer ++ schemaMetaManagerLayer
+  private val layer = schemaMetaManagerLayer
 
   private val failIfSpaceNotFound = test("should fail if space not found in cache") {
     assertZIO(SchemaMetaManager.getSpaceMeta("some space").exit)(

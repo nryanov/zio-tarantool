@@ -18,6 +18,8 @@ private[tarantool] object RequestHandler {
 
     def fail(syncId: Long, reason: String, errorCode: Int): IO[TarantoolError, Unit]
 
+    def failAll(error: TarantoolError): UIO[Unit]
+
     def close(): UIO[Unit]
   }
 
@@ -38,6 +40,9 @@ private[tarantool] object RequestHandler {
     errorCode: Int
   ): ZIO[Service, TarantoolError, Unit] =
     ZIO.serviceWithZIO(_.fail(syncId, reason, errorCode))
+
+  def failAll(error: TarantoolError): ZIO[Service, Nothing, Unit] =
+    ZIO.serviceWithZIO(_.failAll(error))
 
   def close(): ZIO[Service, Nothing, Unit] =
     ZIO.serviceWithZIO(_.close())
@@ -88,10 +93,16 @@ private[tarantool] object RequestHandler {
         _ <- operation.response.fail(TarantoolError.OperationException(reason, errorCode))
       } yield ()
 
-    override def close(): UIO[Unit] = ZIO
-      .foreachDiscard(awaitingRequestMap.values)(op =>
-        op.response.fail(TarantoolError.DeclinedOperation(op.request.syncId, op.request.operationCode))
-      )
-      .zipLeft(ZIO.succeed(awaitingRequestMap.clear()))
+    override def failAll(error: TarantoolError): UIO[Unit] =
+      ZIO
+        .foreachDiscard(awaitingRequestMap.values)(op => op.response.fail(error))
+        .zipLeft(ZIO.succeed(awaitingRequestMap.clear()))
+
+    override def close(): UIO[Unit] =
+      ZIO
+        .foreachDiscard(awaitingRequestMap.values)(op =>
+          op.response.fail(TarantoolError.DeclinedOperation(op.request.syncId, op.request.operationCode))
+        )
+        .zipLeft(ZIO.succeed(awaitingRequestMap.clear()))
   }
 }

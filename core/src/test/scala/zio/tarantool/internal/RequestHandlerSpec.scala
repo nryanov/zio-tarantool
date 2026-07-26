@@ -91,6 +91,22 @@ object RequestHandlerSpec extends ZIOSpecDefault with BaseLayers {
             assert(Seq(doneStatus1, doneStatus2, doneStatus3).forall(!_.isSuccess))(isTrue)
 
         result.provideLayer(requestHandlerLayer)
+      },
+      test("should failAll in-flight requests with given error") {
+        val lost = TarantoolError.ConnectionLost("test")
+        val result =
+          for {
+            op1 <- RequestHandler.submitRequest(request)
+            op2 <- RequestHandler.submitRequest(request.copy(syncId = 2L))
+            _ <- RequestHandler.failAll(lost)
+            emptyRequests <- RequestHandler.sentRequests
+            err1 <- op1.response.await.flip
+            err2 <- op2.response.await.flip
+          } yield assert(emptyRequests.size)(equalTo(0)) &&
+            assert(err1)(equalTo(lost)) &&
+            assert(err2)(equalTo(lost))
+
+        result.provideLayer(requestHandlerLayer)
       }
     ) @@ sequential @@ timeout(5.seconds)
 }

@@ -61,9 +61,6 @@ trait BaseLayers {
       Clock.ClockLive
     )) >>> SchemaMetaManager.live
 
-  val responseHandlerLayer: ZLayer[Any, Throwable, ResponseHandler.Service] =
-    (tarantoolConnectionLayer ++ requestHandlerLayer) >>> ResponseHandler.live
-
   val tarantoolClientLayer: ZLayer[Any, Nothing, TarantoolClient.Service] =
     ((ZLayer.succeed[Clock](Clock.ClockLive) ++ configLayer) >>> TarantoolClient.live).orDie
 
