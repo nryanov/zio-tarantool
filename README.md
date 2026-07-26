@@ -98,10 +98,12 @@ Operations use fluent builders ending in `.run`:
 - `execute.sql(...).run` / `execute.statementId(...).run` -- execute an SQL statement
 - `prepare.sql(...).run` / `prepare.statementId(...).run` -- prepare an SQL statement
 - `refreshMeta` -- force schema cache update
+- `schema.createSpace` / `schema.createIndex` / `schema.dropSpace` / `schema.dropIndex` / `schema.truncate` -- DDL helpers (see [Schema](#schema))
+- `schema.spaceMeta` / `schema.indexMeta` -- read cached space/index metadata
 
 Space and index can be referenced by name (schema cache) or by numeric id. Select defaults: `offset = 0`, `iterator = Eq`.
 
-All operations return `Promise[TarantoolError, TarantoolResponse]`. `TarantoolResponse` has methods for accessing the actual data:
+CRUD/call/eval/SQL operations return `Promise[TarantoolError, TarantoolResponse]`. Schema DDL builders return `ZIO[..., Unit]` (they await and refresh the schema cache). `TarantoolResponse` has methods for accessing the actual data:
 - `resultSet[A]`
 - `head[A]`
 - `headOption[A]`
@@ -111,10 +113,34 @@ Type parameter `A` with implicit `TupleEncoder[A]` is needed to be able to decod
 
 ## Schema
 If `ClientConfig.useSchemaMetaCache` is set to `true` then space and index metas will be stored in in-memory cache.
-This info will be used in cases where space name and index name are passed instead of their ids. 
+This info will be used in cases where space name and index name are passed instead of their ids.
 
 Schema will be fetched at the beginning after connection is established, but there is an option to force update it.
-To update the schema cache use `TarantoolClient.refreshMeta`.
+To update the schema cache use `TarantoolClient.refreshMeta` or `TarantoolClient.schema.refresh()`.
+
+DDL helpers under `TarantoolClient.schema` generate Lua and run it via `eval`, then refresh the schema cache automatically:
+
+```scala
+import zio.tarantool.schema.FieldFormat
+import zio.tarantool.schema.IndexPart.ByPosition
+
+for {
+  _ <- TarantoolClient.schema
+         .createSpace("users")
+         .ifNotExists(true)
+         .format(FieldFormat("id", "unsigned"), FieldFormat("name", "string"))
+         .run
+  _ <- TarantoolClient.schema
+         .createIndex("users", "primary")
+         .unique(true)
+         .ifNotExists(true)
+         .parts(ByPosition(1, "unsigned"))
+         .run
+  meta <- TarantoolClient.schema.spaceMeta("users")
+} yield meta
+```
+
+Also available: `dropSpace`, `dropIndex`, `truncate`.
 
 ## Codecs
 The core encoder type class is `TupleEncoder[A]`. 

@@ -5,6 +5,7 @@ import _root_.zio.Clock
 import _root_.zio.durationInt
 import zio.tarantool.codec.TupleEncoder
 import zio.tarantool.protocol.TarantoolResponse
+import zio.tarantool.schema.IndexPart.ByPosition
 import _root_.zio.test.ZIOSpecDefault
 
 trait TarantoolBaseSpec extends ZIOSpecDefault with BaseLayers {
@@ -24,13 +25,15 @@ trait TarantoolBaseSpec extends ZIOSpecDefault with BaseLayers {
     awaitResponse(operation).flatMap(_.resultSet[A])
 
   def createSpace(): ZIO[TarantoolClient.Service, Throwable, Unit] =
-    TarantoolClient.eval
-      .expression("""
-        box.schema.create_space('test', {if_not_exists = true})
-        box.space.test:create_index('primary', {if_not_exists = true, unique = true, parts = {1, 'string'}})
-      """)
-      .run
-      .flatMap(_.await.unit)
+    for {
+      _ <- TarantoolClient.schema.createSpace("test").ifNotExists(true).run
+      _ <- TarantoolClient.schema
+        .createIndex("test", "primary")
+        .unique(true)
+        .ifNotExists(true)
+        .parts(ByPosition(1, "string"))
+        .run
+    } yield ()
 
   def createFunction() = for {
     r1 <- TarantoolClient.eval
@@ -43,5 +46,5 @@ trait TarantoolBaseSpec extends ZIOSpecDefault with BaseLayers {
     TarantoolClient.eval.expression("return box.space.test.id").run.flatMap(_.await.flatMap(_.head[Int]))
 
   def truncateSpace(): ZIO[TarantoolClient.Service, Throwable, Unit] =
-    TarantoolClient.eval.expression("if box.space.test then box.space.test:truncate() end").run.flatMap(_.await.unit)
+    TarantoolClient.schema.truncate("test").run
 }

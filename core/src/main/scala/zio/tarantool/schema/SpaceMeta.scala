@@ -1,6 +1,6 @@
-package zio.tarantool.internal.schema
+package zio.tarantool.schema
 
-private[tarantool] final case class SpaceMeta(
+final case class SpaceMeta(
   spaceId: Int,
   spaceName: String,
   engine: String,
@@ -11,12 +11,12 @@ private[tarantool] final case class SpaceMeta(
   def withIndexes(indexes: Map[String, IndexMeta]): SpaceMeta = this.copy(indexes = indexes)
 }
 
-private[tarantool] object SpaceMeta {
+object SpaceMeta {
   def apply(
     spaceId: Int,
     spaceName: String,
     engine: String,
     spaceOptions: SpaceOptions,
     fieldFormat: List[FieldMeta]
-  ): SpaceMeta = new SpaceMeta(spaceId, spaceName, engine, spaceOptions, fieldFormat, Map.empty)
+  ): SpaceMeta = SpaceMeta(spaceId, spaceName, engine, spaceOptions, fieldFormat, Map.empty)
 }

@@ -6,6 +6,7 @@ import zio.tarantool.internal._
 import org.msgpack.value.Value
 import zio.tarantool.protocol.TarantoolRequestBody._
 import zio.tarantool.protocol.{RequestCode, TarantoolRequest, TarantoolResponse}
+import zio.tarantool.schema.{IndexMeta, SchemaApi, SpaceMeta}
 
 object TarantoolClient {
   type TarantoolClient = Service
@@ -14,6 +15,10 @@ object TarantoolClient {
     def ping(): IO[TarantoolError, Promise[TarantoolError, TarantoolResponse]]
 
     def refreshMeta(): IO[TarantoolError, Unit]
+
+    def spaceMeta(name: String): IO[TarantoolError, SpaceMeta]
+
+    def indexMeta(space: String, index: String): IO[TarantoolError, IndexMeta]
 
     private[tarantool] def execute(
       request: BuiltRequest
@@ -25,6 +30,8 @@ object TarantoolClient {
 
   def refreshMeta(): ZIO[Service, TarantoolError, Unit] =
     ZIO.serviceWithZIO(_.refreshMeta())
+
+  def schema: SchemaApi.type = SchemaApi
 
   def select: SelectBuilder = SelectBuilder()
 
@@ -71,6 +78,12 @@ object TarantoolClient {
       send(RequestCode.Ping, Map.empty)
 
     override def refreshMeta(): IO[TarantoolError, Unit] = schemaMetaManager.refresh
+
+    override def spaceMeta(name: String): IO[TarantoolError, SpaceMeta] =
+      schemaMetaManager.getSpaceMeta(name)
+
+    override def indexMeta(space: String, index: String): IO[TarantoolError, IndexMeta] =
+      schemaMetaManager.getIndexMeta(space, index)
 
     override def execute(
       request: BuiltRequest
