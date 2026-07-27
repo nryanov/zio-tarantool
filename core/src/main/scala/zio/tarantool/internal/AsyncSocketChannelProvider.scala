@@ -52,6 +52,9 @@ private[tarantool] class AsyncSocketChannelProvider(
         }
       }
       .unit
+
+  def close(): UIO[Unit] =
+    ZIO.attempt(channel.close()).ignore
 }
 
 private[tarantool] object AsyncSocketChannelProvider {
@@ -74,9 +77,23 @@ private[tarantool] object AsyncSocketChannelProvider {
     channel: AsyncSocketChannelProvider
   )
 
+  /** Initial connect with retries; caller must close the channel (e.g. via Scope finalizer). */
   def connect(
     cfg: TarantoolConfig
-  ): ZIO[Scope with Clock, TarantoolError, OpenChannel] =
+  ): ZIO[Clock, TarantoolError, OpenChannel] =
+    open(cfg).retry(
+      Schedule.recurs(cfg.connectionConfig.retries) && Schedule.spaced(cfg.connectionConfig.retryTimeoutMillis.millis)
+    )
+
+  /** Single connect attempt (used by runtime reconnect). */
+  def connectOnce(
+    cfg: TarantoolConfig
+  ): ZIO[Clock, TarantoolError, OpenChannel] =
+    open(cfg)
+
+  private def open(
+    cfg: TarantoolConfig
+  ): ZIO[Clock, TarantoolError, OpenChannel] =
     (for {
       address <- ZIO.succeed(new InetSocketAddress(cfg.connectionConfig.host, cfg.connectionConfig.port))
       makeBuffer = ZIO.succeed(ByteBuffer.allocateDirect(1024))
@@ -84,33 +101,27 @@ private[tarantool] object AsyncSocketChannelProvider {
       writeBuffer <- makeBuffer
       channel <- openChannel(address)
         .timeout(cfg.connectionConfig.connectionTimeoutMillis.millis)
-        .retry(
-          Schedule.recurs(cfg.connectionConfig.retries) && Schedule
-            .spaced(cfg.connectionConfig.retryTimeoutMillis.millis)
-        )
         .flatMap(opt => ZIO.fromEither(opt.toRight(new ConnectException("Connection time out"))))
 
       provider = new AsyncSocketChannelProvider(readBuffer, writeBuffer, channel)
-      greeting <- provider.read.take(GreetingLength).runCollect
+      greeting <- provider.read.take(GreetingLength).runCollect.tapError(_ => provider.close())
 
       (version, salt) = greeting.toArray.splitAt(ProtocolVersionLength)
 
-    } yield OpenChannel(new String(version), salt.take(SaltLength), provider)).mapError(TarantoolError.IOError)
+    } yield OpenChannel(new String(version), salt.take(SaltLength), provider)).mapError(TarantoolError.IOError.apply)
 
   def openChannel(
     address: SocketAddress
-  ): ZIO[Scope, IOException, AsynchronousSocketChannel] =
-    ZIO.fromAutoCloseable {
-      for {
-        channel <- ZIO.attempt {
-          val channel = AsynchronousSocketChannel.open()
-          channel.setOption(StandardSocketOptions.SO_KEEPALIVE, Boolean.box(true))
-          channel.setOption(StandardSocketOptions.TCP_NODELAY, Boolean.box(true))
-          channel
-        }
-        _ <- completeWith[Void](channel)(channel.connect(address, null, _))
-      } yield channel
-    }.refineToOrDie[IOException]
+  ): IO[IOException, AsynchronousSocketChannel] =
+    (for {
+      channel <- ZIO.attempt {
+        val channel = AsynchronousSocketChannel.open()
+        channel.setOption(StandardSocketOptions.SO_KEEPALIVE, Boolean.box(true))
+        channel.setOption(StandardSocketOptions.TCP_NODELAY, Boolean.box(true))
+        channel
+      }
+      _ <- completeWith[Void](channel)(channel.connect(address, null, _))
+    } yield channel).refineToOrDie[IOException]
 
   def completeWith[A](
     channel: Channel

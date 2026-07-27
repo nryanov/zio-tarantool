@@ -64,7 +64,9 @@ object TarantoolClient {
       requestHandler <- RequestHandler.make()
       connection <- TarantoolConnection.make(config, syncIdProvider, requestHandler)
       schemaMetaManager <- SchemaMetaManager.make(config, connection, syncIdProvider)
-      _ <- ResponseHandler.make(connection, requestHandler)
+      _ <- connection.setAfterReconnect(
+        ZIO.when(config.clientConfig.useSchemaMetaCache)(schemaMetaManager.refresh).ignore
+      )
       // fetch actual meta on start
       _ <- ZIO.when(config.clientConfig.useSchemaMetaCache)(schemaMetaManager.refresh)
     } yield new Live(schemaMetaManager, connection, syncIdProvider)

@@ -15,7 +15,11 @@ final case class ConnectionConfig(
 final case class ClientConfig(
   schemaRequestTimeoutMillis: Int = 10000,
   requestQueueSize: Int = 64,
-  useSchemaMetaCache: Boolean = true
+  useSchemaMetaCache: Boolean = true,
+  reconnectEnabled: Boolean = true,
+  reconnectRetries: Int = 3,
+  reconnectIntervalMillis: Int = 1000,
+  reconnectWaitTimeoutMillis: Int = 10000
 )
 
 final case class TarantoolConfig(

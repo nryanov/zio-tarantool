@@ -161,7 +161,7 @@ private[tarantool] object SchemaMetaManager {
       _ <- spaceMetaMap.set(mappedSpaceMeta)
     } yield ()
 
-    // implicit dependency on ResponseHandler
+    // depends on TarantoolConnection reader completing RequestHandler promises
     private def selectMeta(
       spaceId: Int,
       indexId: Int

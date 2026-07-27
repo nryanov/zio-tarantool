@@ -74,9 +74,15 @@ More examples can be found in the [examples](examples/) folder.
     - `requestQueueSize` -- internal queue size for sent requests (default: 64).
     - `useSchemaMetaCache` -- fetched space and index info will be saved in in-memory cache (default: true) .
     - `schemaRequestTimeoutMillis` -- maximum number of milliseconds to wait before giving up to fetch space and index info (default: 10000).
+    - `reconnectEnabled` -- automatically reconnect after a dropped TCP connection (default: true).
+    - `reconnectRetries` -- maximum reconnect attempts after disconnect; `0` fails permanently immediately (default: 3).
+    - `reconnectIntervalMillis` -- delay between reconnect attempts (default: 1000).
+    - `reconnectWaitTimeoutMillis` -- how long new requests wait while reconnecting (default: 10000).
 - `AuthInfo` (Without AuthInfo `guest` user will be used)
     - `username` -- username to log into tarantool.
     - `password` -- password to log into tarantool.
+
+When the connection drops, in-flight requests fail with `TarantoolError.ConnectionLost` (they are **not** retried). New requests wait for reconnect (up to `reconnectWaitTimeoutMillis`). After the reconnect budget is exhausted, the client stays open but sends fail with `TarantoolError.ReconnectFailed` until you recreate the layer. Idempotent operations should be retried by the caller.
 
 In the most cases defaults should be ok, and you can use simplified constructors which require only host, port and optionally auth info:
 ```scala
