@@ -97,7 +97,6 @@ lazy val noPublish = Seq(
 )
 
 lazy val buildSettings = Seq(
-  sonatypeProfileName := "com.nryanov",
   organization := "com.nryanov.zio-tarantool",
   homepage := Some(url("https://github.com/nryanov/zio-tarantool")),
   licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
