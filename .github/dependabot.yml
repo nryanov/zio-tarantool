@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: sbt
+    directory: /
+    schedule:
+      interval: cron
+      cronjob: "0 6 * * 1"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "dependabot"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: cron
+      cronjob: "0 6 * * 1"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "dependabot"
