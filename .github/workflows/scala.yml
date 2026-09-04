@@ -23,7 +23,7 @@ jobs:
         scala: [ 3.3.6 ]
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Java and Scala
         uses: olafurpg/setup-scala@v14
@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Java and Scala
         uses: olafurpg/setup-scala@v14
