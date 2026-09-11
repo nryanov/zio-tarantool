@@ -3,7 +3,7 @@ val shapelessVersion = "2.3.12"
 val shapeless3Version = "3.6.0"
 val msgpackVersion = "0.9.8"
 val testContainersVersion = "0.44.1"
-val logbackVersion = "1.5.18"
+val logbackVersion = "1.6.1"
 
 val scala2_12 = "2.12.20"
 val scala2_13 = "2.13.18"
